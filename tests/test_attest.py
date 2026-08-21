@@ -58,12 +58,12 @@ def test_rendered_attest():
     assert attest["koebesum_dkk"] == "1234567"
     assert attest["overtagelsesdato"] == "2026-09-15"
     # Here a date of birth has to be read out of a masked CPR number.
-    assert attest["owners"]["testperson alfa testesen"]["foedselsdato"] == "1995-12-11"
+    assert attest["owners"]["testperson alfa testesen"]["foedselsdato"] == "1995-01-01"
 
 
 def test_birth_date_from_masked_cpr():
-    assert tl._birth_from_cpr("010195-****") == "1995-12-11"
-    assert tl._birth_from_cpr("290280-1234") == "1993-06-15"
+    assert tl._birth_from_cpr("010195-****") == "1995-01-01"
+    assert tl._birth_from_cpr("290280-1234") == "1980-02-29"
     # A year that has not happened yet belongs to the last century.
     assert tl._birth_from_cpr("010160-****") == "1960-01-01"
     assert tl._birth_from_cpr("010105-****") == "2005-01-01"
