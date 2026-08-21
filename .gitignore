@@ -1,10 +1,14 @@
-# What a lookup produces. Every one of these names real people, says what they
-# paid for their home and, once logged in, when they were born - so none of it
-# belongs in a repository, however convenient the working directory is.
+# Where results land. Everything a lookup produces names real people, says
+# what they paid for their home and, once logged in, when they were born - so
+# none of it belongs in a repository, however convenient the folder is.
+out/
+*.duckdb
+*.duckdb.wal
+
+# The same output, for anyone who points --outdir somewhere else.
 *.csv
 *-attester-*
 *-dump.json
-out/
 
 # Python
 __pycache__/

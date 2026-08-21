@@ -14,6 +14,10 @@ owner's date of birth and the chain of previous owners to the same CSVs:
     uv run tinglysning_dl.py --login --user YourMitIDUserID
     uv run tinglysning_dl.py "Prøvegade 1, 9999 Prøveby"
 
+Results accumulate in out/tinglysning.duckdb, one row per property, replaced
+in place when an address is looked up again. Pass --format csv for a set of
+spreadsheets instead, or --format both.
+
 Note this tells you who *owns* a property, not who lives there. Resident data
 (CPR/folkeregisteret) is not public in Denmark, with or without a login.
 """
@@ -38,7 +42,15 @@ import requests
 
 import console
 import mitid
+import store
 import tinglysning_auth
+
+# Results land here by default rather than in the working directory: they name
+# real people, say what they paid for their homes and, once logged in, when
+# they were born. One git-ignored folder is easier to keep track of than a
+# scatter of files across the repository.
+OUTDIR = "out"
+DATABASE = "tinglysning.duckdb"
 
 BASE = "https://www.tinglysning.dk"
 UNSEC = f"{BASE}/tinglysning/unsecrest"
@@ -800,6 +812,31 @@ def property_row(record: dict, uuid: str, parcel: dict, attest: dict | None = No
     return row
 
 
+def owner_rows(record: dict, uuid: str, attest: dict | None = None) -> list[dict]:
+    """The same owners the CSV widens across a row, as one row each.
+
+    A spreadsheet is happier with ejer_1, ejer_2 columns; a database is happier
+    with a table it can join and count. Same data, and this is the shape that
+    does not change width when a building turns out to have five co-owners.
+    """
+    identities = (attest or {}).get("owners") or {}
+    rows = []
+    for number, ejer in enumerate(record.get("ejere") or [], start=1):
+        name = ejer.get("navn", "")
+        identity = identities.get(_normalise(name), {})
+        rows.append(
+            {
+                "ejendom_uuid": uuid,
+                "nummer": number,
+                "navn": name,
+                "foedselsdato": identity.get("foedselsdato", ""),
+                "cvr": identity.get("cvr", ""),
+                "andel": ejer.get("andel", ""),
+            }
+        )
+    return rows
+
+
 def property_fields(max_owners: int, *, with_attest: bool = False) -> list[str]:
     """Column order, widened to however many co-owners the run actually found.
 
@@ -1050,7 +1087,21 @@ def main() -> None:
         "address", nargs="?", help='e.g. "Prøvegade 1, 9999 Prøveby"'
     )
     parser.add_argument("--out", help="explicit CSV path (default: named after the address)")
-    parser.add_argument("--outdir", default=".", help="directory for the generated CSVs")
+    parser.add_argument(
+        "--outdir",
+        default=OUTDIR,
+        help=f"where results go (default: {OUTDIR}/, which is git-ignored)",
+    )
+    parser.add_argument(
+        "--format",
+        choices=("duckdb", "csv", "both"),
+        default="duckdb",
+        help="write a database (default), CSVs, or both",
+    )
+    parser.add_argument(
+        "--db",
+        help=f"database path (default: <outdir>/{DATABASE})",
+    )
     parser.add_argument(
         "--limit", type=int, default=25, help="max properties to fetch (0 = no limit)"
     )
@@ -1177,6 +1228,7 @@ def main() -> None:
     # that dies halfway cannot change the shape of the CSV mid-write.
     enriched = api.authenticated
     properties, haeftelser, servitutter, historik, attester = [], [], [], [], []
+    ejere: list[dict] = []
     parcels: dict = {}
     for index, unit in enumerate(units, start=1):
         if index > 1:
@@ -1198,15 +1250,22 @@ def main() -> None:
         parcel = fetch_parcel(
             matrikel.get("landsejerlavkode", ""), matrikel.get("matrikelnummer", ""), parcels
         )
-        properties.append(
-            property_row(record, unit["uuid"], parcel, attest_details(details))
-        )
+        attest = attest_details(details)
+        properties.append(property_row(record, unit["uuid"], parcel, attest))
+        ejere.extend(owner_rows(record, unit["uuid"], attest))
         haeftelser.extend(haeftelse_rows(record, unit["uuid"]))
         servitutter.extend(servitut_rows(record, unit["uuid"]))
         historik.extend(history_rows(history, unit["uuid"], record.get("adresse", "")))
         suffix, document = attest_document(details)
         if document:
-            attester.append((record.get("adresse", ""), suffix, document))
+            attester.append(
+                {
+                    "ejendom_uuid": unit["uuid"],
+                    "adresse": record.get("adresse", ""),
+                    "format": suffix,
+                    "dokument": document,
+                }
+            )
         print(f"  [{index}/{len(units)}] {unit.get('adresse', '')}", file=sys.stderr)
 
     # Name the files after what was actually fetched. If the requested flat had
@@ -1222,27 +1281,46 @@ def main() -> None:
     max_owners = max(
         (sum(1 for key in row if key.endswith("_navn")) for row in properties), default=1
     )
-    outputs = [
-        ("", property_fields(max_owners, with_attest=enriched), properties),
-        ("-haeftelser", HAEFTELSE_FIELDS, haeftelser),
-        ("-servitutter", SERVITUT_FIELDS, servitutter),
-        ("-adkomsthistorik", HISTORIK_FIELDS, historik),
-    ]
-    for suffix, fields, rows in outputs:
-        path, count = _write_csv(f"{stem}{suffix}{stamped}.csv", fields, rows)
-        if count:
-            print(f"wrote {count:>4} row(s) to {path}", file=sys.stderr)
+    if args.format in ("duckdb", "both"):
+        database = args.db or Path(args.outdir) / DATABASE
+        written = store.save(
+            database,
+            {
+                "ejendomme": properties,
+                "ejere": ejere,
+                "haeftelser": haeftelser,
+                "servitutter": servitutter,
+                "adkomsthistorik": historik,
+                "attester": attester,
+            },
+        )
+        counts = ", ".join(
+            f"{count} {name}" for name, count in written.items() if count
+        )
+        print(f"wrote {counts} to {database}", file=sys.stderr)
 
-    if attester:
-        # One file each: these are whole documents, and concatenating XML
-        # produces something no parser will read back.
-        folder = Path(f"{stem}-attester{stamped}")
-        folder.mkdir(parents=True, exist_ok=True)
-        for adresse, suffix, document in attester:
-            (folder / f"{slugify(adresse)}.{suffix}").write_text(
-                document, encoding="utf-8"
-            )
-        print(f"wrote {len(attester):>4} attest(er) to {folder}/", file=sys.stderr)
+    if args.format in ("csv", "both"):
+        outputs = [
+            ("", property_fields(max_owners, with_attest=enriched), properties),
+            ("-haeftelser", HAEFTELSE_FIELDS, haeftelser),
+            ("-servitutter", SERVITUT_FIELDS, servitutter),
+            ("-adkomsthistorik", HISTORIK_FIELDS, historik),
+        ]
+        for suffix, fields, rows in outputs:
+            path, count = _write_csv(f"{stem}{suffix}{stamped}.csv", fields, rows)
+            if count:
+                print(f"wrote {count:>4} row(s) to {path}", file=sys.stderr)
+
+        if attester:
+            # One file each: these are whole documents, and concatenated XML is
+            # something no parser will read back. In the database they are a
+            # column instead, so this is the CSV side only.
+            folder = Path(f"{stem}-attester{stamped}")
+            folder.mkdir(parents=True, exist_ok=True)
+            for attest in attester:
+                name = f"{slugify(attest['adresse'])}.{attest['format']}"
+                (folder / name).write_text(attest["dokument"], encoding="utf-8")
+            print(f"wrote {len(attester):>4} attest(er) to {folder}/", file=sys.stderr)
 
     # Last of all, so everything is safely written before we sit and wait.
     if args.keepalive and session is not None:
