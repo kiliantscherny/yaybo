@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- A cut-down stand-in for what rest/ejdsummarisk answers with: the same
+     element paths and namespaces as the real thing, with invented people. -->
+<EjendomSummariskHentResultat
+    xmlns="http://rep.oio.dk/tinglysning.dk/service/message/elektroniskakt/1/"
+    xmlns:ns="http://rep.oio.dk/tinglysning.dk/schema/elektroniskakt/1/">
+  <EjendomSummarisk>
+    <EjendomStamoplysninger>
+      <EjendomIdentifikator>
+        <BestemtFastEjendomNummer>100001</BestemtFastEjendomNummer>
+        <EjendomType>
+          <Ejerlejlighed>
+            <Ejerlejlighedsnummer>101</Ejerlejlighedsnummer>
+          </Ejerlejlighed>
+        </EjendomType>
+      </EjendomIdentifikator>
+      <Fordelingtal>
+        <Taeller>33</Taeller>
+        <Naevner>9231</Naevner>
+      </Fordelingtal>
+      <TillaegstekstSamling>
+        <TekstAngivelse>
+          <TekstGruppe>
+            <Overskrift>Ejerlejlighedens dato</Overskrift>
+            <Afsnit>1977-11-11</Afsnit>
+          </TekstGruppe>
+          <TekstGruppe>
+            <Overskrift>Ejerlejlighedens tinglyste areal</Overskrift>
+            <Afsnit>33 kvm</Afsnit>
+          </TekstGruppe>
+        </TekstAngivelse>
+      </TillaegstekstSamling>
+    </EjendomStamoplysninger>
+    <AdkomstSummariskSamling>
+      <AdkomstSummarisk>
+        <DokumentAlias>
+          <DokumentAliasIdentifikator>20140630-1005446835</DokumentAliasIdentifikator>
+        </DokumentAlias>
+        <AdkomstType>skoede</AdkomstType>
+        <AdkomsthaverSamling>
+          <Adkomsthaver>
+            <PersonSimpelIdentifikator>
+              <PersonName>Testperson Alfa Testesen</PersonName>
+              <BirthDate>1957-10-02</BirthDate>
+            </PersonSimpelIdentifikator>
+            <AndelIdeel><Taeller>1</Taeller><Naevner>2</Naevner></AndelIdeel>
+          </Adkomsthaver>
+          <Adkomsthaver>
+            <PersonSimpelIdentifikator>
+              <PersonName>Testperson Beta Testesen</PersonName>
+              <BirthDate>1951-10-30</BirthDate>
+            </PersonSimpelIdentifikator>
+            <AndelIdeel><Taeller>1</Taeller><Naevner>2</Naevner></AndelIdeel>
+          </Adkomsthaver>
+          <Adkomsthaver>
+            <VirksomhedSimpelIdentifikator>
+              <LegalUnitName>PRØVEHOLDING ApS</LegalUnitName>
+              <CVRnumberIdentifier>12345678</CVRnumberIdentifier>
+            </VirksomhedSimpelIdentifikator>
+          </Adkomsthaver>
+        </AdkomsthaverSamling>
+        <ValutaKode>DKK</ValutaKode>
+        <SkoedeOvertagelsesDato>2014-07-01+02:00</SkoedeOvertagelsesDato>
+        <SkoedeKoebesum>
+          <KontantKoebesum>850000</KontantKoebesum>
+          <IAltKoebesum>875000</IAltKoebesum>
+        </SkoedeKoebesum>
+      </AdkomstSummarisk>
+    </AdkomstSummariskSamling>
+  </EjendomSummarisk>
+</EjendomSummariskHentResultat>

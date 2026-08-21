@@ -1,0 +1,11 @@
+# What a lookup produces. Every one of these names real people, says what they
+# paid for their home and, once logged in, when they were born - so none of it
+# belongs in a repository, however convenient the working directory is.
+*.csv
+*-attester-*
+*-dump.json
+out/
+
+# Python
+__pycache__/
+.venv/

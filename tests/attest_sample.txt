@@ -1,0 +1,79 @@
+Tingbogsattest
+Udskrevet:
+01.02.2026 09:00:00
+Ejendom:
+Adresse:
+Prøvegade 1, 3. 12.
+9999 Prøvekøbing
+Ejerlejlighedens dato:
+05.05.1975
+Ejerlejlighedens areal:
+55 kvm
+BFE-nummer:
+100001
+Ejendomstype:
+Ejerlejlighed
+Nummer:
+130
+Fordelingstal:
+1/300
+Dato:
+05.05.1975
+Landsejerlav:
+Prøvelav, Prøvekøbing
+Matrikelnummer:
+1608
+Areal:
+4200 m2
+Heraf vej:
+0 m2
+Adkomster
+Dokument:
+Dokumenttype:
+Skøde
+Dato/løbenummer:
+11.08.2026-1000000004
+Adkomsthavere:
+Navn:
+Testperson Alfa Testesen
+Cpr-nr.:
+010195-****
+Ejerandel:
+1 / 1
+Købesum:
+Kontant købesum:
+1.234.567 DKK
+Købesum i alt:
+1.234.567 DKK
+Dato for overtagelse:
+01.03.2024
+Anmærkninger:
+Dato/løbenummer:
+03.01.2025-1000000002
+Prioritet:
+20
+Dokumenttype:
+Realkreditpantebrev
+Hovedstol:
+2.115.000 DKK
+Rentesats:
+2,74 %
+Kreditor:
+PRØVEKREDIT A/S
+Hæftelser
+Dokument:
+Dato/løbenummer:
+24.05.1983-10001-01
+Prioritet:
+18
+Dokumenttype:
+Ejerpantebrev
+Hovedstol:
+26.000 DKK
+Rente:
+10
+Kreditorer:
+Navn:
+Testperson Beta Testesen
+Cpr-nr.:
+290280-****
