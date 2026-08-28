@@ -55,6 +55,26 @@ TABLES = {
             ("grund_areal_m2", INTEGER),
             ("antal_haeftelser", INTEGER),
             ("antal_servitutter", INTEGER),
+            # DAWA's address UUID, which is also Boligsiden's key.
+            ("adresse_uuid", TEXT),
+            ("boligtype", TEXT),
+            # Not the same measure as the register's "tinglyste areal": this is
+            # the BBR living area, which is what a listing quotes.
+            ("boligareal_m2", INTEGER),
+            ("boligsiden_vurdering_dkk", INTEGER),
+            ("til_salg", BOOLEAN),
+            ("boligsiden_url", TEXT),
+            ("breddegrad", DECIMAL),
+            ("laengdegrad", DECIMAL),
+            ("seneste_salg_dato", DATE),
+            ("seneste_salg_dkk", INTEGER),
+            ("seneste_salg_pris_m2", INTEGER),
+            # Worked out from the rows above rather than fetched. The public
+            # valuation is the base, and it runs well below market, so treat
+            # frivaerdi as a floor and belaaningsgrad as a ceiling.
+            ("samlet_gaeld_dkk", INTEGER),
+            ("frivaerdi_dkk", INTEGER),
+            ("belaaningsgrad_pct", DECIMAL),
         ],
     },
     "ejere": {
@@ -105,6 +125,13 @@ TABLES = {
             ("antal_respekt", INTEGER),
             ("antal_underpant", INTEGER),
             ("tekst", TEXT),
+            # Estimated, not recorded: the register gives a rate and never the
+            # product. See laantype.py for how far that can be trusted.
+            ("laantype_estimat", TEXT),
+            ("laantype_afstand", DECIMAL),
+            ("laantype_alternativ", TEXT),
+            ("laantype_afgjort_af", TEXT),
+            ("laantype_kilde", TEXT),
         ],
     },
     "servitutter": {
@@ -165,6 +192,54 @@ TABLES = {
             ("valuta", TEXT),
             ("prioritet", INTEGER),
             ("panthavere", TEXT),
+        ],
+    },
+    # Every recorded sale of the address, from Boligsiden. This overlaps
+    # adkomsthistorik and does not replace it: the register knows transfers
+    # that were never a sale, and Boligsiden knows the area and the price per
+    # square metre, which the register does not record.
+    "handelshistorik": {
+        "key": "ejendom_uuid",
+        "columns": [
+            ("ejendom_uuid", TEXT),
+            ("adresse", TEXT),
+            ("dato", DATE),
+            ("beloeb_dkk", INTEGER),
+            ("areal_m2", INTEGER),
+            ("pris_pr_m2", INTEGER),
+            ("handelstype", TEXT),
+            ("handelstype_kode", TEXT),
+            ("registrering_id", TEXT),
+        ],
+    },
+    # The BBR record for the building the property sits in: what it is made
+    # of, when it went up, and how it is heated. The land register says none
+    # of this.
+    "bygninger": {
+        "key": "ejendom_uuid",
+        "columns": [
+            ("ejendom_uuid", TEXT),
+            ("adresse", TEXT),
+            ("bygning_nr", TEXT),
+            ("bygningstype", TEXT),
+            ("opfoerelsesaar", INTEGER),
+            ("ombygningsaar", INTEGER),
+            ("etager", INTEGER),
+            ("vaerelser", INTEGER),
+            ("badevaerelser", INTEGER),
+            ("toiletter", INTEGER),
+            ("boligareal_m2", INTEGER),
+            ("kaelderareal_m2", INTEGER),
+            ("erhvervsareal_m2", INTEGER),
+            ("andet_areal_m2", INTEGER),
+            ("samlet_areal_m2", INTEGER),
+            ("ydervaeg", TEXT),
+            ("tagdaekning", TEXT),
+            ("varmeinstallation", TEXT),
+            ("supplerende_varme", TEXT),
+            ("koekken", TEXT),
+            ("badeforhold", TEXT),
+            ("toiletforhold", TEXT),
         ],
     },
     "adkomsthistorik": {

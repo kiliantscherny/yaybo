@@ -18,18 +18,32 @@ Results accumulate in out/tinglysning.duckdb, replaced in place when an
 address is looked up again. Pass --format csv for a set of spreadsheets
 instead, or --format both.
 
-    ejendomme               one row per property
+    ejendomme               one row per property, with what it is worth, what
+                            is charged against it and what is left over
     ejere                   its owners today
     haeftelser              mortgages and charges, with their interest terms
+                            and an estimate of which loan product they are
     servitutter             easements, and what each one is about
     dokument_parter         everyone named on any of those documents, with
                             their date of birth or CVR number and their role
     underpant               deeds pledged on in their own right
+    handelshistorik         every recorded sale, with the price per m2
+    bygninger               the BBR record: year built, rooms, heating, walls
     adkomsthistorik         every past transfer, with what was paid
     adkomsthistorik_ejere   the people named in each of those transfers
     attester                the whole register document, as queryable JSON
 
-The last six need a login; the public lookup has no counterpart for them.
+Three of those need a login - the register only shows its own documents to
+someone who has proved who they are. Two more come from outside it entirely,
+and need none:
+
+    Boligsiden      what the place last sold for and what BBR says it is
+                    (api.boligsiden.dk, keyed on DAWA's address UUID)
+    Danmarks        the average coupon on each kind of realkredit loan, month
+    Statistik       by month, which is what lets a charge's bare interest rate
+                    be read as an F3 or a fixed loan (table DNRNURI)
+
+Pass --no-boligsiden or --no-laantype to leave either of them alone.
 
 Note this tells you who *owns* a property, not who lives there. Resident data
 (CPR/folkeregisteret) is not public in Denmark, with or without a login.
@@ -52,9 +66,11 @@ from pathlib import Path
 import requests
 
 import attest_xml
+import boligsiden
 import console
 import fields
 import historik
+import laantype
 import mitid
 import store
 import tinglysning_auth
@@ -751,7 +767,9 @@ def owner_rows(record: dict, uuid: str, attest: dict | None = None) -> list[dict
     return rows
 
 
-def property_fields(max_owners: int, *, with_attest: bool = False) -> list[str]:
+def property_fields(
+    max_owners: int, *, with_attest: bool = False, with_bolig: bool = False
+) -> list[str]:
     """Column order, widened to however many co-owners the run actually found.
 
     Leads with the columns the register's own attest leads with, and keeps the
@@ -797,8 +815,145 @@ def property_fields(max_owners: int, *, with_attest: bool = False) -> list[str]:
         "kommune",
         "antal_haeftelser",
         "antal_servitutter",
+        *(BOLIG_FIELDS if with_bolig else []),
         "uuid",
     ]
+
+
+# What Boligsiden adds to a property row, plus the three worked out from it
+# and the charges. Kept together so the CSV and the database agree on them.
+BOLIG_FIELDS = [
+    "boligtype", "boligareal_m2", "boligsiden_vurdering_dkk", "til_salg",
+    "seneste_salg_dato", "seneste_salg_dkk", "seneste_salg_pris_m2",
+    "samlet_gaeld_dkk", "frivaerdi_dkk", "belaaningsgrad_pct",
+    "breddegrad", "laengdegrad", "boligsiden_url", "adresse_uuid",
+]
+HANDEL_FIELDS = [
+    "adresse", "dato", "beloeb_dkk", "areal_m2", "pris_pr_m2", "handelstype",
+    "handelstype_kode", "registrering_id", "ejendom_uuid",
+]
+BYGNING_FIELDS = [
+    "adresse", "bygning_nr", "bygningstype", "opfoerelsesaar", "ombygningsaar",
+    "etager", "vaerelser", "badevaerelser", "toiletter", "boligareal_m2",
+    "kaelderareal_m2", "erhvervsareal_m2", "andet_areal_m2", "samlet_areal_m2",
+    "ydervaeg", "tagdaekning", "varmeinstallation", "supplerende_varme",
+    "koekken", "badeforhold", "toiletforhold", "ejendom_uuid",
+]
+
+
+def dawa_addresses(address: dict) -> dict[tuple[str, str], str]:
+    """Every address at this house number, as (etage, doer) -> DAWA uuid.
+
+    One request for the whole building rather than one per flat: the register
+    is searched at building level too, so both sides of the join are gathered
+    the same way and a block of sixty flats costs a single call.
+
+    The UUID is what Boligsiden keys on, which is the only reason it is wanted.
+    """
+    try:
+        found = requests.get(
+            f"{DAWA}/adresser",
+            params={
+                "vejnavn": address["vejnavn"],
+                "husnr": address.get("husnummer", ""),
+                "postnr": address["postnummer"],
+            },
+            timeout=30,
+        ).json()
+    except (requests.RequestException, ValueError):
+        return {}
+    if not isinstance(found, list):
+        return {}
+    return {
+        ((entry.get("etage") or "").lower(), (entry.get("dør") or "").lower()): entry["id"]
+        for entry in found
+        if entry.get("id")
+    }
+
+
+def address_parts(adresse: str) -> dict:
+    """Pull vejnavn, husnummer and postnummer back out of a formatted address.
+
+    The reverse of how the address was assembled. Needed when the only record
+    of a property is the string already stored against it, which is the case
+    when enriching a database rather than fetching one.
+    """
+    head, postnr = _split_postcode(adresse)
+    street = head.split(",")[0].strip()
+    vejnavn, _, husnr = street.rpartition(" ")
+    return {"vejnavn": vejnavn or street, "husnummer": husnr if vejnavn else "",
+            "postnummer": postnr}
+
+
+def _floor_and_door(adresse: str) -> tuple[str, str]:
+    """Split "Prøvegade 1, 4. 413, 9999 By" down to ("4", "413")."""
+    label = _unit_label(adresse)
+    if not label:
+        return "", ""
+    etage, _, doer = label.partition(".")
+    return etage.strip().lower(), doer.strip().lower()
+
+
+def bolig_row(bolig: dict) -> dict:
+    """The Boligsiden fields that belong on the property's own row."""
+    if not bolig:
+        return {}
+    latest = (bolig.get("salg") or [{}])[0]
+    return {
+        "adresse_uuid": bolig.get("adresse_uuid", ""),
+        "boligtype": bolig.get("boligtype") or "",
+        "boligareal_m2": bolig.get("boligareal_m2"),
+        "boligsiden_vurdering_dkk": bolig.get("boligsiden_vurdering_dkk"),
+        "til_salg": bolig.get("til_salg", ""),
+        "boligsiden_url": bolig.get("boligsiden_url", ""),
+        "breddegrad": bolig.get("breddegrad"),
+        "laengdegrad": bolig.get("laengdegrad"),
+        "seneste_salg_dato": latest.get("dato", ""),
+        "seneste_salg_dkk": latest.get("beloeb_dkk"),
+        "seneste_salg_pris_m2": latest.get("pris_pr_m2"),
+    }
+
+
+def handel_rows(bolig: dict, uuid: str, adresse: str) -> list[dict]:
+    """Every recorded sale of the address, one row each."""
+    return [
+        {"ejendom_uuid": uuid, "adresse": adresse, **sale}
+        for sale in (bolig or {}).get("salg") or []
+    ]
+
+
+def bygning_rows(bolig: dict, uuid: str, adresse: str) -> list[dict]:
+    """The BBR record for the building, one row per building."""
+    return [
+        {"ejendom_uuid": uuid, "adresse": adresse, **building}
+        for building in (bolig or {}).get("bygninger") or []
+    ]
+
+
+def add_financials(properties: list[dict], charges: list[dict]) -> None:
+    """Total what is charged against each property, and what is left over.
+
+    Against the public valuation, which runs well below what a place would
+    fetch, so the equity is a floor and the loan-to-value a ceiling. Both are
+    left empty when there is no valuation to divide by rather than being
+    quietly computed against zero.
+    """
+    debt: dict[str, int] = {}
+    for charge in charges:
+        amount = charge.get("hovedstol_dkk")
+        if amount not in (None, ""):
+            debt[charge["ejendom_uuid"]] = debt.get(charge["ejendom_uuid"], 0) + int(amount)
+
+    for row in properties:
+        owed = debt.get(row.get("uuid", ""), 0)
+        row["samlet_gaeld_dkk"] = owed
+        try:
+            valuation = int(float(row.get("ejendomsvurdering_dkk") or 0))
+        except (TypeError, ValueError):
+            valuation = 0
+        if valuation > 0:
+            row["frivaerdi_dkk"] = valuation - owed
+            row["belaaningsgrad_pct"] = round(100 * owed / valuation, 1)
 
 
 # Column names follow the labels the website shows, not the API's internal
@@ -813,6 +968,8 @@ HAEFTELSE_FIELDS = [
     "saerlige_vilkaar", "kreditorbetegnelse", "kreditorer", "tinglysningsdato",
     "senest_paategnet", "overfoert", "konverteret_pantebrev", "afgift_dkk",
     "afgift_overfoert", "antal_respekt", "antal_underpant", "tekst",
+    "laantype_estimat", "laantype_afstand", "laantype_alternativ",
+    "laantype_afgjort_af", "laantype_kilde",
     "rettighed_uuid", "dokument_version", "dokument_uuid", "ejendom_uuid",
 ]
 SERVITUT_FIELDS = [
@@ -1153,6 +1310,16 @@ def main() -> None:
         action="store_true",
         help="skip DAWA address cleaning and use tinglysning's own autocomplete",
     )
+    parser.add_argument(
+        "--no-boligsiden",
+        action="store_true",
+        help="skip Boligsiden: no sale prices, no BBR building data, no equity",
+    )
+    parser.add_argument(
+        "--no-laantype",
+        action="store_true",
+        help="skip estimating each realkredit charge's loan type from DST rates",
+    )
 
     login = parser.add_argument_group(
         "MitID login",
@@ -1273,6 +1440,11 @@ def main() -> None:
     historik_ejere: list[dict] = []
     parter: list[dict] = []
     underpant: list[dict] = []
+    handler: list[dict] = []
+    bygninger: list[dict] = []
+    # One request gives every flat in the building its DAWA uuid, which is the
+    # key Boligsiden answers to. Without it there is nothing to ask about.
+    addresses = {} if args.no_boligsiden else dawa_addresses(address)
     parcels: dict = {}
     for index, unit in enumerate(units, start=1):
         if index > 1:
@@ -1299,7 +1471,16 @@ def main() -> None:
         # row wants, `parsed` is the whole of it, which the charge tables and
         # everyone named on them are built from.
         parsed = attest_xml.parse(details["_raw"]) if details and "_raw" in details else {}
-        properties.append(property_row(record, unit["uuid"], parcel, attest))
+        adresse = record.get("adresse", "")
+        bolig = {}
+        if addresses:
+            found = addresses.get(_floor_and_door(adresse))
+            if found:
+                bolig = boligsiden.fetch(found)
+                handler.extend(handel_rows(bolig, unit["uuid"], adresse))
+                bygninger.extend(bygning_rows(bolig, unit["uuid"], adresse))
+        properties.append({**property_row(record, unit["uuid"], parcel, attest),
+                           **bolig_row(bolig)})
         ejere.extend(owner_rows(record, unit["uuid"], attest))
         haeftelser.extend(haeftelse_rows(record, unit["uuid"], parsed))
         servitutter.extend(servitut_rows(record, unit["uuid"], parsed))
@@ -1320,6 +1501,12 @@ def main() -> None:
                 }
             )
         print(f"  [{index}/{len(units)}] {unit.get('adresse', '')}", file=sys.stderr)
+
+    if not args.no_laantype:
+        named = laantype.annotate(haeftelser)
+        if named:
+            print(f"named the loan type on {named} realkredit charge(s)", file=sys.stderr)
+    add_financials(properties, haeftelser)
 
     # Name the files after what was actually fetched. If the requested flat had
     # no separate entry we fell back to the whole building, so the flat must not
@@ -1343,6 +1530,8 @@ def main() -> None:
                 "ejere": ejere,
                 "haeftelser": haeftelser,
                 "servitutter": servitutter,
+                "handelshistorik": handler,
+                "bygninger": bygninger,
                 "adkomsthistorik": historik,
                 "adkomsthistorik_ejere": historik_ejere,
                 "dokument_parter": parter,
@@ -1357,9 +1546,12 @@ def main() -> None:
 
     if args.format in ("csv", "both"):
         outputs = [
-            ("", property_fields(max_owners, with_attest=enriched), properties),
+            ("", property_fields(max_owners, with_attest=enriched,
+                                 with_bolig=bool(addresses)), properties),
             ("-haeftelser", HAEFTELSE_FIELDS, haeftelser),
             ("-servitutter", SERVITUT_FIELDS, servitutter),
+            ("-handelshistorik", HANDEL_FIELDS, handler),
+            ("-bygninger", BYGNING_FIELDS, bygninger),
             ("-adkomsthistorik", HISTORIK_FIELDS, historik),
             ("-adkomsthistorik-ejere", HISTORIK_EJER_FIELDS, historik_ejere),
             ("-parter", PART_FIELDS, parter),
