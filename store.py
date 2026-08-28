@@ -271,6 +271,21 @@ TABLES = {
             ("note", TEXT),
         ],
     },
+    # What each kind of realkredit loan cost, month by month, straight from
+    # Danmarks Statistik's DNRNURI. Not about any one property: it is the
+    # series the laantype_estimat column was read against, kept so an estimate
+    # can be checked rather than taken on trust.
+    "rentestatistik": {
+        "key": "maaned",
+        "columns": [
+            ("maaned", TEXT),
+            ("rentfix_kode", TEXT),
+            ("laantype", TEXT),
+            ("effektiv_rente_pct", DECIMAL),
+            ("bidrag_pct", DECIMAL),
+            ("kupon_pct", DECIMAL),
+        ],
+    },
     "attester": {
         "key": "ejendom_uuid",
         "columns": [

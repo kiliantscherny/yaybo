@@ -828,6 +828,10 @@ BOLIG_FIELDS = [
     "samlet_gaeld_dkk", "frivaerdi_dkk", "belaaningsgrad_pct",
     "breddegrad", "laengdegrad", "boligsiden_url", "adresse_uuid",
 ]
+RENTE_FIELDS = [
+    "maaned", "laantype", "rentfix_kode", "effektiv_rente_pct", "bidrag_pct",
+    "kupon_pct",
+]
 HANDEL_FIELDS = [
     "adresse", "dato", "beloeb_dkk", "areal_m2", "pris_pr_m2", "handelstype",
     "handelstype_kode", "registrering_id", "ejendom_uuid",
@@ -1502,10 +1506,13 @@ def main() -> None:
             )
         print(f"  [{index}/{len(units)}] {unit.get('adresse', '')}", file=sys.stderr)
 
+    renter: list[dict] = []
     if not args.no_laantype:
-        named = laantype.annotate(haeftelser)
-        if named:
-            print(f"named the loan type on {named} realkredit charge(s)", file=sys.stderr)
+        estimated = laantype.annotate(haeftelser)
+        renter = laantype.rate_rows(estimated["renter"])
+        if estimated["named"]:
+            print(f"named the loan type on {estimated['named']} realkredit charge(s)",
+                  file=sys.stderr)
     add_financials(properties, haeftelser)
 
     # Name the files after what was actually fetched. If the requested flat had
@@ -1531,6 +1538,7 @@ def main() -> None:
                 "haeftelser": haeftelser,
                 "servitutter": servitutter,
                 "handelshistorik": handler,
+                "rentestatistik": renter,
                 "bygninger": bygninger,
                 "adkomsthistorik": historik,
                 "adkomsthistorik_ejere": historik_ejere,
@@ -1551,6 +1559,7 @@ def main() -> None:
             ("-haeftelser", HAEFTELSE_FIELDS, haeftelser),
             ("-servitutter", SERVITUT_FIELDS, servitutter),
             ("-handelshistorik", HANDEL_FIELDS, handler),
+            ("-rentestatistik", RENTE_FIELDS, renter),
             ("-bygninger", BYGNING_FIELDS, bygninger),
             ("-adkomsthistorik", HISTORIK_FIELDS, historik),
             ("-adkomsthistorik-ejere", HISTORIK_EJER_FIELDS, historik_ejere),

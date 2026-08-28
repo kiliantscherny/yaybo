@@ -133,7 +133,28 @@ def test_jsonstat_is_read_by_name_not_by_position():
     that dimension happens to have one member."""
     # Effective rates for the five types, then the five bidrag. coupon = eff - bidrag.
     table = laantype._read(_dst([4.0, 3.0, 3.5, 4.5, 5.0, 1.0, 1.0, 1.0, 1.0, 1.0]))
-    assert table == {"2025M01": {"1M3M": 3.0, "1A": 2.0, "3A": 2.5, "5A": 3.5, "S10A": 4.0}}
+    assert {code: figures["kupon_pct"] for code, figures in table["2025M01"].items()} == {
+        "1M3M": 3.0, "1A": 2.0, "3A": 2.5, "5A": 3.5, "S10A": 4.0
+    }
+    # The effective rate and the bidrag are kept as well: the coupon is what
+    # the register writes down, but those two are what a borrower pays.
+    assert table["2025M01"]["1M3M"] == {
+        "effektiv_rente_pct": 4.0, "bidrag_pct": 1.0, "kupon_pct": 3.0
+    }
+
+
+def test_the_series_is_stored_as_rows_so_an_estimate_can_be_checked():
+    """A column saying "F3" with nothing behind it has to be taken on trust."""
+    table = laantype._read(_dst([4.0, 3.0, 3.5, 4.5, 5.0, 1.0, 1.0, 1.0, 1.0, 1.0]))
+    rows = laantype.rate_rows(table)
+    assert len(rows) == 5
+    assert rows[0] == {
+        "maaned": "2025M01", "rentfix_kode": "1M3M", "laantype": "F-kort",
+        "effektiv_rente_pct": 4.0, "bidrag_pct": 1.0, "kupon_pct": 3.0,
+    }
+    # Every row must fill the columns the table declares.
+    columns = {name for name, _ in store.TABLES["rentestatistik"]["columns"]}
+    assert all(set(row) == columns for row in rows)
 
 
 def test_a_rate_is_matched_to_the_nearest_loan_type():

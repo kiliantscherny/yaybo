@@ -50,8 +50,11 @@ MEASURES = ["AL51EFFR", "AL51BIDS"]
 CLOSE = 0.4
 UNCERTAIN = 1.0
 
-# DNRNURI does not reach back further than this, and a charge from before it
-# has no series to be matched against.
+# A charge older than the series has nothing to be matched against. DNRNURI
+# lists periods back to 2003, but a coupon needs both the effective rate and
+# the bidrag and the early periods are missing one, so in practice the usable
+# series starts around 2013. This is only a cheap pre-filter; what actually
+# governs is which months come back with both figures.
 FIRST_MONTH = date(2003, 1, 1)
 
 # The register only ever gives a rate, so this is an estimate. A definitive
@@ -70,16 +73,44 @@ REALKREDIT = {"realkreditpantebrev"}
 
 # Filled on first use by published(); DST publishes monthly, so once is enough.
 _PUBLISHED: set[str] | None = None
+_SERIES: dict | None = None
 
 
-def annotate(charges: list[dict], *, months: int = 6, session=None) -> int:
+def series(session=None) -> dict:
+    """The whole published DNRNURI series, fetched once and remembered.
+
+    Every month rather than only the ones this run happens to need. It is one
+    request either way, and a rate series is worth having whole: it is what
+    makes an estimate auditable afterwards - the alternative is a column
+    saying "F3" with nothing to check it against.
+    """
+    global _SERIES
+    if _SERIES is None:
+        _SERIES = _rates(sorted(published(session)), session=session)
+    return _SERIES
+
+
+def rate_rows(table: dict) -> list[dict]:
+    """The series as rows: one per month per loan type."""
+    return [
+        {
+            "maaned": month,
+            "rentfix_kode": code,
+            "laantype": RENTFIX[code],
+            **figures,
+        }
+        for month, rates in sorted(table.items())
+        for code, figures in rates.items()
+    ]
+
+
+def annotate(charges: list[dict], *, months: int = 6, session=None) -> dict:
     """Name the loan type on every realkredit charge that can carry one.
 
-    Writes into the rows in place and returns how many were named. One request
-    covers the whole run: the months every charge needs are collected first,
-    asked for together, and then read off.
+    Writes into the rows in place. Returns how many were named, and the rate
+    series they were named against, so it can be stored beside them.
     """
-    wanted: set[str] = set()
+    table = series(session=session)
     candidates = []
     for charge in charges:
         if charge.get("dokumenttype") not in REALKREDIT:
@@ -93,20 +124,16 @@ def annotate(charges: list[dict], *, months: int = 6, session=None) -> int:
         if rate is None or not window:
             continue
         candidates.append((charge, rate, window))
-        wanted.update(window)
 
-    if not candidates:
-        return 0
-    table = _rates(sorted(wanted), session=session)
     if not table:
-        return 0
+        return {"named": 0, "renter": {}}
 
     named = 0
     for charge, rate, window in candidates:
         found = classify(rate, window, table, str(charge.get("rentetype") or ""))
         charge.update(found)
         named += bool(found.get("laantype_estimat"))
-    return named
+    return {"named": named, "renter": table}
 
 
 def _as_rate(value) -> float | None:
@@ -133,8 +160,8 @@ def classify(rate: float, window: list[str], table: dict, rentetype: str = "") -
     """
     best: dict[str, float] = {}
     for month in window:
-        for code, coupon in (table.get(month) or {}).items():
-            distance = abs(coupon - rate)
+        for code, figures in (table.get(month) or {}).items():
+            distance = abs(figures["kupon_pct"] - rate)
             name = RENTFIX[code]
             if name not in best or distance < best[name]:
                 best[name] = distance
@@ -285,7 +312,13 @@ def _read(dataset: dict) -> dict:
             effective = at(DATA=MEASURES[0], RENTFIX=code, Tid=month)
             bidrag = at(DATA=MEASURES[1], RENTFIX=code, Tid=month)
             if effective is not None and bidrag is not None:
-                rates[code] = round(effective - bidrag, 4)
+                rates[code] = {
+                    "effektiv_rente_pct": effective,
+                    "bidrag_pct": bidrag,
+                    # What the bond itself pays, which is the number the
+                    # register writes down against a charge.
+                    "kupon_pct": round(effective - bidrag, 4),
+                }
         if rates:
             found[month] = rates
     return found

@@ -38,7 +38,7 @@ DERIVED = [
 ]
 # Rebuilt too, but only when the public sources are asked: Boligsiden fills
 # columns on the property row, and the debt totals depend on the charges.
-ENRICHED = ["ejendomme", "handelshistorik", "bygninger"]
+ENRICHED = ["ejendomme", "handelshistorik", "bygninger", "rentestatistik"]
 
 
 def collect(path: Path) -> tuple[dict, dict]:
@@ -106,8 +106,10 @@ def enrich(tables: dict, properties: list[dict], *, boligsiden_on: bool,
     than per flat, the same way a fetch does it.
     """
     if laantype_on:
-        named = laantype.annotate(tables.get("haeftelser") or [])
-        print(f"  named the loan type on {named} realkredit charge(s)", file=sys.stderr)
+        estimated = laantype.annotate(tables.get("haeftelser") or [])
+        tables["rentestatistik"] = laantype.rate_rows(estimated["renter"])
+        print(f"  named the loan type on {estimated['named']} realkredit charge(s), "
+              f"from {len(estimated['renter'])} months of DST rates", file=sys.stderr)
 
     if boligsiden_on and properties:
         # Group the flats by the building they are in, so one DAWA lookup
@@ -135,8 +137,10 @@ def enrich(tables: dict, properties: list[dict], *, boligsiden_on: bool,
                     continue
                 found += 1
                 row.update(tl.bolig_row(bolig))
-                tables["handelshistorik"] += tl.handel_rows(bolig, row["uuid"], adresse)
-                tables["bygninger"] += tl.bygning_rows(bolig, row["uuid"], adresse)
+                tables.setdefault("handelshistorik", []).extend(
+                    tl.handel_rows(bolig, row["uuid"], adresse))
+                tables.setdefault("bygninger", []).extend(
+                    tl.bygning_rows(bolig, row["uuid"], adresse))
         print(f"  Boligsiden answered for {found} of {len(properties)} propert"
               f"{'y' if len(properties) == 1 else 'ies'}", file=sys.stderr)
 
@@ -167,15 +171,20 @@ def main() -> None:
         sys.exit("no stored documents to rebuild from")
 
     print(f"{len(tables['attester'])} document(s) read from {path}", file=sys.stderr)
-    tables.setdefault("handelshistorik", [])
-    tables.setdefault("bygninger", [])
     enrich(tables, properties,
            boligsiden_on=not args.skip_boligsiden, laantype_on=not args.skip_laantype,
            delay=args.delay)
 
     for name in DERIVED + ENRICHED:
         was, now = before.get(name, 0), len(tables.get(name) or [])
-        change = "new table" if name not in before else f"{was} -> {now}"
+        if name not in tables:
+            # Not rebuilt this run - a skipped source leaves its rows alone
+            # rather than emptying them, so say so instead of printing "-> 0".
+            change = f"{was} left as they are"
+        elif name not in before:
+            change = f"new table, {now}"
+        else:
+            change = f"{was} -> {now}"
         print(f"  {name:24} {change}", file=sys.stderr)
 
     if args.dry_run:
