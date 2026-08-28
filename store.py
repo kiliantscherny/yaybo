@@ -202,10 +202,14 @@ TABLES = {
             ("ejendom_uuid", TEXT),
             ("adresse", TEXT),
             ("format", TEXT),
-            # The whole document, namespaces stripped, as JSON rather than as
-            # the XML it arrived in: same content, minus the prefixes, in a
-            # form json_extract can reach into. The verbatim XML still goes to
-            # a file - this is the copy meant to be queried.
+            # The document twice over. `dokument` is the bytes the register
+            # signed, kept because a re-rendered copy is no longer the thing it
+            # signed and a duckdb-only run writes no file to keep it in.
+            # `dokument_json` is the same content with the namespace prefixes
+            # dropped, which is the copy meant to be queried - json_extract can
+            # reach into it, and it is smaller than the XML because those
+            # prefixes were most of the bytes.
+            ("dokument", TEXT),
             ("dokument_json", JSON),
         ],
     },
