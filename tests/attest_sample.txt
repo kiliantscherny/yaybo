@@ -14,7 +14,7 @@ BFE-nummer:
 Ejendomstype:
 Ejerlejlighed
 Nummer:
-130
+101
 Fordelingstal:
 1/300
 Dato:
@@ -22,7 +22,7 @@ Dato:
 Landsejerlav:
 Prøvelav, Prøvekøbing
 Matrikelnummer:
-1608
+42
 Areal:
 4200 m2
 Heraf vej:
@@ -32,7 +32,7 @@ Dokument:
 Dokumenttype:
 Skøde
 Dato/løbenummer:
-11.08.2026-1000000004
+01.01.2026-1000000004
 Adkomsthavere:
 Navn:
 Testperson Alfa Testesen
@@ -42,20 +42,20 @@ Ejerandel:
 1 / 1
 Købesum:
 Kontant købesum:
-1.234.567 DKK
+3.000.000 DKK
 Købesum i alt:
-1.234.567 DKK
+3.000.000 DKK
 Dato for overtagelse:
-01.03.2024
+01.10.2026
 Anmærkninger:
 Dato/løbenummer:
-03.01.2025-1000000002
+01.01.2025-1000000002
 Prioritet:
 20
 Dokumenttype:
 Realkreditpantebrev
 Hovedstol:
-2.115.000 DKK
+2.000.000 DKK
 Rentesats:
 2,74 %
 Kreditor:
@@ -63,7 +63,7 @@ PRØVEKREDIT A/S
 Hæftelser
 Dokument:
 Dato/løbenummer:
-24.05.1983-10001-01
+01.01.1980-10001-01
 Prioritet:
 18
 Dokumenttype:

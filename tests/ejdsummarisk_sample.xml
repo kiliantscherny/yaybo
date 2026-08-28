@@ -1,11 +1,33 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- A cut-down stand-in for what rest/ejdsummarisk answers with: the same
-     element paths and namespaces as the real thing, with invented people. -->
+     element paths and namespaces as the real thing, with invented people.
+
+     Everyone here is made up, and so is every CPR, CVR and address. The real
+     document names living people, states what they paid for their homes and
+     gives their dates of birth, so none of it belongs in a repository.
+
+     The rate on the first charge is written "3.500" on purpose. That is
+     xs:decimal - three and a half - and reading it as Danish, where a full
+     stop groups thousands, turns it into 3500%. -->
 <EjendomSummariskHentResultat
     xmlns="http://rep.oio.dk/tinglysning.dk/service/message/elektroniskakt/1/"
     xmlns:ns="http://rep.oio.dk/tinglysning.dk/schema/elektroniskakt/1/">
   <EjendomSummarisk>
     <EjendomStamoplysninger>
+      <AdresseStruktur>
+        <AddressSpecific>
+          <AddressAccess>
+            <MunicipalityCode>9999</MunicipalityCode>
+            <StreetCode>1234</StreetCode>
+            <StreetBuildingIdentifier>1</StreetBuildingIdentifier>
+          </AddressAccess>
+          <FloorIdentifier>3</FloorIdentifier>
+          <SuiteIdentifier>12</SuiteIdentifier>
+        </AddressSpecific>
+        <StreetName>Prøvegade</StreetName>
+        <PostCodeIdentifier>9999</PostCodeIdentifier>
+        <DistrictName>Prøvekøbing</DistrictName>
+      </AdresseStruktur>
       <EjendomIdentifikator>
         <BestemtFastEjendomNummer>100001</BestemtFastEjendomNummer>
         <EjendomType>
@@ -13,7 +35,30 @@
             <Ejerlejlighedsnummer>101</Ejerlejlighedsnummer>
           </Ejerlejlighed>
         </EjendomType>
+        <Matrikel>
+          <CadastralDistrictName>Prøvekvarter, Prøvekøbing</CadastralDistrictName>
+          <CadastralDistrictIdentifier>9000001</CadastralDistrictIdentifier>
+          <Matrikelnummer>42</Matrikelnummer>
+        </Matrikel>
       </EjendomIdentifikator>
+      <MatrikelStrukturSamling>
+        <MatrikelStruktur>
+          <SpecificParcelAreaMeasure>4200</SpecificParcelAreaMeasure>
+          <LandParcelRegistrationDate>1975-05-05+01:00</LandParcelRegistrationDate>
+          <RoadAreaMeasure>0</RoadAreaMeasure>
+          <JurisdictionCode>0001</JurisdictionCode>
+        </MatrikelStruktur>
+      </MatrikelStrukturSamling>
+      <EjendomVurderingSamling>
+        <EjendomVurderingStruktur>
+          <RealPropertyStructure>
+            <MunicipalRealPropertyIdentifier>111111</MunicipalRealPropertyIdentifier>
+          </RealPropertyStructure>
+          <EjendomVaerdi>2100000</EjendomVaerdi>
+          <ParcelLandValueAssessmentCalculationAmount>1400000</ParcelLandValueAssessmentCalculationAmount>
+          <AssessmentChangedDate>2020-01-01+01:00</AssessmentChangedDate>
+        </EjendomVurderingStruktur>
+      </EjendomVurderingSamling>
       <Fordelingtal>
         <Taeller>33</Taeller>
         <Naevner>9231</Naevner>
@@ -33,10 +78,16 @@
     </EjendomStamoplysninger>
     <AdkomstSummariskSamling>
       <AdkomstSummarisk>
+        <DokumentRevisionIdentifikator>
+          <DokumentIdentifikator>aaaaaaaa-0000-0000-0000-000000000001</DokumentIdentifikator>
+          <RevisionNummer>1</RevisionNummer>
+        </DokumentRevisionIdentifikator>
+        <TinglysningsDato>2014-06-30T10:33:57.238+02:00</TinglysningsDato>
         <DokumentAlias>
           <DokumentAliasIdentifikator>20140630-1005446835</DokumentAliasIdentifikator>
         </DokumentAlias>
         <AdkomstType>skoede</AdkomstType>
+        <DokumentOverfoertIndikator>false</DokumentOverfoertIndikator>
         <AdkomsthaverSamling>
           <Adkomsthaver>
             <PersonSimpelIdentifikator>
@@ -65,7 +116,250 @@
           <KontantKoebesum>850000</KontantKoebesum>
           <IAltKoebesum>875000</IAltKoebesum>
         </SkoedeKoebesum>
+        <TinglysningAfgiftBetalt>28550</TinglysningAfgiftBetalt>
       </AdkomstSummarisk>
     </AdkomstSummariskSamling>
+    <HaeftelseSummariskSamling>
+      <!-- A fixed-rate mortgage, with a sub-pledge against the deed itself. -->
+      <HaeftelseSummarisk>
+        <DokumentRevisionIdentifikator>
+          <DokumentIdentifikator>bbbbbbbb-0000-0000-0000-000000000001</DokumentIdentifikator>
+          <RevisionNummer>2</RevisionNummer>
+        </DokumentRevisionIdentifikator>
+        <TinglysningsDato>1980-01-01T00:00:00.000+01:00</TinglysningsDato>
+        <SenestPaategnetDato>2021-02-02T07:32:30.007+01:00</SenestPaategnetDato>
+        <Pantrettighed>
+          <RettighedIdentifikator>cccccccc-0000-0000-0000-000000000001</RettighedIdentifikator>
+          <PrioritetNummer>18</PrioritetNummer>
+        </Pantrettighed>
+        <DokumentAlias>
+          <AktHistoriskIdentifikator>19800101-10001-01</AktHistoriskIdentifikator>
+        </DokumentAlias>
+        <HaeftelseType>ejerpantebrev</HaeftelseType>
+        <DokumentOverfoertIndikator>true</DokumentOverfoertIndikator>
+        <KreditorInformationSamling>
+          <RolleInformation>
+            <VirksomhedSimpelIdentifikator>
+              <LegalUnitName>PRØVEKREDIT A/S</LegalUnitName>
+              <CVRnumberIdentifier>11223344</CVRnumberIdentifier>
+            </VirksomhedSimpelIdentifikator>
+            <AddressSpecific>
+              <AddressAccess>
+                <MunicipalityCode>9999</MunicipalityCode>
+                <StreetCode>7124</StreetCode>
+                <StreetBuildingIdentifier>25</StreetBuildingIdentifier>
+              </AddressAccess>
+            </AddressSpecific>
+          </RolleInformation>
+        </KreditorInformationSamling>
+        <DebitorInformationSamling>
+          <RolleInformation>
+            <PersonSimpelIdentifikator>
+              <PersonName>Testperson Alfa Testesen</PersonName>
+              <BirthDate>1957-10-02</BirthDate>
+            </PersonSimpelIdentifikator>
+          </RolleInformation>
+        </DebitorInformationSamling>
+        <MeddelelseshaverInformationSamling>
+          <RolleInformation>
+            <VirksomhedSimpelIdentifikator>
+              <LegalUnitName>E/F PRØVEGÅRDEN</LegalUnitName>
+              <CVRnumberIdentifier>55667788</CVRnumberIdentifier>
+            </VirksomhedSimpelIdentifikator>
+          </RolleInformation>
+        </MeddelelseshaverInformationSamling>
+        <UnderpantrettighedSamling>
+          <Underpantrettighed>
+            <DokumentRevisionIdentifikator>
+              <DokumentIdentifikator>dddddddd-0000-0000-0000-000000000001</DokumentIdentifikator>
+              <RevisionNummer>2</RevisionNummer>
+            </DokumentRevisionIdentifikator>
+            <DokumentAlias>
+              <DokumentAliasIdentifikator>20090101-0000000001</DokumentAliasIdentifikator>
+            </DokumentAlias>
+            <RettighedIdentifikator>eeeeeeee-0000-0000-0000-000000000001</RettighedIdentifikator>
+            <UnderpantBeloeb>
+              <BeloebVaerdi>26000</BeloebVaerdi>
+              <ValutaKode>DKK</ValutaKode>
+            </UnderpantBeloeb>
+            <PrioritetNummer>1</PrioritetNummer>
+            <UnderpanthaverInformationSamling>
+              <RolleInformation>
+                <VirksomhedSimpelIdentifikator>
+                  <LegalUnitName>E/F PRØVEGÅRDEN</LegalUnitName>
+                  <CVRnumberIdentifier>55667788</CVRnumberIdentifier>
+                </VirksomhedSimpelIdentifikator>
+              </RolleInformation>
+            </UnderpanthaverInformationSamling>
+          </Underpantrettighed>
+        </UnderpantrettighedSamling>
+        <HaeftelseBeloeb>
+          <BeloebValuta>
+            <BeloebVaerdi>26000</BeloebVaerdi>
+            <ValutaKode>DKK</ValutaKode>
+          </BeloebValuta>
+        </HaeftelseBeloeb>
+        <HaeftelseRente>
+          <HaeftelseRenteFast>
+            <HaeftelseRentePaalydendeSats>3.500</HaeftelseRentePaalydendeSats>
+            <HaeftelseRenteSatsForeloebigIndikator>false</HaeftelseRenteSatsForeloebigIndikator>
+          </HaeftelseRenteFast>
+        </HaeftelseRente>
+        <RespektSamling>
+          <Respekt><RettighedIdentifikator>ffffffff-0000-0000-0000-000000000001</RettighedIdentifikator></Respekt>
+          <Respekt><RettighedIdentifikator>ffffffff-0000-0000-0000-000000000002</RettighedIdentifikator></Respekt>
+        </RespektSamling>
+        <TillaegstekstSamling>
+          <TekstAngivelse>
+            <TekstGruppe>
+              <Overskrift>Tillægstekst</Overskrift>
+              <Afsnit>Prøvetekst om fællesareal i stuen</Afsnit>
+            </TekstGruppe>
+          </TekstAngivelse>
+        </TillaegstekstSamling>
+        <DokumentInformationOverfoert>
+          <DokumentTypeBeskrivelse>Ejerpantebrev med medd</DokumentTypeBeskrivelse>
+        </DokumentInformationOverfoert>
+        <TinglysningAfgiftBetalt>2000</TinglysningAfgiftBetalt>
+        <KonverteretDigitalPantebrevIndikator>true</KonverteretDigitalPantebrevIndikator>
+      </HaeftelseSummarisk>
+      <!-- A variable-rate mortgage: a named reference rate plus a margin. -->
+      <HaeftelseSummarisk>
+        <DokumentRevisionIdentifikator>
+          <DokumentIdentifikator>bbbbbbbb-0000-0000-0000-000000000002</DokumentIdentifikator>
+          <RevisionNummer>1</RevisionNummer>
+        </DokumentRevisionIdentifikator>
+        <TinglysningsDato>2025-01-01T13:45:01.157+01:00</TinglysningsDato>
+        <Pantrettighed>
+          <RettighedIdentifikator>cccccccc-0000-0000-0000-000000000002</RettighedIdentifikator>
+          <PrioritetNummer>20</PrioritetNummer>
+        </Pantrettighed>
+        <DokumentAlias>
+          <DokumentAliasIdentifikator>20250101-1000000002</DokumentAliasIdentifikator>
+        </DokumentAlias>
+        <HaeftelseType>realkreditpantebrev</HaeftelseType>
+        <HaeftelsePantebrevFormularLovpligtigKode>Ab</HaeftelsePantebrevFormularLovpligtigKode>
+        <DokumentOverfoertIndikator>false</DokumentOverfoertIndikator>
+        <KreditorInformationSamling>
+          <RolleInformation>
+            <VirksomhedSimpelIdentifikator>
+              <LegalUnitName>PRØVEKREDIT A/S</LegalUnitName>
+              <CVRnumberIdentifier>11223344</CVRnumberIdentifier>
+            </VirksomhedSimpelIdentifikator>
+          </RolleInformation>
+        </KreditorInformationSamling>
+        <DebitorInformationSamling>
+          <RolleInformation>
+            <PersonSimpelIdentifikator>
+              <PersonName>Testperson Beta Testesen</PersonName>
+              <BirthDate>1951-10-30</BirthDate>
+            </PersonSimpelIdentifikator>
+          </RolleInformation>
+        </DebitorInformationSamling>
+        <HaeftelseBeloeb>
+          <BeloebValuta>
+            <BeloebVaerdi>2000000</BeloebVaerdi>
+            <ValutaKode>DKK</ValutaKode>
+          </BeloebValuta>
+        </HaeftelseBeloeb>
+        <HaeftelseRente>
+          <HaeftelseRenteVariabel>
+            <HaeftelseRentePaalydendeSats>2.74</HaeftelseRentePaalydendeSats>
+            <HaeftelseReferenceRente>
+              <ReferenceRenteNavn>CITA6</ReferenceRenteNavn>
+              <ReferenceRenteSats>2.74</ReferenceRenteSats>
+              <ReferenceRenteTillaegFradrag>
+                <TillaegFradragIndikator>tillaeg</TillaegFradragIndikator>
+                <Procentsats>0.45</Procentsats>
+                <FastVariabelIndikator>variabel</FastVariabelIndikator>
+              </ReferenceRenteTillaegFradrag>
+            </HaeftelseReferenceRente>
+          </HaeftelseRenteVariabel>
+        </HaeftelseRente>
+        <HaeftelseSaerligeLaanevilkaarstypeSamling>
+          <HaeftelseSaerligeLaanevilkaarstype>refinansiering</HaeftelseSaerligeLaanevilkaarstype>
+          <HaeftelseSaerligeLaanevilkaarstype>inkonvertibel</HaeftelseSaerligeLaanevilkaarstype>
+        </HaeftelseSaerligeLaanevilkaarstypeSamling>
+        <HaeftelseLaantypeKode>obligationslaan</HaeftelseLaantypeKode>
+        <TinglysningAfgiftBetalt>1800</TinglysningAfgiftBetalt>
+      </HaeftelseSummarisk>
+    </HaeftelseSummariskSamling>
+    <ServitutSummariskSamling>
+      <ServitutSummarisk>
+        <DokumentRevisionIdentifikator>
+          <DokumentIdentifikator>99999999-0000-0000-0000-000000000001</DokumentIdentifikator>
+          <RevisionNummer>1</RevisionNummer>
+        </DokumentRevisionIdentifikator>
+        <TinglysningsDato>1890-01-01T00:00:00.000+01:00</TinglysningsDato>
+        <Servitutrettighed>
+          <RettighedIdentifikator>ffffffff-0000-0000-0000-000000000001</RettighedIdentifikator>
+          <PrioritetNummer>1</PrioritetNummer>
+        </Servitutrettighed>
+        <OgsaaLystPaaSamling>
+          <OgsaaLystPaaAntal>150</OgsaaLystPaaAntal>
+        </OgsaaLystPaaSamling>
+        <DokumentAlias>
+          <AktHistoriskIdentifikator>18900101-900001-01</AktHistoriskIdentifikator>
+        </DokumentAlias>
+        <ServitutType>andenServitut</ServitutType>
+        <ServitutInformation>
+          <ServitutAfsnitFaerdsel>
+            <ServitutIndholdFaerdsel>
+              <ServitutIndholdFaerdselKode>vej</ServitutIndholdFaerdselKode>
+            </ServitutIndholdFaerdsel>
+          </ServitutAfsnitFaerdsel>
+          <ServitutAfsnitAndet>
+            <ServitutIndholdAndet>
+              <ServitutIndholdAndetKode>andet</ServitutIndholdAndetKode>
+            </ServitutIndholdAndet>
+          </ServitutAfsnitAndet>
+          <ServitutKanTinglysesUdenEjersTiltraedelseIndikator>false</ServitutKanTinglysesUdenEjersTiltraedelseIndikator>
+          <ServitutKanTinglysesMedPrioritetForudForGaeldOgServitutterIndikator>false</ServitutKanTinglysesMedPrioritetForudForGaeldOgServitutterIndikator>
+          <ServitutHarBetydningForEjendommensVaerdiIndikator>true</ServitutHarBetydningForEjendommensVaerdiIndikator>
+        </ServitutInformation>
+        <DokumentOverfoertIndikator>true</DokumentOverfoertIndikator>
+        <TillaegstekstSamling>
+          <TekstAngivelse>
+            <TekstGruppe>
+              <Overskrift>Tillægstekst</Overskrift>
+              <Afsnit>Dok om vej mv, Indeholder økonomiske</Afsnit>
+              <Afsnit>forpligtelser, se akt</Afsnit>
+            </TekstGruppe>
+          </TekstAngivelse>
+        </TillaegstekstSamling>
+      </ServitutSummarisk>
+      <ServitutSummarisk>
+        <DokumentRevisionIdentifikator>
+          <DokumentIdentifikator>99999999-0000-0000-0000-000000000002</DokumentIdentifikator>
+          <RevisionNummer>1</RevisionNummer>
+        </DokumentRevisionIdentifikator>
+        <TinglysningsDato>2024-01-01T08:44:16.325+01:00</TinglysningsDato>
+        <Servitutrettighed>
+          <RettighedIdentifikator>ffffffff-0000-0000-0000-000000000002</RettighedIdentifikator>
+          <PrioritetNummer>19</PrioritetNummer>
+        </Servitutrettighed>
+        <DokumentAlias>
+          <DokumentAliasIdentifikator>20240101-1000000003</DokumentAliasIdentifikator>
+        </DokumentAlias>
+        <ServitutType>normalVedtaegtFravigelse</ServitutType>
+        <ServitutInformation>
+          <ServitutKanTinglysesUdenEjersTiltraedelseIndikator>false</ServitutKanTinglysesUdenEjersTiltraedelseIndikator>
+          <ServitutKanTinglysesMedPrioritetForudForGaeldOgServitutterIndikator>false</ServitutKanTinglysesMedPrioritetForudForGaeldOgServitutterIndikator>
+          <ServitutHarBetydningForEjendommensVaerdiIndikator>false</ServitutHarBetydningForEjendommensVaerdiIndikator>
+        </ServitutInformation>
+        <DokumentOverfoertIndikator>false</DokumentOverfoertIndikator>
+        <PaataleberettigetSamling>
+          <Paataleberettiget>
+            <LegalUnitName>E/F PRØVEGÅRDEN</LegalUnitName>
+            <CVRnumberIdentifier>55667788</CVRnumberIdentifier>
+          </Paataleberettiget>
+        </PaataleberettigetSamling>
+        <ServitutTekstSummarisk>Vedtægter
+for
+Ejerlejlighedsforeningen Prøvegården.</ServitutTekstSummarisk>
+        <TinglysningAfgiftBetalt>1850</TinglysningAfgiftBetalt>
+      </ServitutSummarisk>
+    </ServitutSummariskSamling>
   </EjendomSummarisk>
+  <UdskriftDatoTid>2026-08-21T23:13:38.469+02:00</UdskriftDatoTid>
 </EjendomSummariskHentResultat>

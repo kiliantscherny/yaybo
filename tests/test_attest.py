@@ -47,16 +47,16 @@ def test_rendered_attest():
     text = (FIXTURES / "attest_sample.txt").read_text(encoding="utf-8")
     attest = tl.attest_details({"_raw": f"<html><body><pre>{text}</pre></body></html>"})
 
-    assert attest["ejerlejlighedsnr"] == "130"
+    assert attest["ejerlejlighedsnr"] == "101"
     assert attest["bfe_nr"] == "100001"
     assert attest["areal_m2"] == "55"
-    assert attest["opdelingsdato"] == "1976-03-17"
+    assert attest["opdelingsdato"] == "1975-05-05"
     assert attest["fordelingstal"] == "1/300"
     # "Dokumenttype" recurs down the document - the first one is the deed's,
     # every one after belongs to a charge against the property.
     assert attest["adkomst_dokumenttype"] == "Skøde"
-    assert attest["koebesum_dkk"] == "1234567"
-    assert attest["overtagelsesdato"] == "2026-09-15"
+    assert attest["koebesum_dkk"] == "3000000"
+    assert attest["overtagelsesdato"] == "2026-10-01"
     # Here a date of birth has to be read out of a masked CPR number.
     assert attest["owners"]["testperson alfa testesen"]["foedselsdato"] == "1995-01-01"
 

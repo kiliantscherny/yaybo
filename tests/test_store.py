@@ -15,7 +15,8 @@ import store
 
 
 def test_coercion():
-    """Everything arrives as text with its unit attached, and has to be typed."""
+    """Everything from the rendered attest arrives as text with its unit
+    attached, and has to be typed."""
     assert store._coerce("26.000 DKK", store.INTEGER) == 26000
     assert store._coerce("55 kvm", store.INTEGER) == 55
     assert store._coerce("1.234.567", store.INTEGER) == 1234567
@@ -27,6 +28,33 @@ def test_coercion():
     assert store._coerce("se akt", store.INTEGER) is None
     assert store._coerce("", store.TEXT) is None
     assert store._coerce("Skøde", store.TEXT) == "Skøde"
+
+
+def test_a_real_number_is_not_reread_as_danish_text():
+    """The two dialects, side by side.
+
+    "3.500" written in the attest is three thousand five hundred. The XML says
+    3.5 and the reader that knew that hands over a float, which must not then
+    be run through the Danish rules and come out as 3500.
+    """
+    assert store._coerce("3.500", store.DECIMAL) == 3500.0  # text: Danish
+    assert store._coerce(3.5, store.DECIMAL) == 3.5         # number: as given
+    assert store._coerce(26000, store.INTEGER) == 26000
+    assert store._coerce(2.74, store.INTEGER) == 2
+
+
+def test_booleans_keep_empty_apart_from_false():
+    assert store._coerce("true", store.BOOLEAN) is True
+    assert store._coerce("false", store.BOOLEAN) is False
+    # A field the register left empty is not the same as one it said no to.
+    assert store._coerce("", store.BOOLEAN) is None
+    assert store._coerce("måske", store.BOOLEAN) is None
+
+
+def test_json_columns_take_a_list_or_a_rendered_string():
+    assert store._coerce(["vej", "andet"], store.JSON) == '["vej", "andet"]'
+    assert store._coerce([], store.JSON) is None
+    assert store._coerce('{"a": 1}', store.JSON) == '{"a": 1}'
 
 
 def _rows(uuid, navn):
@@ -67,8 +95,38 @@ def test_empty_run_still_leaves_queryable_tables():
                 assert db.sql(f"SELECT count(*) FROM {table}").fetchone()[0] == 0
 
 
+def test_an_older_database_gains_the_columns_it_is_missing():
+    """CREATE TABLE IF NOT EXISTS does nothing to a table that already exists,
+    so without this a database from an older run would reject every insert."""
+    with tempfile.TemporaryDirectory() as folder:
+        path = Path(folder) / "old.duckdb"
+        with duckdb.connect(str(path)) as db:
+            db.execute(
+                'CREATE TABLE "haeftelser" '
+                '("ejendom_uuid" VARCHAR, "hovedstol" VARCHAR, "hentet" TIMESTAMP)'
+            )
+            db.execute("INSERT INTO haeftelser VALUES ('old-1', '1.000 DKK', now())")
+
+        store.save(path, {"haeftelser": [
+            {"ejendom_uuid": "uuid-1", "hovedstol": "26.000 DKK", "hovedstol_dkk": 26000,
+             "rentesats_pct": 3.5, "overfoert": "true", "saerlige_vilkaar": ["inkonvertibel"]}
+        ]})
+
+        with duckdb.connect(str(path), read_only=True) as db:
+            row = db.sql(
+                "SELECT hovedstol_dkk, rentesats_pct, overfoert, saerlige_vilkaar "
+                "FROM haeftelser WHERE ejendom_uuid = 'uuid-1'"
+            ).fetchone()
+            assert row == (26000, 3.5, True, '["inkonvertibel"]')
+            # The older row is left where it was: a column holding data is not
+            # ours to throw away on a schema change.
+            assert db.sql(
+                "SELECT hovedstol FROM haeftelser WHERE ejendom_uuid = 'old-1'"
+            ).fetchone()[0] == "1.000 DKK"
+
+
 if __name__ == "__main__":
-    tests = [value for name, value in sorted(globals().items()) if name.startswith("test_")]
+    tests = [v for n, v in sorted(globals().items()) if n.startswith("test_")]
     for test in tests:
         test()
         print(f"  ok  {test.__name__}")

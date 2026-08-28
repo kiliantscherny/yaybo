@@ -14,9 +14,22 @@ owner's date of birth and the chain of previous owners to the same CSVs:
     uv run tinglysning_dl.py --login --user YourMitIDUserID
     uv run tinglysning_dl.py "Prøvegade 1, 9999 Prøveby"
 
-Results accumulate in out/tinglysning.duckdb, one row per property, replaced
-in place when an address is looked up again. Pass --format csv for a set of
-spreadsheets instead, or --format both.
+Results accumulate in out/tinglysning.duckdb, replaced in place when an
+address is looked up again. Pass --format csv for a set of spreadsheets
+instead, or --format both.
+
+    ejendomme               one row per property
+    ejere                   its owners today
+    haeftelser              mortgages and charges, with their interest terms
+    servitutter             easements, and what each one is about
+    dokument_parter         everyone named on any of those documents, with
+                            their date of birth or CVR number and their role
+    underpant               deeds pledged on in their own right
+    adkomsthistorik         every past transfer, with what was paid
+    adkomsthistorik_ejere   the people named in each of those transfers
+    attester                the whole register document, as queryable JSON
+
+The last six need a login; the public lookup has no counterpart for them.
 
 Note this tells you who *owns* a property, not who lives there. Resident data
 (CPR/folkeregisteret) is not public in Denmark, with or without a login.
@@ -34,16 +47,21 @@ import re
 import sys
 import time
 import unicodedata
-from datetime import date
-from xml.etree import ElementTree
 from pathlib import Path
 
 import requests
 
+import attest_xml
 import console
+import fields
+import historik
 import mitid
 import store
 import tinglysning_auth
+from fields import birth_from_cpr as _birth_from_cpr
+from fields import iso_date as _iso_date
+from fields import normalise as _normalise
+from fields import plain_number as _plain_number
 
 # Results land here by default rather than in the working directory: they name
 # real people, say what they paid for their homes and, once logged in, when
@@ -390,10 +408,6 @@ def _drop_unit(adresse: str) -> str:
     return f"{street}, {postal}" if postal else street
 
 
-def _normalise(text: str) -> str:
-    return " ".join(text.lower().replace(",", " ").split())
-
-
 def _split_postcode(text: str) -> tuple[str, str]:
     """Split "Prøvegade 1, 9999 Prøveby" into the part before the
     postcode and the postcode itself. Returns ("...", "") if there is none."""
@@ -451,17 +465,6 @@ NUMERIC_COLUMNS = ("areal_m2", "koebesum_dkk")
 DATE_COLUMNS = ("opdelingsdato", "overtagelsesdato")
 
 
-# What the register calls each thing in its XML. These are element names on a
-# path from the record's root, namespaces stripped.
-ADKOMST_TYPES = {
-    "skoede": "Skøde",
-    "endeligtskoede": "Endeligt skøde",
-    "betingetskoede": "Betinget skøde",
-    "auktionsskoede": "Auktionsskøde",
-    "adkomsterklaering": "Adkomsterklæring",
-}
-
-
 def attest_details(details: dict | None) -> dict:
     """Flatten the logged-in record into the columns the CSV wants.
 
@@ -483,93 +486,14 @@ def attest_details(details: dict | None) -> dict:
 
 
 def _from_xml(raw: str) -> dict:
-    """Read the property, its current deed and its owners out of the XML."""
-    try:
-        root = ElementTree.fromstring(raw)
-    except ElementTree.ParseError:
-        return {}
+    """The flat slice of the XML record that the CSV columns were built around.
 
-    ejendom = _first(_dig(root, "EjendomSummarisk"))
-    if ejendom is None:
-        return {}
-
-    found: dict = {"owners": {}}
-    stam = _first(_dig(ejendom, "EjendomStamoplysninger"))
-    if stam is not None:
-        found["bfe_nr"] = _text(stam, "EjendomIdentifikator", "BestemtFastEjendomNummer")
-        found["ejerlejlighedsnr"] = _text(
-            stam, "EjendomIdentifikator", "EjendomType", "Ejerlejlighed",
-            "Ejerlejlighedsnummer",
-        )
-        # A share of the co-ownership, printed as the fraction it is.
-        over = _text(stam, "Fordelingtal", "Taeller")
-        under = _text(stam, "Fordelingtal", "Naevner")
-        if over and under:
-            found["fordelingstal"] = f"{over}/{under}"
-
-        # The flat's own date and floor area are not fields at all: they are
-        # headed free text, the same slot the register uses for a note on an
-        # easement. Match on the heading rather than on position.
-        for group in _dig(stam, "TillaegstekstSamling", "TekstAngivelse", "TekstGruppe"):
-            heading = _label_key(_text(group, "Overskrift"))
-            body = _text(group, "Afsnit")
-            if "dato" in heading:
-                found["opdelingsdato"] = _iso_date(body)
-            elif "areal" in heading:
-                found["areal_m2"] = _plain_number(body)
-
-    adkomst = _first(_dig(ejendom, "AdkomstSummariskSamling", "AdkomstSummarisk"))
-    if adkomst is not None:
-        deed = _text(adkomst, "AdkomstType")
-        found["adkomst_dokumenttype"] = ADKOMST_TYPES.get(deed, deed)
-        found["adkomst_dato_loebenummer"] = _text(
-            adkomst, "DokumentAlias", "DokumentAliasIdentifikator"
-        ) or _text(adkomst, "DokumentAlias", "AktHistoriskIdentifikator")
-        # What was actually paid, over what changed hands in other ways.
-        found["koebesum_dkk"] = _text(adkomst, "SkoedeKoebesum", "IAltKoebesum") or _text(
-            adkomst, "SkoedeKoebesum", "KontantKoebesum"
-        )
-        found["overtagelsesdato"] = _iso_date(_text(adkomst, "SkoedeOvertagelsesDato"))
-
-        for holder in _dig(adkomst, "AdkomsthaverSamling", "Adkomsthaver"):
-            person = _first(_dig(holder, "PersonSimpelIdentifikator"))
-            company = _first(_dig(holder, "VirksomhedSimpelIdentifikator"))
-            if person is not None:
-                name = _text(person, "PersonName")
-                identity = {"foedselsdato": _iso_date(_text(person, "BirthDate"))}
-            elif company is not None:
-                # A company has no date of birth; its CVR number is the
-                # equivalent thing to know about it.
-                name = _text(company, "LegalUnitName")
-                identity = {"cvr": _text(company, "CVRnumberIdentifier")}
-            else:
-                continue
-            if name:
-                found["owners"][_normalise(name)] = identity
-
-    return {key: value for key, value in found.items() if value != ""}
-
-
-def _tag(element) -> str:
-    """An element's name without its namespace."""
-    return element.tag.rsplit("}", 1)[-1]
-
-
-def _dig(element, *names):
-    """Follow a path of element names down, ignoring namespaces."""
-    nodes = [element]
-    for name in names:
-        nodes = [child for node in nodes for child in node if _tag(child) == name]
-    return nodes
-
-
-def _first(nodes):
-    return nodes[0] if nodes else None
-
-
-def _text(element, *names) -> str:
-    found = _dig(element, *names) if names else [element]
-    return (found[0].text or "").strip() if found else ""
+    Taking the document apart is attest_xml's job; this asks it for the handful
+    of fields a single row can hold. Everything else it finds - every party to
+    every mortgage, the sub-pledges, the easement subject codes - reaches the
+    database through its own tables rather than through here.
+    """
+    return attest_xml.summary(raw)
 
 
 def _collect(pairs) -> dict:
@@ -613,59 +537,6 @@ def _collect(pairs) -> dict:
         if column in found:
             found[column] = _iso_date(found[column])
     return found
-
-
-def _birth_from_cpr(cpr: str) -> str:
-    """Read a date of birth out of a CPR number, masked or not.
-
-    The attest gives no date of birth as such - it prints "Cpr-nr.:
-    010195-****", and a CPR opens with the birth date as DDMMYY. Only that half
-    is legible, which is also the only half worth keeping, so the serial is
-    never carried into the CSV even on the day the register stops masking it.
-
-    The century lives in the masked digits and has to be inferred: a two-digit
-    year later than this one belongs to the last century, since nobody buying
-    property today was born in the 2090s.
-    """
-    digits = re.sub(r"\D", "", cpr.split("-")[0])
-    if len(digits) != 6:
-        return ""
-    day, month, year = int(digits[:2]), int(digits[2:4]), int(digits[4:])
-    century = 1900 if year > date.today().year % 100 else 2000
-    try:
-        return date(century + year, month, day).isoformat()
-    except ValueError:
-        return ""
-
-
-def _plain_number(value: str) -> str:
-    """"1.234.567 DKK" becomes "1234567"; "55 kvm" becomes "55".
-
-    Danish thousands separators are full stops, so a spreadsheet reads the
-    attest's own figures as text. Anything that is not purely a number and a
-    unit is left exactly as it was.
-    """
-    match = re.fullmatch(
-        r"\s*(\d+(?:\.\d{3})*(?:,\d+)?)\s*(?:kvm|m2|m²|dkk|kr\.?|%)?\s*", value, re.I
-    )
-    if not match:
-        return value
-    return match.group(1).replace(".", "").replace(",", ".")
-
-
-def _iso_date(value: str) -> str:
-    """Reduce a date to just the day it names.
-
-    The attest writes "01.03.2024" and the XML writes "2014-07-01+02:00" - a
-    timestamp with an offset, whose time of day says when a record was touched
-    rather than anything about the date itself.
-    """
-    value = value.strip()
-    match = re.fullmatch(r"(\d{2})\.(\d{2})\.(\d{4})", value)
-    if match:
-        return f"{match[3]}-{match[2]}-{match[1]}"
-    match = re.match(r"(\d{4}-\d{2}-\d{2})", value)
-    return match[1] if match else value
 
 
 def _pairs_from_document(html: str):
@@ -725,14 +596,10 @@ def _label_key(label: str) -> str:
 def attest_document(details: dict | None) -> tuple[str, str]:
     """The whole record as it arrived, and the extension to file it under.
 
-    The columns take the fields worth sorting and filtering on; this keeps
-    everything else - the creditors and debtors behind each mortgage with
-    their own dates of birth, sub-pledges, endorsement dates, the free text on
-    every easement - which is a great deal more than a row can hold.
-
-    Kept verbatim rather than rendered down to its values: the names of the
-    elements are half the meaning, and a record stripped of them is what a
-    date of birth with nothing to attach it to looks like.
+    Kept verbatim for the file on disk: the register signs this document, and
+    a re-rendered copy is no longer the thing it signed. The database gets
+    attest_json() instead, which is the same content in a form that can be
+    queried without parsing it again.
     """
     if not details:
         return "", ""
@@ -742,31 +609,78 @@ def attest_document(details: dict | None) -> tuple[str, str]:
     return ("xml" if raw.lstrip().startswith("<") else "txt"), raw
 
 
+def attest_json(details: dict | None) -> str:
+    """The record as JSON, namespaces stripped, for the database to hold.
+
+    The columns take what is worth sorting and filtering on; this keeps
+    everything else, so a field nobody has named yet is still recoverable
+    without going back to the register for another copy.
+    """
+    if not details:
+        return ""
+    if "_raw" not in details:
+        return json.dumps(details, ensure_ascii=False)
+    outline = attest_xml.outline(details["_raw"])
+    return json.dumps(outline, ensure_ascii=False) if outline else ""
+
+
 # Column names follow the labels the site's own table uses.
 HISTORIK_FIELDS = [
-    "adresse", "dato", "dokumenttype", "historiske_ejere", "ejendom_uuid",
+    "adresse", "dato", "dokumenttype", "koebesum_dkk", "antal_ejere",
+    "historiske_ejere", "post_nummer", "ejendom_uuid",
+]
+HISTORIK_EJER_FIELDS = [
+    "dato", "nummer", "navn", "foedselsdato", "cvr", "andel", "note",
+    "post_nummer", "ejendom_uuid",
 ]
 
 
-def history_rows(history: dict | None, uuid: str, adresse: str) -> list[dict]:
-    """Previous owners - one row per historical entry, newest first.
+def history_rows(history: dict | None, uuid: str, adresse: str):
+    """Previous owners, as entries and as the people named in them.
+
+    Returns (entries, owners). The register gives each transfer a block of
+    text rather than fields - a price, then a list of names with masked CPR
+    numbers - so historik.parse takes it apart and the people become rows of
+    their own, joined back on (ejendom_uuid, post_nummer). The block itself is
+    kept alongside, because a parser is a reading and the source is the fact.
 
     Only reachable with a login: the public lookup shows the register as it
     stands today and says nothing about how it got there.
     """
     items = (history or {}).get("items") or []
-    return [
-        {
-            "adresse": adresse,
-            "dato": item.get("dato", ""),
-            "dokumenttype": item.get("dokumenttype", ""),
-            # The site renders this in a <pre>: it is a block of names, one per
-            # line, not a single owner.
-            "historiske_ejere": (item.get("tekst") or "").strip(),
-            "ejendom_uuid": uuid,
-        }
-        for item in sorted(items, key=lambda item: item.get("dato", ""), reverse=True)
-    ]
+    entries, owners = [], []
+    for post, item in enumerate(
+        sorted(items, key=lambda item: item.get("dato", ""), reverse=True), start=1
+    ):
+        tekst = (item.get("tekst") or "").strip()
+        parsed = historik.parse(tekst)
+        entries.append(
+            {
+                "adresse": adresse,
+                "dato": item.get("dato", ""),
+                "dokumenttype": item.get("dokumenttype", ""),
+                "koebesum_dkk": parsed["koebesum_dkk"],
+                "antal_ejere": len(parsed["ejere"]),
+                "historiske_ejere": tekst,
+                "post_nummer": post,
+                "ejendom_uuid": uuid,
+            }
+        )
+        for number, owner in enumerate(parsed["ejere"], start=1):
+            owners.append(
+                {
+                    "dato": item.get("dato", ""),
+                    "nummer": number,
+                    "navn": owner["navn"],
+                    "foedselsdato": owner["foedselsdato"],
+                    "cvr": owner["cvr"],
+                    "andel": owner["andel"],
+                    "note": owner.get("note", ""),
+                    "post_nummer": post,
+                    "ejendom_uuid": uuid,
+                }
+            )
+    return entries, owners
 
 
 def property_row(record: dict, uuid: str, parcel: dict, attest: dict | None = None) -> dict:
@@ -892,25 +806,73 @@ def property_fields(max_owners: int, *, with_attest: bool = False) -> list[str]:
 # "alias", which makes the data unrecognisable to anyone comparing against
 # the site.
 HAEFTELSE_FIELDS = [
-    "adresse", "dato_loebenummer", "prioritet", "dokumenttype", "hovedstol",
-    "rentesats_pct", "rentetype", "kreditorer", "dokument_version",
-    "dokument_uuid", "ejendom_uuid",
+    "adresse", "dato_loebenummer", "prioritet", "dokumenttype",
+    "dokumenttype_beskrivelse", "formularkode", "hovedstol", "hovedstol_dkk",
+    "valuta", "rentetype", "rentesats_pct", "reference_rente",
+    "reference_rente_pct", "rente_margin_pct", "rente_foreloebig", "laantype",
+    "saerlige_vilkaar", "kreditorbetegnelse", "kreditorer", "tinglysningsdato",
+    "senest_paategnet", "overfoert", "konverteret_pantebrev", "afgift_dkk",
+    "afgift_overfoert", "antal_respekt", "antal_underpant", "tekst",
+    "rettighed_uuid", "dokument_version", "dokument_uuid", "ejendom_uuid",
 ]
 SERVITUT_FIELDS = [
-    "adresse", "dato_loebenummer", "prioritet", "dokumenttype", "tekst",
-    "dokument_version", "dokument_uuid", "ejendom_uuid",
+    "adresse", "dato_loebenummer", "prioritet", "dokumenttype", "indhold",
+    "tekst", "paataleberettigede", "ogsaa_lyst_paa", "uden_ejers_tiltraedelse",
+    "prioritet_forud", "betydning_for_vaerdi", "tinglysningsdato",
+    "senest_paategnet", "overfoert", "afgift_dkk", "akt_filnavn",
+    "rettighed_uuid", "dokument_version", "dokument_uuid", "ejendom_uuid",
+]
+PART_FIELDS = [
+    "dokumentart", "rolle", "nummer", "navn", "foedselsdato", "cvr", "andel",
+    "adresse_kode", "dokument_uuid", "ejendom_uuid",
+]
+UNDERPANT_FIELDS = [
+    "dato_loebenummer", "beloeb_dkk", "valuta", "prioritet", "panthavere",
+    "rettighed_uuid", "dokument_uuid", "haeftelse_uuid", "ejendom_uuid",
 ]
 
+# What each end of a mortgage is called, singular, for the rolle column.
+HAEFTELSE_ROLLER = {
+    "kreditorer": "kreditor",
+    "debitorer": "debitor",
+    "meddelelseshavere": "meddelelseshaver",
+    "fuldmagtshavere": "fuldmagtshaver",
+}
 
-def haeftelse_rows(record: dict, uuid: str) -> list[dict]:
-    """Mortgages and charges - one row each, linked back by ejendom_uuid."""
+
+def haeftelse_rows(record: dict, uuid: str, document: dict | None = None) -> list[dict]:
+    """Mortgages and charges - one row each, linked back by ejendom_uuid.
+
+    Read from the XML when we have it, which is only when logged in. That copy
+    states the amount as a number, separates a fixed rate from a variable one
+    and its margin, and counts the sub-pledges; the public lookup gives a
+    formatted string and a single rate, so the fallback below fills what it can
+    and leaves the rest empty rather than guessing.
+    """
+    adresse = record.get("adresse", "")
+    charges = (document or {}).get("haeftelser")
+    if charges:
+        return [
+            {
+                "adresse": adresse,
+                "hovedstol": _dkk(h["hovedstol_dkk"], h["valuta"]),
+                "kreditorer": _names(h["kreditorer"]),
+                "antal_respekt": len(h["respekterer"]),
+                "antal_underpant": len(h["underpant"]),
+                "ejendom_uuid": uuid,
+                **{key: h.get(key, "") for key in HAEFTELSE_FIELDS
+                   if key in h and key not in ("adresse", "kreditorer")},
+            }
+            for h in charges
+        ]
     return [
         {
-            "adresse": record.get("adresse", ""),
+            "adresse": adresse,
             "dato_loebenummer": h.get("alias", ""),
             "prioritet": h.get("prioritet", ""),
             "dokumenttype": h.get("haeftelsestype", ""),
             "hovedstol": h.get("hovedstol", ""),
+            "hovedstol_dkk": h.get("hovedstol", ""),
             "rentesats_pct": h.get("rente", ""),
             "rentetype": h.get("fastvariabel", ""),
             "kreditorer": "; ".join(h.get("kreditorer") or []),
@@ -922,12 +884,25 @@ def haeftelse_rows(record: dict, uuid: str) -> list[dict]:
     ]
 
 
-def servitut_rows(record: dict, uuid: str) -> list[dict]:
+def servitut_rows(record: dict, uuid: str, document: dict | None = None) -> list[dict]:
     """Easements - one row each. A flat can carry a dozen, so they get their
     own file rather than being crushed into a cell of the main CSV."""
+    adresse = record.get("adresse", "")
+    easements = (document or {}).get("servitutter")
+    if easements:
+        return [
+            {
+                "adresse": adresse,
+                "paataleberettigede": _names(s["paataleberettigede"]),
+                "ejendom_uuid": uuid,
+                **{key: s.get(key, "") for key in SERVITUT_FIELDS
+                   if key in s and key not in ("adresse", "paataleberettigede")},
+            }
+            for s in easements
+        ]
     return [
         {
-            "adresse": record.get("adresse", ""),
+            "adresse": adresse,
             "dato_loebenummer": s.get("alias", ""),
             "prioritet": s.get("prioritet", ""),
             "dokumenttype": s.get("servituttype", ""),
@@ -938,6 +913,72 @@ def servitut_rows(record: dict, uuid: str) -> list[dict]:
         }
         for s in record.get("servitutter") or []
     ]
+
+
+def party_rows(document: dict | None, uuid: str) -> list[dict]:
+    """Everyone named on any document against the property, one row each.
+
+    This is the table the login is really for. A mortgage names a creditor and
+    a debtor and often a notice-holder and an agent besides, each with a date
+    of birth or a CVR number, and flattening them into one semicolon-joined
+    cell throws away both who is which and how to find them again.
+    """
+    document = document or {}
+    rows: list[dict] = []
+
+    def add(art: str, doc_uuid: str, rolle: str, parties):
+        for number, party in enumerate(parties or [], start=1):
+            if party.get("navn") or party.get("cvr"):
+                rows.append({
+                    "dokumentart": art, "dokument_uuid": doc_uuid, "rolle": rolle,
+                    "nummer": number, "ejendom_uuid": uuid,
+                    **{key: party.get(key, "") for key in
+                       ("navn", "foedselsdato", "cvr", "andel", "adresse_kode")},
+                })
+
+    adkomst = document.get("adkomst") or {}
+    add("adkomst", adkomst.get("dokument_uuid", ""), "adkomsthaver", adkomst.get("ejere"))
+    for h in document.get("haeftelser") or []:
+        for key, rolle in HAEFTELSE_ROLLER.items():
+            add("haeftelse", h["dokument_uuid"], rolle, h.get(key))
+        for pledge in h.get("underpant") or []:
+            add("underpant", pledge["dokument_uuid"], "underpanthaver",
+                pledge.get("panthavere"))
+    for s in document.get("servitutter") or []:
+        add("servitut", s["dokument_uuid"], "paataleberettiget",
+            s.get("paataleberettigede"))
+    return rows
+
+
+def underpant_rows(document: dict | None, uuid: str) -> list[dict]:
+    """Sub-pledges: a mortgage deed pledged on in its own right."""
+    return [
+        {
+            "ejendom_uuid": uuid,
+            "haeftelse_uuid": h["dokument_uuid"],
+            "panthavere": _names(pledge["panthavere"]),
+            **{key: pledge.get(key, "") for key in
+               ("dokument_uuid", "dato_loebenummer", "rettighed_uuid",
+                "beloeb_dkk", "valuta", "prioritet")},
+        }
+        for h in (document or {}).get("haeftelser") or []
+        for pledge in h.get("underpant") or []
+    ]
+
+
+def _names(parties) -> str:
+    """The people on a document, joined for the eye rather than for a join."""
+    return "; ".join(p["navn"] for p in parties or [] if p.get("navn"))
+
+
+def _dkk(amount: str, valuta: str = "DKK") -> str:
+    """26000 becomes "26.000 DKK" - the way the register writes it back."""
+    if not amount:
+        return ""
+    try:
+        return f"{int(float(amount)):,}".replace(",", ".") + (f" {valuta}" if valuta else "")
+    except ValueError:
+        return str(amount)
 
 
 def slugify(text: str) -> str:
@@ -1229,6 +1270,9 @@ def main() -> None:
     enriched = api.authenticated
     properties, haeftelser, servitutter, historik, attester = [], [], [], [], []
     ejere: list[dict] = []
+    historik_ejere: list[dict] = []
+    parter: list[dict] = []
+    underpant: list[dict] = []
     parcels: dict = {}
     for index, unit in enumerate(units, start=1):
         if index > 1:
@@ -1251,11 +1295,19 @@ def main() -> None:
             matrikel.get("landsejerlavkode", ""), matrikel.get("matrikelnummer", ""), parcels
         )
         attest = attest_details(details)
+        # The same document, read twice: `attest` is the flat slice the main
+        # row wants, `parsed` is the whole of it, which the charge tables and
+        # everyone named on them are built from.
+        parsed = attest_xml.parse(details["_raw"]) if details and "_raw" in details else {}
         properties.append(property_row(record, unit["uuid"], parcel, attest))
         ejere.extend(owner_rows(record, unit["uuid"], attest))
-        haeftelser.extend(haeftelse_rows(record, unit["uuid"]))
-        servitutter.extend(servitut_rows(record, unit["uuid"]))
-        historik.extend(history_rows(history, unit["uuid"], record.get("adresse", "")))
+        haeftelser.extend(haeftelse_rows(record, unit["uuid"], parsed))
+        servitutter.extend(servitut_rows(record, unit["uuid"], parsed))
+        parter.extend(party_rows(parsed, unit["uuid"]))
+        underpant.extend(underpant_rows(parsed, unit["uuid"]))
+        entries, owners = history_rows(history, unit["uuid"], record.get("adresse", ""))
+        historik.extend(entries)
+        historik_ejere.extend(owners)
         suffix, document = attest_document(details)
         if document:
             attester.append(
@@ -1264,6 +1316,7 @@ def main() -> None:
                     "adresse": record.get("adresse", ""),
                     "format": suffix,
                     "dokument": document,
+                    "dokument_json": attest_json(details),
                 }
             )
         print(f"  [{index}/{len(units)}] {unit.get('adresse', '')}", file=sys.stderr)
@@ -1291,6 +1344,9 @@ def main() -> None:
                 "haeftelser": haeftelser,
                 "servitutter": servitutter,
                 "adkomsthistorik": historik,
+                "adkomsthistorik_ejere": historik_ejere,
+                "dokument_parter": parter,
+                "underpant": underpant,
                 "attester": attester,
             },
         )
@@ -1305,6 +1361,9 @@ def main() -> None:
             ("-haeftelser", HAEFTELSE_FIELDS, haeftelser),
             ("-servitutter", SERVITUT_FIELDS, servitutter),
             ("-adkomsthistorik", HISTORIK_FIELDS, historik),
+            ("-adkomsthistorik-ejere", HISTORIK_EJER_FIELDS, historik_ejere),
+            ("-parter", PART_FIELDS, parter),
+            ("-underpant", UNDERPANT_FIELDS, underpant),
         ]
         for suffix, fields, rows in outputs:
             path, count = _write_csv(f"{stem}{suffix}{stamped}.csv", fields, rows)

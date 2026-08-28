@@ -10,16 +10,20 @@ The shape differs from the CSVs in one way. A spreadsheet wants a property's
 owners widened across the row - ejer_1_navn, ejer_2_navn - which means the
 columns change with however many co-owners a building happens to have. A
 database wants them as rows, so `ejere` is its own table and joins back on
-ejendom_uuid.
+ejendom_uuid. The same reasoning gives everyone attached to a mortgage their
+own rows in `dokument_parter`, and every historical owner theirs in
+`adkomsthistorik_ejere`.
 """
 
 from __future__ import annotations
 
+import json
 import re
 from datetime import datetime
 from pathlib import Path
 
 TEXT, INTEGER, DECIMAL, DATE = "VARCHAR", "BIGINT", "DOUBLE", "DATE"
+BOOLEAN, JSON = "BOOLEAN", "JSON"
 
 # Every table records what it was keyed on, so a re-run can replace exactly the
 # properties it fetched and leave the rest of the database alone.
@@ -69,16 +73,38 @@ TABLES = {
         "columns": [
             ("ejendom_uuid", TEXT),
             ("dokument_uuid", TEXT),
+            ("dokument_version", TEXT),
             ("adresse", TEXT),
             ("dato_loebenummer", TEXT),
             ("prioritet", INTEGER),
+            ("rettighed_uuid", TEXT),
             ("dokumenttype", TEXT),
+            ("dokumenttype_beskrivelse", TEXT),
+            ("formularkode", TEXT),
             ("hovedstol", TEXT),
             ("hovedstol_dkk", INTEGER),
-            ("rentesats_pct", DECIMAL),
+            ("valuta", TEXT),
+            # A fixed rate is one number; a variable one is a named reference
+            # rate plus a margin, and the three columns together are the term.
             ("rentetype", TEXT),
+            ("rentesats_pct", DECIMAL),
+            ("reference_rente", TEXT),
+            ("reference_rente_pct", DECIMAL),
+            ("rente_margin_pct", DECIMAL),
+            ("rente_foreloebig", BOOLEAN),
+            ("laantype", TEXT),
+            ("saerlige_vilkaar", JSON),
+            ("kreditorbetegnelse", TEXT),
             ("kreditorer", TEXT),
-            ("dokument_version", TEXT),
+            ("tinglysningsdato", DATE),
+            ("senest_paategnet", DATE),
+            ("overfoert", BOOLEAN),
+            ("konverteret_pantebrev", BOOLEAN),
+            ("afgift_dkk", INTEGER),
+            ("afgift_overfoert", BOOLEAN),
+            ("antal_respekt", INTEGER),
+            ("antal_underpant", INTEGER),
+            ("tekst", TEXT),
         ],
     },
     "servitutter": {
@@ -86,22 +112,88 @@ TABLES = {
         "columns": [
             ("ejendom_uuid", TEXT),
             ("dokument_uuid", TEXT),
+            ("dokument_version", TEXT),
             ("adresse", TEXT),
             ("dato_loebenummer", TEXT),
             ("prioritet", INTEGER),
+            ("rettighed_uuid", TEXT),
             ("dokumenttype", TEXT),
+            ("indhold", JSON),
             ("tekst", TEXT),
-            ("dokument_version", TEXT),
+            ("paataleberettigede", TEXT),
+            ("ogsaa_lyst_paa", INTEGER),
+            ("uden_ejers_tiltraedelse", BOOLEAN),
+            ("prioritet_forud", BOOLEAN),
+            ("betydning_for_vaerdi", BOOLEAN),
+            ("tinglysningsdato", DATE),
+            ("senest_paategnet", DATE),
+            ("overfoert", BOOLEAN),
+            ("afgift_dkk", INTEGER),
+            ("akt_filnavn", TEXT),
+        ],
+    },
+    # Everyone named on a document, whatever end of it they are on. A mortgage
+    # names a creditor and a debtor, often a notice-holder and an agent as
+    # well, and each of them carries a date of birth or a CVR number - which
+    # is the whole reason the logged-in record is worth fetching.
+    "dokument_parter": {
+        "key": "ejendom_uuid",
+        "columns": [
+            ("ejendom_uuid", TEXT),
+            ("dokument_uuid", TEXT),
+            ("dokumentart", TEXT),
+            ("rolle", TEXT),
+            ("nummer", INTEGER),
+            ("navn", TEXT),
+            ("foedselsdato", DATE),
+            ("cvr", TEXT),
+            ("andel", TEXT),
+            ("adresse_kode", TEXT),
+        ],
+    },
+    # A pledge of the mortgage deed itself - a charge on a charge, with its own
+    # amount, its own priority and its own holder.
+    "underpant": {
+        "key": "ejendom_uuid",
+        "columns": [
+            ("ejendom_uuid", TEXT),
+            ("haeftelse_uuid", TEXT),
+            ("dokument_uuid", TEXT),
+            ("dato_loebenummer", TEXT),
+            ("rettighed_uuid", TEXT),
+            ("beloeb_dkk", INTEGER),
+            ("valuta", TEXT),
+            ("prioritet", INTEGER),
+            ("panthavere", TEXT),
         ],
     },
     "adkomsthistorik": {
         "key": "ejendom_uuid",
         "columns": [
             ("ejendom_uuid", TEXT),
+            ("post_nummer", INTEGER),
             ("adresse", TEXT),
             ("dato", DATE),
             ("dokumenttype", TEXT),
+            ("koebesum_dkk", INTEGER),
+            ("antal_ejere", INTEGER),
             ("historiske_ejere", TEXT),
+        ],
+    },
+    # The owners named in each history entry, read out of the block of text
+    # the register prints there. Joins back on (ejendom_uuid, post_nummer).
+    "adkomsthistorik_ejere": {
+        "key": "ejendom_uuid",
+        "columns": [
+            ("ejendom_uuid", TEXT),
+            ("post_nummer", INTEGER),
+            ("dato", DATE),
+            ("nummer", INTEGER),
+            ("navn", TEXT),
+            ("foedselsdato", DATE),
+            ("cvr", TEXT),
+            ("andel", TEXT),
+            ("note", TEXT),
         ],
     },
     "attester": {
@@ -110,7 +202,11 @@ TABLES = {
             ("ejendom_uuid", TEXT),
             ("adresse", TEXT),
             ("format", TEXT),
-            ("dokument", TEXT),
+            # The whole document, namespaces stripped, as JSON rather than as
+            # the XML it arrived in: same content, minus the prefixes, in a
+            # form json_extract can reach into. The verbatim XML still goes to
+            # a file - this is the copy meant to be queried.
+            ("dokument_json", JSON),
         ],
     },
 }
@@ -141,6 +237,7 @@ def save(path: str | Path, tables: dict[str, list[dict]]) -> dict[str, int]:
                 f'CREATE TABLE IF NOT EXISTS "{name}" '
                 f'({definition}, "{FETCHED}" TIMESTAMP)'
             )
+            _add_new_columns(db, name, columns)
 
             rows = tables.get(name) or []
             keys = sorted({str(row.get(spec["key"], "")) for row in rows} - {""})
@@ -155,11 +252,29 @@ def save(path: str | Path, tables: dict[str, list[dict]]) -> dict[str, int]:
                     [_coerce(row.get(column), sort) for column, sort in columns] + [stamped]
                     for row in rows
                 ]
+                named = ", ".join(f'"{column}"' for column, _ in columns)
                 holes = ", ".join("?" * (len(columns) + 1))
-                db.executemany(f'INSERT INTO "{name}" VALUES ({holes})', values)
+                db.executemany(
+                    f'INSERT INTO "{name}" ({named}, "{FETCHED}") VALUES ({holes})', values
+                )
             written[name] = len(rows)
 
     return written
+
+
+def _add_new_columns(db, name: str, columns) -> None:
+    """Bring an existing table up to the current schema.
+
+    CREATE TABLE IF NOT EXISTS does nothing to a table that already exists, so
+    a database written by an older version keeps its old columns and the insert
+    below would not match. Columns are only ever added: one this file no longer
+    declares is left alone rather than dropped, because a column holding data
+    is not ours to throw away on a schema change.
+    """
+    present = {row[0] for row in db.execute(f'DESCRIBE "{name}"').fetchall()}
+    for column, sort in columns:
+        if column not in present:
+            db.execute(f'ALTER TABLE "{name}" ADD COLUMN "{column}" {sort}')
 
 
 def _coerce(value, sort: str):
@@ -172,11 +287,30 @@ def _coerce(value, sort: str):
     """
     if value is None:
         return None
+    if sort == JSON:
+        # A list or dict is rendered here; a string is assumed to be JSON
+        # already, which is how the whole-document column arrives.
+        if isinstance(value, (list, dict)):
+            return json.dumps(value, ensure_ascii=False) if value else None
+        return str(value) or None
+
+    if isinstance(value, bool):
+        return value if sort == BOOLEAN else None
+    if isinstance(value, (int, float)):
+        # Already a number, from a reader that knew which dialect it was in.
+        # Passing it back through the Danish text rules below would reread
+        # "3.5" as thirty-five hundred.
+        return int(value) if sort == INTEGER else float(value) if sort == DECIMAL else str(value)
+
     text = str(value).strip()
     if not text:
         return None
     if sort == TEXT:
         return text
+    if sort == BOOLEAN:
+        # The register writes OIO booleans as "true"/"false"; anything else is
+        # a field it left empty, which is not the same as False.
+        return {"true": True, "false": False}.get(text.lower())
 
     if sort == DATE:
         match = re.match(r"(\d{4})-(\d{2})-(\d{2})", text)
