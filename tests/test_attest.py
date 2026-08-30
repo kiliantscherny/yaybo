@@ -75,7 +75,7 @@ def test_numbers_and_dates():
     assert tl._plain_number("1.234.567 DKK") == "1234567"
     assert tl._plain_number("55 kvm") == "55"
     assert tl._plain_number("1/300") == "1/300"  # a fraction is not a number
-    assert tl._iso_date("01.03.2024") == "2026-09-15"
+    assert tl._iso_date("01.03.2024") == "2024-03-01"
     assert tl._iso_date("2014-07-01+02:00") == "2014-07-01"
     assert tl._iso_date("Skøde") == "Skøde"
 
