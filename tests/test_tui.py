@@ -385,14 +385,18 @@ def test_search_fetches_the_ticked_property_and_opens_it(tmp_path, monkeypatch):
             listing = screen.query_one("#search-units", SelectionList)
             assert listing.selected == [0], "a lone property should arrive ticked"
 
+            # The fetch runs in a thread and the property screen reads the
+            # database in another, so wait for the rows rather than for the
+            # screen: arriving on it says nothing about whether it has loaded.
             await pilot.press("f")
             for _ in range(40):
                 await pilot.pause(0.1)
-                if isinstance(app.screen, PropertyScreen):
+                if isinstance(app.screen, PropertyScreen) and app.screen.tables:
                     break
 
             assert asked["units"] == [unit]
             assert isinstance(app.screen, PropertyScreen), "the property never opened"
+            assert app.screen.tables, "the property opened but never loaded"
             assert app.screen.property_row["adresse"].startswith("Prøvegade 1")
             assert app.screen.tables["ejere"][0]["navn"] == "Ida Testesen"
 
