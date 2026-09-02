@@ -1,6 +1,6 @@
 [project]
 name = "yaybo"
-version = "0.2.0"
+version = "0.2.1"
 description = "Fetch, explore and export the Danish property registers, from a terminal"
 readme = "README.md"
 license = "MIT"

@@ -5,7 +5,7 @@ versions follow [semantic versioning](https://semver.org/).
 
 ## [Unreleased]
 
-## [0.2.0] - 2026-09-02
+## [0.2.1] - 2026-09-02
 
 First published release. Everything below is what it arrives with, rather than
 what changed since a version anyone could install.
@@ -39,5 +39,5 @@ what changed since a version anyone could install.
   that costs you.
 - Python 3.10 and newer.
 
-[Unreleased]: https://github.com/kiliantscherny/yaybo/compare/v0.2.0...HEAD
-[0.2.0]: https://github.com/kiliantscherny/yaybo/releases/tag/v0.2.0
+[Unreleased]: https://github.com/kiliantscherny/yaybo/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/kiliantscherny/yaybo/releases/tag/v0.2.1
