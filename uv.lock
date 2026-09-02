@@ -770,7 +770,7 @@ wheels = [
 
 [[package]]
 name = "mitid-client"
-version = "0.1.0"
+version = "0.1.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "beautifulsoup4" },
@@ -778,9 +778,9 @@ dependencies = [
     { name = "qrcode" },
     { name = "requests" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/06/32/62c997410657a0d63dad1829acaec9f706c89027555faa8b7206080b423e/mitid_client-0.1.0.tar.gz", hash = "sha256:0ac6485480d987cd2b39d8f03f07767575509c5f10f65d3e4a7764e8e9376f0d", size = 24644, upload-time = "2026-09-02T19:33:23.743Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/29/43/b9f799ef223562fbefc97d75226d780cc13aa9eafcd28c985e1b7383dcd5/mitid_client-0.1.1.tar.gz", hash = "sha256:5f1fd5b01d13c1b016de5e17d273e6b803b55430fc4aef6331420f41986145c7", size = 25499, upload-time = "2026-09-02T20:15:05.713Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/61/a8/8b6a4ccd1b859fde158ac2f828c439591e100cae8374d094a8fdb04625ca/mitid_client-0.1.0-py3-none-any.whl", hash = "sha256:3a90d85cf11a8431671c41866800554aa034adaa3fdb4f41da2fe790cd545493", size = 28186, upload-time = "2026-09-02T19:33:22.409Z" },
+    { url = "https://files.pythonhosted.org/packages/75/8d/817bbd3a3752283ff10546cd2a503c597494b73d489f97cdb66b19bc52e5/mitid_client-0.1.1-py3-none-any.whl", hash = "sha256:54db7e55432c2e21a0bfb2bcc6606b30323c208e5bf8bc81eb270348dc0eb508", size = 29274, upload-time = "2026-09-02T20:15:04.134Z" },
 ]
 
 [package.optional-dependencies]
@@ -1710,7 +1710,7 @@ dev = [
 requires-dist = [
     { name = "beautifulsoup4", specifier = ">=4.12" },
     { name = "duckdb", specifier = ">=1.5.5" },
-    { name = "mitid-client", extras = ["textual"], specifier = ">=0.1.0" },
+    { name = "mitid-client", extras = ["textual"], specifier = ">=0.1.1" },
     { name = "openpyxl", specifier = ">=3.1" },
     { name = "requests", specifier = ">=2.32" },
     { name = "textual", specifier = ">=3.1" },
