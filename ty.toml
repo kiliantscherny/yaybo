@@ -1,0 +1,4 @@
+[environment]
+# The oldest version the package supports. Checking against that catches
+# anything newer that slips in, here rather than on a user's machine.
+python-version = "3.10"

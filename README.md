@@ -1,12 +1,16 @@
 # yaybo
 
+[![PyPI](https://img.shields.io/pypi/v/yaybo?logo=pypi&logoColor=white)](https://pypi.org/project/yaybo/)
+[![CI](https://github.com/kiliantscherny/yaybo/actions/workflows/ci.yml/badge.svg)](https://github.com/kiliantscherny/yaybo/actions/workflows/ci.yml)
+[![Python](https://img.shields.io/pypi/pyversions/yaybo?logo=python&logoColor=white)](https://pypi.org/project/yaybo/)
+
 A terminal application for the Danish property registers. Look an address up,
 see what the land register holds against it, and keep the answers in a database
 you can query later.
 
 ```sh
-uv run yaybo                                          # the TUI
-uv run yaybo fetch "Prøvegade 1, 9999 Prøveby"
+uvx yaybo                                          # the TUI, without installing it
+uvx yaybo fetch "Prøvegade 1, 9999 Prøveby"
 ```
 
 ---
@@ -159,12 +163,13 @@ does not.
 ## Installing
 
 ```sh
-git clone …/yaybo && cd yaybo
-uv sync
-uv run yaybo
+uv tool install yaybo    # or: pip install yaybo
+yaybo
 ```
 
-Python 3.13 or newer.
+`uvx yaybo` runs it without installing anything at all. Python 3.10 or newer.
+
+To work on it, see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## mitid-client — the login, on its own
 
@@ -186,14 +191,9 @@ result = await self.push_screen_wait(
 ```
 
 Point it at any NemLog-in-protected URL and it comes back with the session
-cookie that URL was guarding. yaybo depends on it by path while it is unpublished:
-
-```toml
-[tool.uv.sources]
-mitid-client = { path = "../mitid-client", editable = true }
-```
-
-so a clone needs it checked out beside this one.
+cookie that URL was guarding. It installs as a dependency of this, so there is
+nothing to do about it; it is worth knowing about separately because a login is
+the reusable half, and property is not.
 
 ## What you are taking on
 
