@@ -9,6 +9,21 @@ uv run yaybo                                          # the TUI
 uv run yaybo fetch "Prøvegade 1, 9999 Prøveby"
 ```
 
+---
+
+> [!CAUTION]
+> **This is a hobby project. It is not built for production use, and nothing
+> about it is supported.**
+>
+> It is not affiliated with, endorsed by, or connected to tinglysning.dk,
+> Domstolsstyrelsen, MitID, NemLog-in, Boligsiden, Danmarks Statistik or
+> Dataforsyningen. Those names appear here only to say where the data comes
+> from.
+>
+> Provided as-is, with no warranty of any kind. **Use it at your own risk.** The
+> author accepts no liability for any loss, damage, or misuse arising from it,
+> and none of it is financial, legal or property advice.
+
 Everything is public data, from three sources that answer different questions:
 
 | source | what it knows |
@@ -22,6 +37,7 @@ once with MitID and later runs quietly pick the session back up, adding each
 owner's date of birth, everyone named on every mortgage, and the chain of
 previous owners.
 
+> [!NOTE]
 > This tells you who *owns* a property, not who lives there. Resident data
 > (CPR/folkeregisteret) is not public in Denmark, with or without a login.
 
@@ -126,16 +142,19 @@ the existing rows out of date, not missing.
 `dokument_parter`, `adkomsthistorik` and `attester` need a login. Everything else
 does not.
 
-Three columns on `ejendomme` are worked out rather than fetched:
-`samlet_gaeld_dkk`, `frivaerdi_dkk` and `belaaningsgrad_pct`. They run against the
-public valuation, which sits well below market, so treat the equity as a floor
-and the loan-to-value as a ceiling.
-
-The loan type on a charge is an estimate, not a record. The register gives an
-interest rate and never the product, so `laantype_estimat` is that rate matched
-against what each kind of loan actually cost in the months around it. The
-distance to the runner-up is in `laantype_afstand` and the whole rate series is
-in `rentestatistik`, so an estimate can be argued with.
+> [!WARNING]
+> **Some columns are worked out, not recorded, and they can be wrong.**
+>
+> `samlet_gaeld_dkk`, `frivaerdi_dkk` and `belaaningsgrad_pct` are derived, and
+> they run against the *public valuation*, which sits well below market. Treat
+> the equity as a floor and the loan-to-value as a ceiling, never as a figure.
+>
+> `laantype_estimat` is an estimate and not a record at all. The register gives
+> an interest rate and never the product, so this is that rate matched against
+> what each kind of loan actually cost in the months around it. The distance to
+> the runner-up is in `laantype_afstand` and the whole rate series is kept in
+> `rentestatistik`, so an estimate can be argued with rather than taken on
+> trust.
 
 ## Installing
 
@@ -176,12 +195,27 @@ mitid-client = { path = "../mitid-client", editable = true }
 
 so a clone needs it checked out beside this one.
 
-## Please be sensible
+## What you are taking on
 
-This logs in as you, to a government register, about real people's homes. Use it
-for addresses you have a reason to look at. The `out/` and `exports/` folders are
-git-ignored on purpose, and so is every data file anywhere in the tree — every
-row names somebody and says what they paid for their house.
+> [!WARNING]
+> **Everything this fetches is about real, named people** — what they paid for
+> their home, what they still owe on it, and, once logged in, when they were
+> born. It is public record. That is not the same as it being yours to do
+> whatever you like with.
+>
+> - The moment you fetch it, you are the one holding it. In the EU that comes
+>   with obligations, and "it was already public" is not an answer for what you
+>   do next.
+> - `out/` and `exports/` are git-ignored on purpose, and so is every data file
+>   anywhere in the tree. Keep it that way — a committed database is a
+>   published one.
+> - Look up addresses you have a reason to look at.
 
-The register is a public service, not a scraping target: there is a pause between
-requests, and no attempt anywhere to go faster than a person clicking.
+> [!IMPORTANT]
+> The registers are public services, not scraping targets. There is a pause
+> between requests and no attempt anywhere to go faster than a person clicking,
+> and the queue is rate-limited for the same reason. Please leave it that way.
+
+Logging in means logging in as you, to a government register, with MitID. See
+[mitid-client](https://github.com/kiliantscherny/mitid-client) for what that
+part carries with it.
