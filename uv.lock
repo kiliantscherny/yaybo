@@ -2,12 +2,6 @@ version = 1
 revision = 3
 requires-python = ">=3.13"
 
-[manifest]
-members = [
-    "mitid-client",
-    "yaybo",
-]
-
 [[package]]
 name = "aiohappyeyeballs"
 version = "2.7.1"
@@ -523,7 +517,7 @@ wheels = [
 [[package]]
 name = "mitid-client"
 version = "0.1.0"
-source = { editable = "packages/mitid" }
+source = { editable = "../mitid-client" }
 dependencies = [
     { name = "beautifulsoup4" },
     { name = "pycryptodome" },
@@ -545,6 +539,12 @@ requires-dist = [
     { name = "textual", marker = "extra == 'textual'", specifier = ">=3.1" },
 ]
 provides-extras = ["textual"]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "pytest", specifier = ">=8.3" },
+    { name = "textual", specifier = ">=3.1" },
+]
 
 [[package]]
 name = "msgpack"
@@ -1089,7 +1089,7 @@ dev = [
 requires-dist = [
     { name = "beautifulsoup4", specifier = ">=4.12" },
     { name = "duckdb", specifier = ">=1.5.5" },
-    { name = "mitid-client", extras = ["textual"], editable = "packages/mitid" },
+    { name = "mitid-client", extras = ["textual"], editable = "../mitid-client" },
     { name = "openpyxl", specifier = ">=3.1" },
     { name = "requests", specifier = ">=2.34.2" },
     { name = "textual", specifier = ">=3.1" },

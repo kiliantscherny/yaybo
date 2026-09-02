@@ -24,11 +24,10 @@ dev = [
     "textual-dev>=1.7",
 ]
 
-[tool.uv.workspace]
-members = ["packages/*"]
-
+# Its own repository now, next door. A path source until it is published;
+# swap it for a git or version source and nothing else here changes.
 [tool.uv.sources]
-mitid-client = { workspace = true }
+mitid-client = { path = "../mitid-client", editable = true }
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

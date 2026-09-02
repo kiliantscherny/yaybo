@@ -147,13 +147,14 @@ uv run yaybo
 
 Python 3.13 or newer.
 
-## packages/mitid — the login, on its own
+## mitid-client — the login, on its own
 
-The MitID half is a separate package, `mitid-client`, in `packages/mitid/`. It
-knows nothing about property: it is a Python stand-in for MitID's JavaScript core
-client, the NemLog-in broker that fronts the Danish public sector, a cookie store
-for keeping a session between runs, and two ways of showing a login to the person
-doing it — a few lines on stderr, or a Textual screen.
+The MitID half is a library of its own:
+[mitid-client](https://github.com/kiliantscherny/mitid-client). It knows nothing
+about property - it is a Python stand-in for MitID's JavaScript core client, the
+NemLog-in broker that fronts the Danish public sector, a store for keeping a
+login's cookies between runs, and two ways of showing a login to whoever is
+doing it: a few lines on stderr, or a Textual screen.
 
 ```python
 from mitid.brokers import nemlogin
@@ -165,10 +166,15 @@ result = await self.push_screen_wait(
 )
 ```
 
-Point it at any NemLog-in-protected URL and it comes back with the session cookie
-that URL was guarding. See `packages/mitid/README.md`. It is a uv workspace
-member, so it can be split into its own repository later without a line of it
-changing.
+Point it at any NemLog-in-protected URL and it comes back with the session
+cookie that URL was guarding. yaybo depends on it by path while it is unpublished:
+
+```toml
+[tool.uv.sources]
+mitid-client = { path = "../mitid-client", editable = true }
+```
+
+so a clone needs it checked out beside this one.
 
 ## Please be sensible
 
