@@ -112,7 +112,8 @@ def _salg(registration: dict) -> dict:
     Boligsiden gives perAreaPrice already, but not always, and it is worth
     having on every row that has both halves of it.
     """
-    amount, area = registration.get("amount"), registration.get("area") or registration.get("livingArea")
+    amount = registration.get("amount")
+    area = registration.get("area") or registration.get("livingArea")
     kind = registration.get("type") or ""
     return {
         "dato": registration.get("date") or "",

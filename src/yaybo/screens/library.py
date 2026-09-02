@@ -14,11 +14,11 @@ from textual import on, work
 from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal
-from textual.screen import Screen
 from textual.widgets import DataTable, Footer, Header, Input, Static
 
 from yaybo import display, pipeline, store
 from yaybo.register.fields import normalise
+from yaybo.screens.base import YayboScreen
 
 COLUMNS = (
     ("Adresse", 42),
@@ -32,7 +32,7 @@ COLUMNS = (
 )
 
 
-class LibraryScreen(Screen):
+class LibraryScreen(YayboScreen):
     """The properties this database holds, newest lookup first."""
 
     # The table, not the filter box. This is the one screen whose single-key

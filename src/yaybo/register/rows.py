@@ -19,7 +19,6 @@ from yaybo.register import historik
 from yaybo.register.address import unit_label
 from yaybo.register.fields import normalise, plain_number
 
-
 HISTORIK_FIELDS = [
     "adresse", "dato", "dokumenttype", "koebesum_dkk", "antal_ejere",
     "historiske_ejere", "post_nummer", "ejendom_uuid",
@@ -78,7 +77,9 @@ def history_rows(history: dict | None, uuid: str, adresse: str):
     return entries, owners
 
 
-def property_row(record: dict, uuid: str, parcel: dict, attest: dict | None = None) -> dict:
+def property_row(
+    record: dict, uuid: str, parcel: dict, attest: dict | None = None
+) -> dict:
     """One row per property, with joint owners widened into ejer_1/ejer_2 columns."""
     attest = attest or {}
     matrikler = record.get("matrikler") or []
@@ -472,6 +473,7 @@ def _dkk(amount: str, valuta: str = "DKK") -> str:
     if not amount:
         return ""
     try:
-        return f"{int(float(amount)):,}".replace(",", ".") + (f" {valuta}" if valuta else "")
+        number = f"{int(float(amount)):,}".replace(",", ".")
+        return number + (f" {valuta}" if valuta else "")
     except ValueError:
         return str(amount)

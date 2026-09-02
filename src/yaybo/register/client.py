@@ -146,7 +146,10 @@ class Tinglysning:
         try:
             return response.json()
         except ValueError:
-            return {"_raw": response.text, "_content_type": response.headers.get("content-type", "")}
+            return {
+                "_raw": response.text,
+                "_content_type": response.headers.get("content-type", ""),
+            }
 
     def lookup_address(self, query: str) -> dict:
         """Resolve an address using tinglysning's own autocomplete.
@@ -229,7 +232,9 @@ class Tinglysning:
     def fetch_record(self, uuid: str) -> dict:
         record = self._get(f"ejendomsoeg/henttingbog/{uuid}") or {}
         if record.get("statuskode"):  # 0 means OK
-            raise RuntimeError(f"{uuid}: {record.get('statustekst') or record['statuskode']}")
+            raise RuntimeError(
+                f"{uuid}: {record.get('statustekst') or record['statuskode']}"
+            )
         return record
 
     def fetch_details(self, uuid: str) -> dict | None:

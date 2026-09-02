@@ -103,7 +103,9 @@ def test_row_joins_owners_by_name():
 
 
 if __name__ == "__main__":
-    tests = [value for name, value in sorted(globals().items()) if name.startswith("test_")]
+    tests = [
+        value for name, value in sorted(globals().items()) if name.startswith("test_")
+    ]
     for test in tests:
         test()
         print(f"  ok  {test.__name__}")

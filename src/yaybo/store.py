@@ -23,6 +23,7 @@ import re
 import threading
 from datetime import datetime
 from pathlib import Path
+from typing import TypedDict
 
 # DuckDB will not open a second connection to a file that is already open with a
 # different configuration, so a read that overlaps a write fails outright. In the
@@ -34,9 +35,17 @@ _ACCESS = threading.RLock()
 TEXT, INTEGER, DECIMAL, DATE = "VARCHAR", "BIGINT", "DOUBLE", "DATE"
 BOOLEAN, JSON = "BOOLEAN", "JSON"
 
+
+class TableSpec(TypedDict):
+    """What one table is: the column it is replaced on, and its columns."""
+
+    key: str
+    columns: list[tuple[str, str]]
+
+
 # Every table records what it was keyed on, so a re-run can replace exactly the
 # properties it fetched and leave the rest of the database alone.
-TABLES = {
+TABLES: dict[str, TableSpec] = {
     "ejendomme": {
         "key": "uuid",
         "columns": [
@@ -348,17 +357,21 @@ def save(path: str | Path, tables: dict[str, list[dict]]) -> dict[str, int]:
                 # Replace rather than append: running the same address twice is
                 # a correction, not two observations.
                 holes = ", ".join("?" * len(keys))
-                db.execute(f'DELETE FROM "{name}" WHERE "{spec["key"]}" IN ({holes})', keys)
+                db.execute(
+                    f'DELETE FROM "{name}" WHERE "{spec["key"]}" IN ({holes})', keys
+                )
 
             if rows:
                 values = [
-                    [coerce(row.get(column), sort) for column, sort in columns] + [stamped]
+                    [coerce(row.get(column), sort) for column, sort in columns]
+                    + [stamped]
                     for row in rows
                 ]
                 named = ", ".join(f'"{column}"' for column, _ in columns)
                 holes = ", ".join("?" * (len(columns) + 1))
                 db.executemany(
-                    f'INSERT INTO "{name}" ({named}, "{FETCHED}") VALUES ({holes})', values
+                    f'INSERT INTO "{name}" ({named}, "{FETCHED}") VALUES ({holes})',
+                    values,
                 )
             written[name] = len(rows)
 
@@ -403,7 +416,9 @@ def coerce(value, sort: str):
         # Already a number, from a reader that knew which dialect it was in.
         # Passing it back through the Danish text rules below would reread
         # "3.5" as thirty-five hundred.
-        return int(value) if sort == INTEGER else float(value) if sort == DECIMAL else str(value)
+        if sort == INTEGER:
+            return int(value)
+        return float(value) if sort == DECIMAL else str(value)
 
     text = str(value).strip()
     if not text:
@@ -479,7 +494,7 @@ def _rows(db, sql: str, *args) -> list[dict]:
     """Run a query and return its rows as dicts, keyed on the column names."""
     result = db.execute(sql, args)
     names = [column[0] for column in result.description or []]
-    return [dict(zip(names, row)) for row in result.fetchall()]
+    return [dict(zip(names, row, strict=True)) for row in result.fetchall()]
 
 
 def held_tables(path: str | Path) -> list[tuple[str, int]]:
@@ -519,7 +534,11 @@ def library(path: str | Path) -> list[dict]:
             if "ejere" in held
             else ""
         )
-        columns = "o.antal_ejere, o.ejere," if owners else "NULL AS antal_ejere, NULL AS ejere,"
+        columns = (
+            "o.antal_ejere, o.ejere,"
+            if owners
+            else "NULL AS antal_ejere, NULL AS ejere,"
+        )
         return _rows(
             db,
             f"""

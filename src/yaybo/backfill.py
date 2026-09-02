@@ -26,7 +26,8 @@ import duckdb
 
 from yaybo import store
 from yaybo.enrich import boligsiden, laantype
-from yaybo.register import attest, attest_xml, rows as build
+from yaybo.register import attest, attest_xml
+from yaybo.register import rows as build
 from yaybo.register.address import address_parts, dawa_addresses, floor_and_door
 
 # Read out of the stored documents; everything else in the database is left
@@ -40,13 +41,19 @@ DERIVED = [
 ENRICHED = ["ejendomme", "handelshistorik", "bygninger", "rentestatistik"]
 
 
+def _count(db, name: str) -> int:
+    """How many rows a table holds. count(*) always answers, so the None that
+    fetchone() is allowed to return cannot happen here."""
+    row = db.sql(f'SELECT count(*) FROM "{name}"').fetchone()
+    return row[0] if row else 0
+
+
 def collect(path: Path) -> tuple[dict, dict, list[dict]]:
     """Read the stored documents and build every derived row from them."""
     tables: dict = collections.defaultdict(list)
     with duckdb.connect(str(path), read_only=True) as db:
         held = {row[0] for row in db.execute("SHOW TABLES").fetchall()}
-        before = {name: db.sql(f'SELECT count(*) FROM "{name}"').fetchone()[0]
-                  for name in sorted(held)}
+        before = {name: _count(db, name) for name in sorted(held)}
 
         history: dict = collections.defaultdict(list)
         if "adkomsthistorik" in held:
@@ -68,9 +75,10 @@ def collect(path: Path) -> tuple[dict, dict, list[dict]]:
         held_columns = {row[0] for row in db.execute('DESCRIBE "ejendomme"').fetchall()}
         readable = [c for c in columns if c in held_columns]
         properties = [
-            dict(zip(readable, row))
+            dict(zip(readable, row, strict=True))
             for row in db.sql(
-                f'SELECT {", ".join(chr(34) + c + chr(34) for c in readable)} FROM ejendomme'
+                f'SELECT {", ".join(chr(34) + c + chr(34) for c in readable)} '
+                "FROM ejendomme"
             ).fetchall()
         ]
 
@@ -86,7 +94,9 @@ def collect(path: Path) -> tuple[dict, dict, list[dict]]:
         tables["servitutter"] += build.servitut_rows(record, uuid, parsed)
         tables["dokument_parter"] += build.party_rows(parsed, uuid)
         tables["underpant"] += build.underpant_rows(parsed, uuid)
-        entries, owners = build.history_rows({"items": history.get(uuid, [])}, uuid, adresse)
+        entries, owners = build.history_rows(
+            {"items": history.get(uuid, [])}, uuid, adresse
+        )
         tables["adkomsthistorik"] += entries
         tables["adkomsthistorik_ejere"] += owners
         tables["attester"].append(
@@ -116,7 +126,8 @@ def enrich(tables: dict, properties: list[dict], *, boligsiden_on: bool,
         buildings: dict = collections.defaultdict(list)
         for row in properties:
             parts = address_parts(row.get("adresse") or "")
-            buildings[(parts["vejnavn"], parts["husnummer"], parts["postnummer"])].append(row)
+            key = (parts["vejnavn"], parts["husnummer"], parts["postnummer"])
+            buildings[key].append(row)
 
         found = 0
         for (vejnavn, husnr, postnr), rows in buildings.items():
@@ -148,7 +159,7 @@ def enrich(tables: dict, properties: list[dict], *, boligsiden_on: bool,
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser = argparse.ArgumentParser(description=(__doc__ or "").splitlines()[0])
     parser.add_argument("--db", help="the database to rebuild in place")
     parser.add_argument("--dry-run", action="store_true",
                         help="report what would be written and change nothing")

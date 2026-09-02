@@ -14,6 +14,17 @@ import duckdb
 from yaybo import store
 
 
+def _one(db, sql):
+    """The single value a query answers with.
+
+    Every query here counts something or reads one column of one row, but
+    fetchone() is typed for the general case where there is no row at all.
+    """
+    row = db.sql(sql).fetchone()
+    assert row is not None, sql
+    return row[0]
+
+
 def test_coercion():
     """Everything from the rendered attest arrives as text with its unit
     attached, and has to be typed."""
@@ -61,7 +72,8 @@ def _rows(uuid, navn):
     return {
         "ejendomme": [{"uuid": uuid, "adresse": "Prøvegade 1", "areal_m2": "55 kvm"}],
         "ejere": [
-            {"ejendom_uuid": uuid, "nummer": 1, "navn": navn, "foedselsdato": "1957-10-02"}
+            {"ejendom_uuid": uuid, "nummer": 1, "navn": navn,
+             "foedselsdato": "1957-10-02"}
         ],
     }
 
@@ -75,15 +87,15 @@ def test_rerun_replaces_rather_than_duplicates():
         store.save(path, _rows("uuid-1", "Testperson Beta"))
 
         with duckdb.connect(str(path), read_only=True) as db:
-            assert db.sql("SELECT count(*) FROM ejendomme").fetchone()[0] == 1
-            assert db.sql("SELECT navn FROM ejere").fetchone()[0] == "Testperson Beta"
+            assert _one(db, "SELECT count(*) FROM ejendomme") == 1
+            assert _one(db, "SELECT navn FROM ejere") == "Testperson Beta"
             # Typed on the way in, so a query can do arithmetic with it.
-            assert db.sql("SELECT areal_m2 FROM ejendomme").fetchone()[0] == 55
+            assert _one(db, "SELECT areal_m2 FROM ejendomme") == 55
 
         # A different property is added, not swapped in.
         store.save(path, _rows("uuid-2", "Testperson Gamma"))
         with duckdb.connect(str(path), read_only=True) as db:
-            assert db.sql("SELECT count(*) FROM ejendomme").fetchone()[0] == 2
+            assert _one(db, "SELECT count(*) FROM ejendomme") == 2
 
 
 def test_empty_run_still_leaves_queryable_tables():
@@ -92,7 +104,7 @@ def test_empty_run_still_leaves_queryable_tables():
         store.save(path, {})
         with duckdb.connect(str(path), read_only=True) as db:
             for table in store.TABLES:
-                assert db.sql(f"SELECT count(*) FROM {table}").fetchone()[0] == 0
+                assert _one(db, f"SELECT count(*) FROM {table}") == 0
 
 
 def test_an_older_database_gains_the_columns_it_is_missing():
@@ -108,8 +120,9 @@ def test_an_older_database_gains_the_columns_it_is_missing():
             db.execute("INSERT INTO haeftelser VALUES ('old-1', '1.000 DKK', now())")
 
         store.save(path, {"haeftelser": [
-            {"ejendom_uuid": "uuid-1", "hovedstol": "26.000 DKK", "hovedstol_dkk": 26000,
-             "rentesats_pct": 3.5, "overfoert": "true", "saerlige_vilkaar": ["inkonvertibel"]}
+            {"ejendom_uuid": "uuid-1", "hovedstol": "26.000 DKK",
+             "hovedstol_dkk": 26000, "rentesats_pct": 3.5, "overfoert": "true",
+             "saerlige_vilkaar": ["inkonvertibel"]}
         ]})
 
         with duckdb.connect(str(path), read_only=True) as db:
@@ -120,9 +133,9 @@ def test_an_older_database_gains_the_columns_it_is_missing():
             assert row == (26000, 3.5, True, '["inkonvertibel"]')
             # The older row is left where it was: a column holding data is not
             # ours to throw away on a schema change.
-            assert db.sql(
-                "SELECT hovedstol FROM haeftelser WHERE ejendom_uuid = 'old-1'"
-            ).fetchone()[0] == "1.000 DKK"
+            assert _one(
+                db, "SELECT hovedstol FROM haeftelser WHERE ejendom_uuid = 'old-1'"
+            ) == "1.000 DKK"
 
 
 if __name__ == "__main__":

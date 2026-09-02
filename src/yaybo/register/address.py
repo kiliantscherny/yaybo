@@ -218,7 +218,9 @@ def dawa_addresses(address: dict) -> dict[tuple[str, str], str]:
     if not isinstance(found, list):
         return {}
     return {
-        ((entry.get("etage") or "").lower(), (entry.get("dør") or "").lower()): entry["id"]
+        ((entry.get("etage") or "").lower(), (entry.get("dør") or "").lower()): entry[
+            "id"
+        ]
         for entry in found
         if entry.get("id")
     }

@@ -16,6 +16,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import requests
 from textual import work
 from textual.app import App, ComposeResult
 from textual.binding import Binding
@@ -54,7 +55,7 @@ YAYBO_THEME = Theme(
 KEEPALIVE_SECONDS = 8 * 60
 
 
-class YayboApp(App):
+class YayboApp(App[None]):
     """Fetch, explore and export the Danish property registers."""
 
     TITLE = "yaybo"
@@ -77,7 +78,7 @@ class YayboApp(App):
         # None until a cached session turns out to be live. Everything that
         # needs the logged-in half of the register goes through `api`, which
         # knows which half it can reach.
-        self.session = None
+        self.session: requests.Session | None = None
         self.who: str | None = None
         self.user_id: str = ""
         self.api = Tinglysning(None)
@@ -140,7 +141,7 @@ class YayboApp(App):
         auth.save_session(session, saved.get("user_id", ""))
         self.call_from_thread(self._adopt, session, who, saved.get("user_id", ""))
 
-    def _adopt(self, session, who: str, user_id: str) -> None:
+    def _adopt(self, session: requests.Session, who: str, user_id: str) -> None:
         self.session = session
         self.who = who
         self.user_id = user_id or self.user_id
@@ -172,7 +173,7 @@ class YayboApp(App):
         """Log in with MitID, or log out if there is already a session."""
         from mitid.ui.tui import MitIDLoginScreen
 
-        if self.logged_in:
+        if self.session is not None:
             auth.log_out(self.session)
             self.session = None
             self.who = None
@@ -196,8 +197,11 @@ class YayboApp(App):
         session, who = result
         self._adopt(session, who, user_id)
         self.notify(f"Logged in as {who}. The register will show more now.")
-        if hasattr(self.screen, "action_refresh"):
-            self.screen.action_refresh()
+        # Only the screens that read the database have one, and logging in
+        # changes what the database is allowed to say.
+        refresh = getattr(self.screen, "action_refresh", None)
+        if callable(refresh):
+            refresh()
 
     # ── moving between screens ──────────────────────────────────────────
 

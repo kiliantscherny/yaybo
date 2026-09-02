@@ -56,7 +56,9 @@ def _cell(value):
     if isinstance(value, (dict, list)):
         return json.dumps(value, ensure_ascii=False)
     if isinstance(value, (datetime, date)):
-        return value.isoformat(sep=" ") if isinstance(value, datetime) else value.isoformat()
+        if isinstance(value, datetime):
+            return value.isoformat(sep=" ")
+        return value.isoformat()
     return value
 
 

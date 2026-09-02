@@ -19,7 +19,6 @@ from textual import work
 from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import VerticalScroll
-from textual.screen import Screen
 from textual.widgets import (
     DataTable,
     Footer,
@@ -32,6 +31,7 @@ from textual.widgets import (
 from textual_plotext import PlotextPlot
 
 from yaybo import display, pipeline, store
+from yaybo.screens.base import YayboScreen
 
 # label, column, how to write it, how wide
 EJERE = (
@@ -103,7 +103,7 @@ TIMELINE = (
 )
 
 
-class PropertyScreen(Screen):
+class PropertyScreen(YayboScreen):
     """Everything the database holds about one property."""
 
     BINDINGS = [
@@ -143,13 +143,17 @@ class PropertyScreen(Screen):
                         id="table-underpant", cursor_type="row", zebra_stripes=True
                     )
             with TabPane("Servitutter", id="tab-servitutter"):
-                yield DataTable(id="table-servitutter", cursor_type="row", zebra_stripes=True)
+                yield DataTable(
+                    id="table-servitutter", cursor_type="row", zebra_stripes=True
+                )
             with TabPane("Parter", id="tab-parter"):
                 yield DataTable(id="table-parter", cursor_type="row", zebra_stripes=True)
             with TabPane("Handler", id="tab-handler"):
                 yield DataTable(id="table-handler", cursor_type="row", zebra_stripes=True)
             with TabPane("Forløb", id="tab-timeline"):
-                yield DataTable(id="table-timeline", cursor_type="row", zebra_stripes=True)
+                yield DataTable(
+                    id="table-timeline", cursor_type="row", zebra_stripes=True
+                )
             with TabPane("Kurve", id="tab-chart"):
                 yield PlotextPlot(id="chart")
                 yield Static("", id="chart-note", classes="hint-text")
@@ -197,7 +201,9 @@ class PropertyScreen(Screen):
 
         title = Text()
         title.append(display.text(row.get("adresse")), style="bold")
-        kind = display.boligtype(row.get("boligtype")) or display.text(row.get("ejendomstype"), "")
+        kind = display.boligtype(row.get("boligtype")) or display.text(
+            row.get("ejendomstype"), ""
+        )
         if kind:
             title.append(f"   {kind}", style="dim")
         title.append(f"   fetched {display.ago(row.get('hentet'))}", style="dim")
@@ -248,7 +254,11 @@ class PropertyScreen(Screen):
         owned = [
             f"{display.text(o.get('navn'))}"
             + (f"  ({display.text(o.get('andel'))})" if o.get("andel") else "")
-            + (f"  f. {display.when(o.get('foedselsdato'))}" if o.get("foedselsdato") else "")
+            + (
+                f"  f. {display.when(o.get('foedselsdato'))}"
+                if o.get("foedselsdato")
+                else ""
+            )
             for o in owners
         ]
 
@@ -284,10 +294,16 @@ class PropertyScreen(Screen):
             (
                 "Værdi og gæld",
                 [
-                    ("Ejendomsvurdering", display.kr(row.get("ejendomsvurdering_dkk"), unit="kr.")),
+                    (
+                        "Ejendomsvurdering",
+                        display.kr(row.get("ejendomsvurdering_dkk"), unit="kr."),
+                    ),
                     ("Grundværdi", display.kr(row.get("grundvaerdi_dkk"), unit="kr.")),
                     ("Vurderingsdato", display.when(row.get("vurderingsdato"))),
-                    ("Boligsiden vurderer", display.kr(row.get("boligsiden_vurdering_dkk"), unit="kr.")),
+                    (
+                        "Boligsiden vurderer",
+                        display.kr(row.get("boligsiden_vurdering_dkk"), unit="kr."),
+                    ),
                     ("Samlet gæld", display.kr(row.get("samlet_gaeld_dkk"), unit="kr.")),
                     ("Friværdi (mindst)", equity),
                     ("Belåningsgrad (højst)", loaded),
@@ -300,7 +316,10 @@ class PropertyScreen(Screen):
                 [
                     ("Dato", display.when(row.get("seneste_salg_dato"))),
                     ("Beløb", display.kr(row.get("seneste_salg_dkk"), unit="kr.")),
-                    ("Pris pr. m²", display.kr(row.get("seneste_salg_pris_m2"), unit="kr.")),
+                    (
+                        "Pris pr. m²",
+                        display.kr(row.get("seneste_salg_pris_m2"), unit="kr."),
+                    ),
                     ("Købesum (skøde)", display.kr(row.get("koebesum_dkk"), unit="kr.")),
                     ("Overtagelse", display.when(row.get("overtagelsesdato"))),
                     ("Til salg nu", display.yes_no(row.get("til_salg"))),
@@ -349,16 +368,25 @@ class PropertyScreen(Screen):
                             ("Ombygget", display.number(building.get("ombygningsaar"))),
                             ("Etager", display.number(building.get("etager"))),
                             ("Værelser", display.number(building.get("vaerelser"))),
-                            ("Badeværelser", display.number(building.get("badevaerelser"))),
+                            (
+                                "Badeværelser",
+                                display.number(building.get("badevaerelser")),
+                            ),
                             ("Toiletter", display.number(building.get("toiletter"))),
                             ("Boligareal", display.area(building.get("boligareal_m2"))),
                             ("Kælder", display.area(building.get("kaelderareal_m2"))),
                             ("Erhverv", display.area(building.get("erhvervsareal_m2"))),
-                            ("Samlet areal", display.area(building.get("samlet_areal_m2"))),
+                            (
+                                "Samlet areal",
+                                display.area(building.get("samlet_areal_m2")),
+                            ),
                             ("Ydervæg", display.text(building.get("ydervaeg"))),
                             ("Tag", display.text(building.get("tagdaekning"))),
                             ("Varme", display.text(building.get("varmeinstallation"))),
-                            ("Supplerende varme", display.text(building.get("supplerende_varme"))),
+                            (
+                                "Supplerende varme",
+                                display.text(building.get("supplerende_varme")),
+                            ),
                             ("Køkken", display.text(building.get("koekken"))),
                             ("Bad", display.text(building.get("badeforhold"))),
                             ("Toilet", display.text(building.get("toiletforhold"))),
@@ -400,21 +428,26 @@ class PropertyScreen(Screen):
                 )
             )
         for entry in self.tables.get("adkomsthistorik") or []:
+            art = display.text(entry.get("dokumenttype"), "")
             events.append(
                 (
                     entry.get("dato"),
-                    f"Adkomst · {display.text(entry.get('dokumenttype'), '')}".strip(" ·"),
+                    f"Adkomst · {art}".strip(" ·"),
                     display.kr(entry.get("koebesum_dkk")),
-                    _owners_of(self.tables.get("adkomsthistorik_ejere"), entry.get("post_nummer")),
+                    _owners_of(
+                        self.tables.get("adkomsthistorik_ejere"),
+                        entry.get("post_nummer"),
+                    ),
                 )
             )
         for charge in self.tables.get("haeftelser") or []:
             rate = display.pct(charge.get("rentesats_pct"))
             kind = display.text(charge.get("laantype_estimat"), "")
+            art = display.text(charge.get("dokumenttype"), "")
             events.append(
                 (
                     charge.get("tinglysningsdato"),
-                    f"Hæftelse · {display.text(charge.get('dokumenttype'), '')}".strip(" ·"),
+                    f"Hæftelse · {art}".strip(" ·"),
                     display.kr(charge.get("hovedstol_dkk")),
                     " · ".join(
                         part
@@ -428,10 +461,11 @@ class PropertyScreen(Screen):
                 )
             )
         for easement in self.tables.get("servitutter") or []:
+            art = display.text(easement.get("dokumenttype"), "")
             events.append(
                 (
                     easement.get("tinglysningsdato"),
-                    f"Servitut · {display.text(easement.get('dokumenttype'), '')}".strip(" ·"),
+                    f"Servitut · {art}".strip(" ·"),
                     "",
                     display.text(easement.get("tekst"), ""),
                 )
@@ -483,13 +517,15 @@ class PropertyScreen(Screen):
         # Plotted against a plain number rather than a date axis, so the same
         # code works whatever plotext decides its date handling looks like.
         xs = [_as_year(when) for when, _, _ in points]
-        ys = [float(price) for _, price, _ in points]
+        ys = [float(price or 0) for _, price, _ in points]
         plot.plt.plot(xs, ys, marker="braille", color=LINE)
         plot.plt.scatter(xs, ys, marker="●", color=POINT)
         ticks = sorted({int(x) for x in xs})
         if len(ticks) > 8:
             ticks = ticks[:: max(1, len(ticks) // 8)]
-        plot.plt.xticks(ticks, [str(year) for year in ticks])
+        plot.plt.xticks(
+            [float(year) for year in ticks], [str(year) for year in ticks]
+        )
         plot.plt.title(f"Pris pr. m² · {display.text(self.property_row.get('adresse'))}")
         plot.refresh()
 

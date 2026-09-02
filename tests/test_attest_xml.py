@@ -125,8 +125,11 @@ def test_charge_rows_prefer_the_xml_and_fall_back_to_the_public_record():
     # Logged out there is no XML, only the public lookup's own shape.
     public = {
         "adresse": "Prøvegade 1",
-        "haeftelser": [{"alias": "20250101-1000000002", "haeftelsestype": "realkreditpantebrev",
-                        "hovedstol": "2.000.000 DKK", "rente": "2,74", "uuid": "x"}],
+        "haeftelser": [
+            {"alias": "20250101-1000000002",
+             "haeftelsestype": "realkreditpantebrev",
+             "hovedstol": "2.000.000 DKK", "rente": "2,74", "uuid": "x"}
+        ],
     }
     plain = build.haeftelse_rows(public, "uuid-1")
     assert plain[0]["hovedstol"] == "2.000.000 DKK"
@@ -137,10 +140,10 @@ def test_outline_keeps_what_parse_never_named():
     """The columns take what is worth filtering on; the outline keeps the rest,
     so a field nobody has named yet is still there to be found."""
     whole = attest_xml.outline(RAW)
-    charge = whole["EjendomSummarisk"]["HaeftelseSummariskSamling"]["HaeftelseSummarisk"][1]
-    margin = charge["HaeftelseRente"]["HaeftelseRenteVariabel"]["HaeftelseReferenceRente"][
-        "ReferenceRenteTillaegFradrag"
-    ]
+    charges = whole["EjendomSummarisk"]["HaeftelseSummariskSamling"]
+    charge = charges["HaeftelseSummarisk"][1]
+    variabel = charge["HaeftelseRente"]["HaeftelseRenteVariabel"]
+    margin = variabel["HaeftelseReferenceRente"]["ReferenceRenteTillaegFradrag"]
     # parse() reads the margin as a number and drops the two indicators.
     assert margin["FastVariabelIndikator"] == "variabel"
     assert margin["TillaegFradragIndikator"] == "tillaeg"

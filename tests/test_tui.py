@@ -211,8 +211,10 @@ def test_exports_every_format(database, tmp_path):
     from yaybo import export
 
     tables = store.everything(database)
-    assert export.export_xlsx(tables, "prøve", outdir=tmp_path).exists()
-    assert export.export_duckdb(tables, "prøve", outdir=tmp_path).exists()
+    workbook = export.export_xlsx(tables, "prøve", outdir=tmp_path)
+    stored = export.export_duckdb(tables, "prøve", outdir=tmp_path)
+    assert workbook is not None and workbook.exists()
+    assert stored is not None and stored.exists()
     written = export.export_csv(tables, "prøve", outdir=tmp_path)
     # One file per table that has rows in it; rentestatistik has none here.
     filled = [name for name, rows in tables.items() if rows]
@@ -222,6 +224,8 @@ def test_exports_every_format(database, tmp_path):
 
 def test_every_screen_opens(database):
     """Open the library, each peer screen, and one property, and look at them."""
+    from textual.widgets import TabbedContent
+
     from yaybo.app import YayboApp
     from yaybo.screens.library import LibraryScreen
     from yaybo.screens.property import PropertyScreen
@@ -268,7 +272,7 @@ def test_every_screen_opens(database):
             assert len(screen._timeline()) >= 6
             for tab in ("tab-haeftelser", "tab-timeline", "tab-chart",
                         "tab-bygning", "tab-dokument"):
-                screen.query_one("#property-tabs").active = tab
+                screen.query_one("#property-tabs", TabbedContent).active = tab
                 await pilot.pause()
 
     if os.environ.get("YAYBO_SKIP_TUI"):
@@ -414,12 +418,14 @@ def test_a_takes_the_whole_building_and_ticks_everything(tmp_path, monkeypatch):
     from textual.widgets import OptionList, SelectionList
 
     from yaybo.app import YayboApp
+    from yaybo.screens.search import SearchScreen
 
     async def walk() -> None:
         app = YayboApp(database=tmp_path / "building.duckdb")
         async with app.run_test(size=(160, 48)) as pilot:
             await pilot.pause()
             screen = app.screen
+            assert isinstance(screen, SearchScreen)
             await _type_address(pilot, screen)
 
             # ↓ out of the text box, then `a`. While the box has focus a letter
@@ -431,6 +437,7 @@ def test_a_takes_the_whole_building_and_ticks_everything(tmp_path, monkeypatch):
             await pilot.pause(0.5)
 
             asked_about = screen.address
+            assert asked_about is not None
             assert asked_about["etage"] == "" and asked_about["doer"] == ""
             assert asked_about["tekst"] == "Prøvegade 1, 9999 Prøveby"
 

@@ -20,7 +20,6 @@ from textual import on, work
 from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal
-from textual.screen import Screen
 from textual.widgets import (
     Button,
     DataTable,
@@ -37,17 +36,18 @@ from yaybo.register.address import (
     address_parts,
     street_buildings,
 )
+from yaybo.screens.base import YayboScreen
 
 WAITING, RUNNING, DONE, FAILED = "·", "⟳", "✓", "✗"
 # Between properties. The register is a public service, not a scraping target.
 POLITE_DELAY = 1.0
 
 
-class QueueScreen(Screen):
+class QueueScreen(YayboScreen):
     """A list of addresses to fetch, and something that works through it."""
 
     BINDINGS = [
-        Binding("space", "toggle", "Start / pause"),
+        Binding("space", "run_or_pause", "Start / pause"),
         Binding("c", "clear", "Clear"),
         Binding("e", "export", "Export all"),
         Binding("escape", "back", "Back"),
@@ -157,7 +157,13 @@ class QueueScreen(Screen):
         for address in addresses:
             if address not in held:
                 self.jobs.append(
-                    {"query": address, "state": WAITING, "units": 0, "rows": 0, "note": ""}
+                    {
+                        "query": address,
+                        "state": WAITING,
+                        "units": 0,
+                        "rows": 0,
+                        "note": "",
+                    }
                 )
         self._redraw()
 
@@ -171,7 +177,7 @@ class QueueScreen(Screen):
 
     # ── running it ──────────────────────────────────────────────────────
 
-    def action_toggle(self) -> None:
+    def action_run_or_pause(self) -> None:
         if self.running:
             self._pause.set()
             self.running = False
@@ -238,7 +244,11 @@ class QueueScreen(Screen):
         failed = sum(1 for job in self.jobs if job["state"] == FAILED)
         self._say(
             f"{message} {fetched} properties, {rows} rows into {self.app.database}."
-            + (f" {failed} address(es) failed - press space to retry them." if failed else "")
+            + (
+                f" {failed} address(es) failed - press space to retry them."
+                if failed
+                else ""
+            )
         )
         self.notify(f"{message} {rows} rows written.")
 

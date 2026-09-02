@@ -20,7 +20,6 @@ import re
 from yaybo.register import attest_xml
 from yaybo.register.fields import birth_from_cpr, iso_date, normalise, plain_number
 
-
 # The attest prints a label, then its value on the next line, and these are the
 # labels it really uses - read off a real one rather than guessed at. Note how
 # little they resemble the column names they feed: the flat's own size is

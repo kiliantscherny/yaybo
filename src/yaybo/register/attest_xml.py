@@ -102,7 +102,9 @@ def parse(raw: str) -> dict:
 
     return {
         "ejendom": _ejendom(first(dig(ejendom, "EjendomStamoplysninger"))),
-        "adkomst": _adkomst(first(dig(ejendom, "AdkomstSummariskSamling", "AdkomstSummarisk"))),
+        "adkomst": _adkomst(
+            first(dig(ejendom, "AdkomstSummariskSamling", "AdkomstSummarisk"))
+        ),
         "haeftelser": [
             _haeftelse(h)
             for h in dig(ejendom, "HaeftelseSummariskSamling", "HaeftelseSummarisk")
@@ -224,7 +226,8 @@ def _haeftelse(node) -> dict:
         # A document may be registered behind any number of earlier rights.
         # The count is the useful part; the identifiers join to the easements.
         "respekterer": [
-            text(r, "RettighedIdentifikator") for r in dig(node, "RespektSamling", "Respekt")
+            text(r, "RettighedIdentifikator")
+            for r in dig(node, "RespektSamling", "Respekt")
         ],
         "saerlige_vilkaar": [
             text(v) for v in dig(
@@ -236,10 +239,15 @@ def _haeftelse(node) -> dict:
             text(a) for a in dig(node, "HaeftelseLaanKreditorbetegnelseTekst",
                                  "TekstGruppe", "Afsnit") if text(a)
         ),
-        "kreditorer": [_part(r) for r in dig(node, "KreditorInformationSamling", "RolleInformation")],
-        "debitorer": [_part(r) for r in dig(node, "DebitorInformationSamling", "RolleInformation")],
+        "kreditorer": [
+            _part(r) for r in dig(node, "KreditorInformationSamling", "RolleInformation")
+        ],
+        "debitorer": [
+            _part(r) for r in dig(node, "DebitorInformationSamling", "RolleInformation")
+        ],
         "meddelelseshavere": [
-            _part(r) for r in dig(node, "MeddelelseshaverInformationSamling", "RolleInformation")
+            _part(r)
+            for r in dig(node, "MeddelelseshaverInformationSamling", "RolleInformation")
         ],
         "fuldmagtshavere": [
             _part(r) for r in dig(node, "ImplicitFuldmagtSamling", "ImplicitFuldmagt",
@@ -278,7 +286,9 @@ def _rente(node) -> dict:
         return {
             "rentetype": "variabel",
             "rentesats_pct": number(variabel, "HaeftelseRentePaalydendeSats"),
-            "reference_rente": text(variabel, "HaeftelseReferenceRente", "ReferenceRenteNavn"),
+            "reference_rente": text(
+                variabel, "HaeftelseReferenceRente", "ReferenceRenteNavn"
+            ),
             "reference_rente_pct": number(
                 variabel, "HaeftelseReferenceRente", "ReferenceRenteSats"
             ),
@@ -297,7 +307,8 @@ def _underpant(node) -> dict:
         "prioritet": text(node, "PrioritetNummer"),
         "rettighed_uuid": text(node, "RettighedIdentifikator"),
         "panthavere": [
-            _part(r) for r in dig(node, "UnderpanthaverInformationSamling", "RolleInformation")
+            _part(r)
+            for r in dig(node, "UnderpanthaverInformationSamling", "RolleInformation")
         ],
     }
     found.update(_dokument(node))
@@ -400,7 +411,9 @@ def _adresse_kode(node) -> str:
 def _dokument(node) -> dict:
     """The identifiers every document in the register carries."""
     return {
-        "dokument_uuid": text(node, "DokumentRevisionIdentifikator", "DokumentIdentifikator"),
+        "dokument_uuid": text(
+            node, "DokumentRevisionIdentifikator", "DokumentIdentifikator"
+        ),
         "dokument_version": text(node, "DokumentRevisionIdentifikator", "RevisionNummer"),
         "tinglysningsdato": when(node, "TinglysningsDato"),
         "senest_paategnet": when(node, "SenestPaategnetDato"),

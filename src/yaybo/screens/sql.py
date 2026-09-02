@@ -16,7 +16,6 @@ from textual import on, work
 from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal
-from textual.screen import Screen
 from textual.widgets import (
     DataTable,
     Footer,
@@ -27,6 +26,7 @@ from textual.widgets import (
 )
 
 from yaybo import display, store
+from yaybo.screens.base import YayboScreen
 
 # Worth having ready: each one is a question the tables can answer but no single
 # screen shows, and each is a decent starting point to edit.
@@ -104,7 +104,7 @@ UNION ALL SELECT 'adkomsthistorik', count(*) FROM adkomsthistorik;
 MAX_ROWS = 2000
 
 
-class SqlScreen(Screen):
+class SqlScreen(YayboScreen):
     """A query box, a result table, and a way to get the result out."""
 
     BINDINGS = [
@@ -199,7 +199,7 @@ class SqlScreen(Screen):
             return
         # The exporters take rows as dicts, keyed by column, the same as
         # everything else they are handed.
-        named = [dict(zip(self.columns, row)) for row in self.rows]
+        named = [dict(zip(self.columns, row, strict=True)) for row in self.rows]
         await self.app.push_screen_wait(
             ExportDialog({"resultat": named}, "yaybo-sql", title="Export this result")
         )

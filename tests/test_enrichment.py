@@ -27,7 +27,8 @@ PAYLOAD = {
         {"date": "2026-06-19", "amount": 4000000, "area": 80, "livingArea": 80,
          "type": "normal", "perAreaPrice": 50000, "registrationID": "r-1"},
         # No area at all: the price per square metre cannot be worked out.
-        {"date": "1998-01-05", "amount": 500000, "type": "auction", "registrationID": "r-3"},
+        {"date": "1998-01-05", "amount": 500000, "type": "auction",
+         "registrationID": "r-3"},
     ],
     "buildings": [{
         "buildingNumber": "1", "buildingName": "Etagebolig-bygning",
@@ -113,7 +114,11 @@ def _dst(values):
             "size": [2, 1, 5, 1, 1],
             "DATA": {"category": {"index": {"AL51EFFR": 0, "AL51BIDS": 1}}},
             "INDSEK": {"category": {"index": {"1430": 0}}},
-            "RENTFIX": {"category": {"index": dict(zip(laantype.RENTFIX, range(5)))}},
+            "RENTFIX": {
+                "category": {
+                    "index": dict(zip(laantype.RENTFIX, range(5), strict=True))
+                }
+            },
             "ContentsCode": {"category": {"index": {"DNRNURI": 0}}},
             "Tid": {"category": {"index": {"2025M01": 0}}},
         },

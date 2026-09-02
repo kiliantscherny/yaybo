@@ -59,7 +59,9 @@ def test_shares_written_as_percentages():
 def test_a_name_containing_for_is_not_carved_up():
     """"for" only splits a line when the shares run to the end of it - otherwise
     any name with the word in it would be cut in half."""
-    parsed = historik.parse("Adkomsthavere:\nForeningen for Prøvehaver 12345678 Ejerandel: 1/1")
+    parsed = historik.parse(
+        "Adkomsthavere:\nForeningen for Prøvehaver 12345678 Ejerandel: 1/1"
+    )
     assert parsed["ejere"][0]["navn"] == "Foreningen for Prøvehaver"
 
 

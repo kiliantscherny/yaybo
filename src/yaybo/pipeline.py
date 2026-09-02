@@ -183,7 +183,8 @@ def fetch(
         # wants, `parsed` is the whole of it, which the charge tables and
         # everyone named on them are built from.
         flat = attest.attest_details(details)
-        parsed = attest_xml.parse(details["_raw"]) if details and "_raw" in details else {}
+        raw = details.get("_raw") if details else None
+        parsed = attest_xml.parse(raw) if raw is not None else {}
 
         adresse = record.get("adresse", "")
         bolig = {}
@@ -237,7 +238,9 @@ def fetch(
     )
 
 
-def lookup(api, query: str, *, limit: int = 25, use_dawa: bool = True, **options) -> Bundle:
+def lookup(
+    api, query: str, *, limit: int = 25, use_dawa: bool = True, **options
+) -> Bundle:
     """Resolve an address and fetch everything at it, in one call.
 
     `limit` caps how many properties a building is allowed to cost; 0 lifts it.

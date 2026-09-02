@@ -169,9 +169,9 @@ def _session(args):
         if not getattr(args, "anonymous", False):
             return resume_login()
     except auth.AuthError as error:
-        raise SystemExit(f"login failed: {error}")
+        raise SystemExit(f"login failed: {error}") from error
     except KeyboardInterrupt:
-        raise SystemExit("\nlogin cancelled")
+        raise SystemExit("\nlogin cancelled") from None
     return None
 
 
@@ -209,14 +209,16 @@ def run_fetch(args) -> int:
             on_session_expired=lambda done, total: _keep_going(done, total),
         )
     except AddressError as error:
-        raise SystemExit(str(error))
+        raise SystemExit(str(error)) from error
     if bundle.warning:
         say(f"note: {bundle.warning}")
 
     # Name the output after what was actually fetched. If the requested flat
     # had no separate entry we fell back to the whole building, so the flat
     # must not appear in the filename.
-    label = drop_unit(bundle.address["tekst"]) if bundle.warning else bundle.address["tekst"]
+    label = bundle.address["tekst"]
+    if bundle.warning:
+        label = drop_unit(label)
     stem = Path(args.out).stem if args.out else slugify(label)
     outdir = Path(args.out).parent if args.out else Path(args.outdir)
 
@@ -236,7 +238,8 @@ def run_fetch(args) -> int:
         if kind == "duckdb":
             continue
         written = export.FORMATS[_label(kind)](flat, stem, outdir=outdir)
-        for path in written if isinstance(written, list) else [written] if written else []:
+        paths = written if isinstance(written, list) else [written] if written else []
+        for path in paths:
             say(f"wrote {path}")
 
     if documents and formats & {"csv", "xlsx"}:
@@ -296,7 +299,9 @@ def _add_login_options(parser: argparse.ArgumentParser) -> None:
         default=mitid.APP,
         help="approve in the MitID app (default) or with a code token",
     )
-    group.add_argument("--password", help="MitID password, needed only with --method TOKEN")
+    group.add_argument(
+        "--password", help="MitID password, needed only with --method TOKEN"
+    )
     group.add_argument(
         "--anonymous",
         action="store_true",
@@ -323,7 +328,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     parser = argparse.ArgumentParser(
-        prog="yaybo", description=__doc__.splitlines()[0],
+        prog="yaybo", description=(__doc__ or "").splitlines()[0],
         parents=[common],
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
@@ -337,7 +342,9 @@ def build_parser() -> argparse.ArgumentParser:
         "fetch", parents=[common], help="look an address up and write the tables"
     )
     fetch.add_argument("address", help='e.g. "Prøvegade 1, 9999 Prøveby"')
-    fetch.add_argument("--out", help="explicit output path (default: named after the address)")
+    fetch.add_argument(
+        "--out", help="explicit output path (default: named after the address)"
+    )
     fetch.add_argument(
         "--outdir",
         default=store.OUTDIR,
@@ -353,7 +360,9 @@ def build_parser() -> argparse.ArgumentParser:
         "--limit", type=int, default=25, help="max properties to fetch (0 = no limit)"
     )
     fetch.add_argument("--delay", type=float, default=1.0, help="seconds between fetches")
-    fetch.add_argument("--dump", metavar="PATH", help="write the first raw record as JSON")
+    fetch.add_argument(
+        "--dump", metavar="PATH", help="write the first raw record as JSON"
+    )
     fetch.add_argument(
         "--no-dawa",
         action="store_true",
@@ -387,7 +396,9 @@ def build_parser() -> argparse.ArgumentParser:
         "--method", choices=[mitid.APP, mitid.TOKEN], default=mitid.APP,
         help="approve in the MitID app (default) or with a code token",
     )
-    login.add_argument("--password", help="MitID password, needed only with --method TOKEN")
+    login.add_argument(
+        "--password", help="MitID password, needed only with --method TOKEN"
+    )
 
     commands.add_parser(
         "logout", parents=[common], help="end the session and forget the cookies"
@@ -440,9 +451,9 @@ def main(argv: list[str] | None = None) -> int:
         try:
             start_login(args.user, args.method, args.password)
         except auth.AuthError as error:
-            raise SystemExit(f"login failed: {error}")
+            raise SystemExit(f"login failed: {error}") from error
         except KeyboardInterrupt:
-            raise SystemExit("\nlogin cancelled")
+            raise SystemExit("\nlogin cancelled") from None
         return 0
 
     if args.command == "logout":

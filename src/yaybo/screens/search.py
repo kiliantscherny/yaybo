@@ -23,12 +23,12 @@ from rich.text import Text
 from textual import on, work
 from textual.app import ComposeResult
 from textual.binding import Binding
-from textual.screen import Screen
 from textual.widgets import Footer, Header, Input, OptionList, SelectionList, Static
 from textual.widgets.selection_list import Selection
 
 from yaybo import pipeline, store
 from yaybo.register.address import AddressError, autocomplete, drop_unit
+from yaybo.screens.base import YayboScreen
 
 # Long enough that a fast typist does not fire a request per keystroke, short
 # enough that the list feels like it is keeping up.
@@ -39,7 +39,7 @@ SETTLE = 0.35
 MATCHES = 30
 
 
-class SearchScreen(Screen):
+class SearchScreen(YayboScreen):
     """Look an address up and fetch whichever of its properties you want."""
 
     BINDINGS = [
@@ -196,11 +196,15 @@ class SearchScreen(Screen):
             self.app.call_from_thread(self._say, str(error))
             return
         except Exception as error:  # noqa: BLE001 - shown to the user verbatim
-            self.app.call_from_thread(self._say, f"The register would not answer: {error}")
+            self.app.call_from_thread(
+                self._say, f"The register would not answer: {error}"
+            )
             return
         self.app.call_from_thread(self._show_units, units, warning, take_all)
 
-    def _show_units(self, units: list[dict], warning: str, take_all: bool = False) -> None:
+    def _show_units(
+        self, units: list[dict], warning: str, take_all: bool = False
+    ) -> None:
         self.units = units
         listing = self.query_one("#search-units", SelectionList)
         listing.clear_options()
@@ -208,7 +212,10 @@ class SearchScreen(Screen):
         # are, so they do not - unless the whole building was what was asked for.
         ticked = take_all or len(units) == 1
         listing.add_options(
-            [Selection(_unit_label(unit), index, ticked) for index, unit in enumerate(units)]
+            [
+                Selection(_unit_label(unit), index, ticked)
+                for index, unit in enumerate(units)
+            ]
         )
         # Same again: without this the first space lands on nothing at all.
         listing.highlighted = 0 if units else None
@@ -264,18 +271,24 @@ class SearchScreen(Screen):
 
     def action_fetch(self) -> None:
         if not self._picking_units:
-            self._say("Pick an address first - enter on one, or a for its whole building.")
+            self._say(
+                "Pick an address first - enter on one, or a for its whole building."
+            )
             return
         listing = self.query_one("#search-units", SelectionList)
         chosen = sorted(listing.selected)
         if not chosen:
-            self._say("Nothing ticked. space ticks the one under the cursor; a ticks all.")
+            self._say(
+                "Nothing ticked. space ticks the one under the cursor; a ticks all."
+            )
             return
         self._fetch([self.units[index] for index in chosen])
 
     # ── step three: fetch ───────────────────────────────────────────────
 
     def _fetch(self, units: list[dict]) -> None:
+        if self.address is None:
+            return
         self._stop.clear()
         if len(units) > 1:
             self._say(f"Fetching {len(units)} properties - ctrl+C stops it.")
@@ -284,10 +297,10 @@ class SearchScreen(Screen):
                 "Fetching from the public register. ctrl+L logs in first, for "
                 "owners' dates of birth and the chain of previous owners."
             )
-        self._run_fetch(units)
+        self._run_fetch(self.address, units)
 
     @work(thread=True, exclusive=True, group="fetch")
-    def _run_fetch(self, units: list[dict]) -> None:
+    def _run_fetch(self, address: dict, units: list[dict]) -> None:
         def progress(index: int, total: int, unit: dict) -> None:
             self.app.call_from_thread(
                 self._say,
@@ -298,7 +311,7 @@ class SearchScreen(Screen):
         try:
             bundle = pipeline.fetch(
                 self.app.api,
-                self.address,
+                address,
                 units,
                 delay=0.6 if len(units) > 1 else 0,
                 on_unit=progress,

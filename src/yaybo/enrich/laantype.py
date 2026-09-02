@@ -178,7 +178,13 @@ def classify(rate: float, window: list[str], table: dict, rentetype: str = "") -
     name, distance = ranked[0]
     settled = ""
     if len(near) > 1:
-        prefer = FASTE if rentetype == "fast" else VARIABLE if rentetype == "variabel" else set()
+        prefer = (
+            FASTE
+            if rentetype == "fast"
+            else VARIABLE
+            if rentetype == "variabel"
+            else set()
+        )
         agrees = [pair for pair in near if pair[0] in prefer]
         if agrees and agrees[0][0] != name:
             name, distance = agrees[0]
