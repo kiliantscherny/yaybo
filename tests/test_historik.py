@@ -8,12 +8,7 @@ field, so the grammars below are not variations on a theme - they are four
 different notations that happen to share a column.
 """
 
-import sys
-from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-
-import historik
+from yaybo.register import historik
 
 
 def test_price_and_a_single_owner():

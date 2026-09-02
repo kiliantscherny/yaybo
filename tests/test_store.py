@@ -11,23 +11,23 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import duckdb
 
-import store
+from yaybo import store
 
 
 def test_coercion():
     """Everything from the rendered attest arrives as text with its unit
     attached, and has to be typed."""
-    assert store._coerce("26.000 DKK", store.INTEGER) == 26000
-    assert store._coerce("55 kvm", store.INTEGER) == 55
-    assert store._coerce("1.234.567", store.INTEGER) == 1234567
+    assert store.coerce("26.000 DKK", store.INTEGER) == 26000
+    assert store.coerce("55 kvm", store.INTEGER) == 55
+    assert store.coerce("1.234.567", store.INTEGER) == 1234567
     # A comma is the decimal mark here, and a full stop is not.
-    assert store._coerce("2,74 %", store.DECIMAL) == 2.74
-    assert store._coerce("1.234,5", store.DECIMAL) == 1234.5
-    assert store._coerce("2014-07-01", store.DATE) == "2014-07-01"
+    assert store.coerce("2,74 %", store.DECIMAL) == 2.74
+    assert store.coerce("1.234,5", store.DECIMAL) == 1234.5
+    assert store.coerce("2014-07-01", store.DATE) == "2014-07-01"
     # A figure we cannot read becomes nothing, rather than losing the row.
-    assert store._coerce("se akt", store.INTEGER) is None
-    assert store._coerce("", store.TEXT) is None
-    assert store._coerce("Skøde", store.TEXT) == "Skøde"
+    assert store.coerce("se akt", store.INTEGER) is None
+    assert store.coerce("", store.TEXT) is None
+    assert store.coerce("Skøde", store.TEXT) == "Skøde"
 
 
 def test_a_real_number_is_not_reread_as_danish_text():
@@ -37,24 +37,24 @@ def test_a_real_number_is_not_reread_as_danish_text():
     3.5 and the reader that knew that hands over a float, which must not then
     be run through the Danish rules and come out as 3500.
     """
-    assert store._coerce("3.500", store.DECIMAL) == 3500.0  # text: Danish
-    assert store._coerce(3.5, store.DECIMAL) == 3.5         # number: as given
-    assert store._coerce(26000, store.INTEGER) == 26000
-    assert store._coerce(2.74, store.INTEGER) == 2
+    assert store.coerce("3.500", store.DECIMAL) == 3500.0  # text: Danish
+    assert store.coerce(3.5, store.DECIMAL) == 3.5         # number: as given
+    assert store.coerce(26000, store.INTEGER) == 26000
+    assert store.coerce(2.74, store.INTEGER) == 2
 
 
 def test_booleans_keep_empty_apart_from_false():
-    assert store._coerce("true", store.BOOLEAN) is True
-    assert store._coerce("false", store.BOOLEAN) is False
+    assert store.coerce("true", store.BOOLEAN) is True
+    assert store.coerce("false", store.BOOLEAN) is False
     # A field the register left empty is not the same as one it said no to.
-    assert store._coerce("", store.BOOLEAN) is None
-    assert store._coerce("måske", store.BOOLEAN) is None
+    assert store.coerce("", store.BOOLEAN) is None
+    assert store.coerce("måske", store.BOOLEAN) is None
 
 
 def test_json_columns_take_a_list_or_a_rendered_string():
-    assert store._coerce(["vej", "andet"], store.JSON) == '["vej", "andet"]'
-    assert store._coerce([], store.JSON) is None
-    assert store._coerce('{"a": 1}', store.JSON) == '{"a": 1}'
+    assert store.coerce(["vej", "andet"], store.JSON) == '["vej", "andet"]'
+    assert store.coerce([], store.JSON) is None
+    assert store.coerce('{"a": 1}', store.JSON) == '{"a": 1}'
 
 
 def _rows(uuid, navn):

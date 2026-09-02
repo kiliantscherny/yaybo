@@ -3,12 +3,15 @@
 # rule is deliberately blunt: no data file, anywhere in the tree, ever gets
 # committed. Source lives in .py and .toml, so nothing here is a real cost.
 out/
+exports/
 *.duckdb
 *.duckdb.wal
 
 # The same output when --outdir, --out or --dump points somewhere else: CSVs,
-# whole property records as XML, older attester saved as text, raw dumps.
+# workbooks, whole property records as XML, older attester saved as text, raw
+# dumps.
 *.csv
+*.xlsx
 *.xml
 *.txt
 *.json
@@ -21,3 +24,5 @@ out/
 # Python
 __pycache__/
 .venv/
+.pytest_cache/
+.ruff_cache/

@@ -7,15 +7,9 @@ a real response with invented figures, and the DST reply is built by hand so
 the awkward part of it - a dimension the query never asked for - is present.
 """
 
-import sys
-from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-
-import boligsiden
-import laantype
-import store
-import tinglysning_dl as tl
+from yaybo import store
+from yaybo.enrich import boligsiden, laantype
+from yaybo.register import rows as build
 
 # Trimmed from a real api.boligsiden.dk/addresses/{uuid} reply. Same keys and
 # nesting; the address, the prices and the building are invented.
@@ -77,7 +71,7 @@ def test_the_bbr_record_the_land_register_never_gives():
 
 
 def test_the_property_row_takes_the_latest_sale_and_the_listing():
-    row = tl.bolig_row(boligsiden.parse(PAYLOAD, "uuid-a"))
+    row = build.bolig_row(boligsiden.parse(PAYLOAD, "uuid-a"))
     assert row["til_salg"] == "true"
     assert row["boligsiden_url"].endswith("proevegade-1-3-12-9999-proevekoebing")
     assert row["seneste_salg_dato"] == "2026-06-19"
@@ -88,8 +82,8 @@ def test_the_property_row_takes_the_latest_sale_and_the_listing():
 
 def test_an_address_boligsiden_has_never_heard_of():
     assert boligsiden.parse({}, "uuid-a")["salg"] == []
-    assert tl.bolig_row({}) == {}
-    assert tl.handel_rows({}, "u", "a") == []
+    assert build.bolig_row({}) == {}
+    assert build.handel_rows({}, "u", "a") == []
 
 
 def test_debt_and_equity_are_totalled_from_the_charges():
@@ -102,7 +96,7 @@ def test_debt_and_equity_are_totalled_from_the_charges():
         {"ejendom_uuid": "u1", "hovedstol_dkk": 300000},
         {"ejendom_uuid": "u2", "hovedstol_dkk": 500000},
     ]
-    tl.add_financials(properties, charges)
+    build.add_financials(properties, charges)
     assert properties[0]["samlet_gaeld_dkk"] == 1500000
     assert properties[0]["frivaerdi_dkk"] == 500000
     assert properties[0]["belaaningsgrad_pct"] == 75.0

@@ -16,7 +16,7 @@ import base64
 import binascii
 import json
 
-from mitid.browser_client import BrowserClient
+from mitid.core import BrowserClient
 
 APP = "APP"
 TOKEN = "TOKEN"

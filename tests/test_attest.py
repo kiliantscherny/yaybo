@@ -7,12 +7,11 @@ attest a browser is shown, so both readers are covered here. The fixtures are
 real documents with invented people in them: same shape, nobody's business.
 """
 
-import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-
-import tinglysning_dl as tl
+from yaybo.register import fields
+from yaybo.register.attest import attest_details
+from yaybo.register.rows import property_fields, property_row
 
 FIXTURES = Path(__file__).parent
 
@@ -20,7 +19,7 @@ FIXTURES = Path(__file__).parent
 def test_xml_record():
     """The XML the register actually answers with."""
     raw = (FIXTURES / "ejdsummarisk_sample.xml").read_text(encoding="utf-8")
-    attest = tl.attest_details({"_raw": raw})
+    attest = attest_details({"_raw": raw})
 
     assert attest["bfe_nr"] == "100001"
     assert attest["ejerlejlighedsnr"] == "101"
@@ -45,7 +44,7 @@ def test_xml_record():
 def test_rendered_attest():
     """The fallback: the attest as a browser is shown it."""
     text = (FIXTURES / "attest_sample.txt").read_text(encoding="utf-8")
-    attest = tl.attest_details({"_raw": f"<html><body><pre>{text}</pre></body></html>"})
+    attest = attest_details({"_raw": f"<html><body><pre>{text}</pre></body></html>"})
 
     assert attest["ejerlejlighedsnr"] == "101"
     assert attest["bfe_nr"] == "100001"
@@ -62,22 +61,22 @@ def test_rendered_attest():
 
 
 def test_birth_date_from_masked_cpr():
-    assert tl._birth_from_cpr("010195-****") == "1995-01-01"
-    assert tl._birth_from_cpr("290280-1234") == "1980-02-29"
+    assert fields.birth_from_cpr("010195-****") == "1995-01-01"
+    assert fields.birth_from_cpr("290280-1234") == "1980-02-29"
     # A year that has not happened yet belongs to the last century.
-    assert tl._birth_from_cpr("010160-****") == "1960-01-01"
-    assert tl._birth_from_cpr("010105-****") == "2005-01-01"
+    assert fields.birth_from_cpr("010160-****") == "1960-01-01"
+    assert fields.birth_from_cpr("010105-****") == "2005-01-01"
     # A CVR number is not a CPR number, and 88 is not a month.
-    assert tl._birth_from_cpr("55667788") == ""
+    assert fields.birth_from_cpr("55667788") == ""
 
 
 def test_numbers_and_dates():
-    assert tl._plain_number("1.234.567 DKK") == "1234567"
-    assert tl._plain_number("55 kvm") == "55"
-    assert tl._plain_number("1/300") == "1/300"  # a fraction is not a number
-    assert tl._iso_date("01.03.2024") == "2024-03-01"
-    assert tl._iso_date("2014-07-01+02:00") == "2014-07-01"
-    assert tl._iso_date("Skøde") == "Skøde"
+    assert fields.plain_number("1.234.567 DKK") == "1234567"
+    assert fields.plain_number("55 kvm") == "55"
+    assert fields.plain_number("1/300") == "1/300"  # a fraction is not a number
+    assert fields.iso_date("01.03.2024") == "2024-03-01"
+    assert fields.iso_date("2014-07-01+02:00") == "2014-07-01"
+    assert fields.iso_date("Skøde") == "Skøde"
 
 
 def test_row_joins_owners_by_name():
@@ -93,14 +92,14 @@ def test_row_joins_owners_by_name():
             {"navn": "Testperson Beta Testesen", "andel": "1/2"},
         ],
     }
-    row = tl.property_row(record, "uuid-1", {}, tl.attest_details({"_raw": raw}))
+    row = property_row(record, "uuid-1", {}, attest_details({"_raw": raw}))
 
     assert row["ejer_1_foedselsdato"] == "1957-10-02"
     assert row["ejer_2_foedselsdato"] == "1951-10-30"
-    assert "ejer_1_foedselsdato" in tl.property_fields(2, with_attest=True)
+    assert "ejer_1_foedselsdato" in property_fields(2, with_attest=True)
     # Logged out there is nothing to put in it, and an always-empty column
     # reads as missing data rather than as data we never had.
-    assert "ejer_1_foedselsdato" not in tl.property_fields(2)
+    assert "ejer_1_foedselsdato" not in property_fields(2)
 
 
 if __name__ == "__main__":

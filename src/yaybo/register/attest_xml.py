@@ -26,7 +26,7 @@ from __future__ import annotations
 
 from xml.etree import ElementTree
 
-import fields
+from yaybo.register import fields
 
 # What the register calls each kind of transfer, in the spelling the site shows.
 ADKOMST_TYPES = {

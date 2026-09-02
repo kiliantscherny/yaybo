@@ -1,11 +1,39 @@
 [project]
 name = "yaybo"
-version = "0.1.0"
+version = "0.2.0"
+description = "Fetch, explore and export the Danish property registers, from a terminal"
+readme = "README.md"
+authors = [{ name = "Kilian Tscherny" }]
 requires-python = ">=3.13"
 dependencies = [
     "beautifulsoup4>=4.12",
     "duckdb>=1.5.5",
-    "pycryptodome>=3.20",
-    "qrcode>=8.0",
+    "mitid-client[textual]",
+    "openpyxl>=3.1",
     "requests>=2.34.2",
+    "textual>=3.1",
+    "textual-plotext>=1.0",
 ]
+
+[project.scripts]
+yaybo = "yaybo.cli:main"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "textual-dev>=1.7",
+]
+
+[tool.uv.workspace]
+members = ["packages/*"]
+
+[tool.uv.sources]
+mitid-client = { workspace = true }
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--tb=short -q"
+
+[build-system]
+requires = ["uv_build>=0.9.26,<0.10.0"]
+build-backend = "uv_build"

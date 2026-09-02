@@ -24,11 +24,10 @@ from pathlib import Path
 
 import duckdb
 
-import attest_xml
-import boligsiden
-import laantype
-import store
-import tinglysning_dl as tl
+from yaybo import store
+from yaybo.enrich import boligsiden, laantype
+from yaybo.register import attest, attest_xml, rows as build
+from yaybo.register.address import address_parts, dawa_addresses, floor_and_door
 
 # Read out of the stored documents; everything else in the database is left
 # alone, because nothing here knows how to rebuild it.
@@ -41,7 +40,7 @@ DERIVED = [
 ENRICHED = ["ejendomme", "handelshistorik", "bygninger", "rentestatistik"]
 
 
-def collect(path: Path) -> tuple[dict, dict]:
+def collect(path: Path) -> tuple[dict, dict, list[dict]]:
     """Read the stored documents and build every derived row from them."""
     tables: dict = collections.defaultdict(list)
     with duckdb.connect(str(path), read_only=True) as db:
@@ -83,16 +82,16 @@ def collect(path: Path) -> tuple[dict, dict]:
             # attest. Its charges cannot be re-derived, so its rows stay.
             print(f"  skipped (not the XML we can read): {adresse}", file=sys.stderr)
             continue
-        tables["haeftelser"] += tl.haeftelse_rows(record, uuid, parsed)
-        tables["servitutter"] += tl.servitut_rows(record, uuid, parsed)
-        tables["dokument_parter"] += tl.party_rows(parsed, uuid)
-        tables["underpant"] += tl.underpant_rows(parsed, uuid)
-        entries, owners = tl.history_rows({"items": history.get(uuid, [])}, uuid, adresse)
+        tables["haeftelser"] += build.haeftelse_rows(record, uuid, parsed)
+        tables["servitutter"] += build.servitut_rows(record, uuid, parsed)
+        tables["dokument_parter"] += build.party_rows(parsed, uuid)
+        tables["underpant"] += build.underpant_rows(parsed, uuid)
+        entries, owners = build.history_rows({"items": history.get(uuid, [])}, uuid, adresse)
         tables["adkomsthistorik"] += entries
         tables["adkomsthistorik_ejere"] += owners
         tables["attester"].append(
             {"ejendom_uuid": uuid, "adresse": adresse, "format": kind or "xml",
-             "dokument": raw, "dokument_json": tl.attest_json({"_raw": raw})}
+             "dokument": raw, "dokument_json": attest.attest_json({"_raw": raw})}
         )
     return dict(tables), before, properties
 
@@ -116,19 +115,19 @@ def enrich(tables: dict, properties: list[dict], *, boligsiden_on: bool,
         # serves all of them.
         buildings: dict = collections.defaultdict(list)
         for row in properties:
-            parts = tl.address_parts(row.get("adresse") or "")
+            parts = address_parts(row.get("adresse") or "")
             buildings[(parts["vejnavn"], parts["husnummer"], parts["postnummer"])].append(row)
 
         found = 0
         for (vejnavn, husnr, postnr), rows in buildings.items():
             if not (vejnavn and postnr):
                 continue
-            addresses = tl.dawa_addresses(
+            addresses = dawa_addresses(
                 {"vejnavn": vejnavn, "husnummer": husnr, "postnummer": postnr}
             )
             for row in rows:
                 adresse = row.get("adresse") or ""
-                uuid = addresses.get(tl._floor_and_door(adresse))
+                uuid = addresses.get(floor_and_door(adresse))
                 if not uuid:
                     continue
                 time.sleep(delay)
@@ -136,22 +135,21 @@ def enrich(tables: dict, properties: list[dict], *, boligsiden_on: bool,
                 if not bolig:
                     continue
                 found += 1
-                row.update(tl.bolig_row(bolig))
+                row.update(build.bolig_row(bolig))
                 tables.setdefault("handelshistorik", []).extend(
-                    tl.handel_rows(bolig, row["uuid"], adresse))
+                    build.handel_rows(bolig, row["uuid"], adresse))
                 tables.setdefault("bygninger", []).extend(
-                    tl.bygning_rows(bolig, row["uuid"], adresse))
+                    build.bygning_rows(bolig, row["uuid"], adresse))
         print(f"  Boligsiden answered for {found} of {len(properties)} propert"
               f"{'y' if len(properties) == 1 else 'ies'}", file=sys.stderr)
 
-    tl.add_financials(properties, tables.get("haeftelser") or [])
+    build.add_financials(properties, tables.get("haeftelser") or [])
     tables["ejendomme"] = properties
 
 
-def main() -> None:
+def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--db", default=str(Path("out") / "tinglysning.duckdb"),
-                        help="the database to rebuild in place")
+    parser.add_argument("--db", help="the database to rebuild in place")
     parser.add_argument("--dry-run", action="store_true",
                         help="report what would be written and change nothing")
     parser.add_argument("--skip-boligsiden", action="store_true",
@@ -160,15 +158,18 @@ def main() -> None:
                         help="do not estimate loan types from DST rates")
     parser.add_argument("--delay", type=float, default=0.2, metavar="SECONDS",
                         help="pause between Boligsiden requests (default: 0.2)")
-    args = parser.parse_args()
+    return run(parser.parse_args(argv))
 
-    path = Path(args.db)
+
+def run(args) -> int:
+    """Rebuild the derived tables of one database. Shared with `yaybo backfill`."""
+    path = Path(args.db) if args.db else store.default_path()
     if not path.exists():
-        sys.exit(f"no database at {path}")
+        raise SystemExit(f"no database at {path}")
 
     tables, before, properties = collect(path)
     if not tables:
-        sys.exit("no stored documents to rebuild from")
+        raise SystemExit("no stored documents to rebuild from")
 
     print(f"{len(tables['attester'])} document(s) read from {path}", file=sys.stderr)
     enrich(tables, properties,
@@ -189,12 +190,13 @@ def main() -> None:
 
     if args.dry_run:
         print("dry run - nothing written", file=sys.stderr)
-        return
+        return 0
 
     written = store.save(path, tables)
     print("rewrote " + ", ".join(f"{n} {name}" for name, n in written.items() if n),
           file=sys.stderr)
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

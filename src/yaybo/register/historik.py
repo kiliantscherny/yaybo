@@ -24,7 +24,7 @@ from __future__ import annotations
 
 import re
 
-import fields
+from yaybo.register import fields
 
 # The register writes these three and nothing else - checked against every
 # entry in a 731-row pull. A fourth would land in `ejere` as a name, which is

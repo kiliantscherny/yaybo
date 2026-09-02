@@ -17,10 +17,19 @@ own rows in `dokument_parter`, and every historical owner theirs in
 
 from __future__ import annotations
 
+import contextlib
 import json
 import re
+import threading
 from datetime import datetime
 from pathlib import Path
+
+# DuckDB will not open a second connection to a file that is already open with a
+# different configuration, so a read that overlaps a write fails outright. In the
+# TUI those happen on different threads - a queue writing while the library reads
+# - so every connection this module opens is taken under one lock. They are all
+# short, and the alternative is an empty screen or a lost fetch.
+_ACCESS = threading.RLock()
 
 TEXT, INTEGER, DECIMAL, DATE = "VARCHAR", "BIGINT", "DOUBLE", "DATE"
 BOOLEAN, JSON = "BOOLEAN", "JSON"
@@ -323,7 +332,7 @@ def save(path: str | Path, tables: dict[str, list[dict]]) -> dict[str, int]:
     stamped = datetime.now()
     written = {}
 
-    with duckdb.connect(str(path)) as db:
+    with _ACCESS, duckdb.connect(str(path)) as db:
         for name, spec in TABLES.items():
             columns = spec["columns"]
             definition = ", ".join(f'"{column}" {sort}' for column, sort in columns)
@@ -343,7 +352,7 @@ def save(path: str | Path, tables: dict[str, list[dict]]) -> dict[str, int]:
 
             if rows:
                 values = [
-                    [_coerce(row.get(column), sort) for column, sort in columns] + [stamped]
+                    [coerce(row.get(column), sort) for column, sort in columns] + [stamped]
                     for row in rows
                 ]
                 named = ", ".join(f'"{column}"' for column, _ in columns)
@@ -371,7 +380,7 @@ def _add_new_columns(db, name: str, columns) -> None:
             db.execute(f'ALTER TABLE "{name}" ADD COLUMN "{column}" {sort}')
 
 
-def _coerce(value, sort: str):
+def coerce(value, sort: str):
     """Turn a scraped string into something the column can hold, or nothing.
 
     The register mixes numbers with their units ("26.000 DKK", "55 kvm") and
@@ -421,3 +430,165 @@ def _coerce(value, sort: str):
         return int(float(number)) if sort == INTEGER else float(number)
     except ValueError:
         return None
+
+
+# ── Reading it back ─────────────────────────────────────────────────────
+#
+# A database that only ever gets written to is a folder of CSVs with extra
+# steps. These are what the TUI browses: the properties it already holds, one
+# property in full, and whatever SQL somebody types.
+
+# Where a run leaves its results unless told otherwise. Git-ignored, because
+# every row in it names a real person and says what they paid for their home.
+OUTDIR = "out"
+DATABASE = "tinglysning.duckdb"
+
+
+def default_path(outdir: str | Path = OUTDIR) -> Path:
+    return Path(outdir) / DATABASE
+
+
+@contextlib.contextmanager
+def _reading(path: str | Path):
+    """A read-only connection, or None when there is nothing to read.
+
+    Holds the access lock for as long as the connection is open, so a write
+    cannot start underneath it.
+    """
+    import duckdb
+
+    path = Path(path)
+    with _ACCESS:
+        if not path.exists():
+            yield None
+            return
+        try:
+            db = duckdb.connect(str(path), read_only=True)
+        except Exception:
+            # A database another process holds open for writing, or one from a
+            # duckdb too new to read. Either way there is nothing to show.
+            yield None
+            return
+        try:
+            yield db
+        finally:
+            db.close()
+
+
+def _rows(db, sql: str, *args) -> list[dict]:
+    """Run a query and return its rows as dicts, keyed on the column names."""
+    result = db.execute(sql, args)
+    names = [column[0] for column in result.description or []]
+    return [dict(zip(names, row)) for row in result.fetchall()]
+
+
+def held_tables(path: str | Path) -> list[tuple[str, int]]:
+    """Every table in the database and how many rows it holds."""
+    with _reading(path) as db:
+        if db is None:
+            return []
+        names = [row[0] for row in db.execute("SHOW TABLES").fetchall()]
+        return [
+            (name, db.execute(f'SELECT count(*) FROM "{name}"').fetchone()[0])
+            for name in names
+        ]
+
+
+def library(path: str | Path) -> list[dict]:
+    """One row per property held, with enough on it to choose from a list.
+
+    Owners are counted and named from `ejere` rather than read off the widened
+    columns, because the widened ones stop at however many the run found and
+    this has to be right for a property with five.
+    """
+    with _reading(path) as db:
+        if db is None:
+            return []
+        held = {row[0] for row in db.execute("SHOW TABLES").fetchall()}
+        if "ejendomme" not in held:
+            return []
+        owners = (
+            """
+            LEFT JOIN (
+                SELECT ejendom_uuid,
+                       count(*) AS antal_ejere,
+                       string_agg(navn, '; ' ORDER BY nummer) AS ejere
+                FROM ejere GROUP BY ejendom_uuid
+            ) o ON o.ejendom_uuid = e.uuid
+            """
+            if "ejere" in held
+            else ""
+        )
+        columns = "o.antal_ejere, o.ejere," if owners else "NULL AS antal_ejere, NULL AS ejere,"
+        return _rows(
+            db,
+            f"""
+            SELECT e.uuid, e.adresse, e.lejlighed, e.boligtype, e.ejendomstype,
+                   e.boligareal_m2, e.areal_m2, e.ejendomsvurdering_dkk,
+                   e.samlet_gaeld_dkk, e.frivaerdi_dkk, e.belaaningsgrad_pct,
+                   e.seneste_salg_dato, e.seneste_salg_dkk, e.seneste_salg_pris_m2,
+                   e.til_salg, e.antal_haeftelser, e.antal_servitutter,
+                   e.boligsiden_url, e.breddegrad, e.laengdegrad,
+                   {columns}
+                   e."{FETCHED}" AS hentet
+            FROM ejendomme e
+            {owners}
+            ORDER BY e."{FETCHED}" DESC NULLS LAST, e.adresse
+            """,
+        )
+
+
+def property_tables(path: str | Path, uuid: str) -> dict[str, list[dict]]:
+    """Every row in the database belonging to one property.
+
+    Keyed the way TABLES is, so the same dict can be handed straight to an
+    exporter or to a screen. Tables the property has no rows in are left out
+    rather than present and empty.
+    """
+    found: dict[str, list[dict]] = {}
+    with _reading(path) as db:
+        if db is None:
+            return {}
+        held = {row[0] for row in db.execute("SHOW TABLES").fetchall()}
+        for name, spec in TABLES.items():
+            if name not in held or spec["key"] not in ("uuid", "ejendom_uuid"):
+                continue
+            rows = _rows(db, f'SELECT * FROM "{name}" WHERE "{spec["key"]}" = ?', uuid)
+            if rows:
+                found[name] = rows
+    return found
+
+
+def everything(path: str | Path) -> dict[str, list[dict]]:
+    """The whole database as rows, for exporting it somewhere else entirely."""
+    with _reading(path) as db:
+        if db is None:
+            return {}
+        held = {row[0] for row in db.execute("SHOW TABLES").fetchall()}
+        return {
+            name: _rows(db, f'SELECT * FROM "{name}"')
+            for name in TABLES
+            if name in held
+        }
+
+
+class QueryError(Exception):
+    """Raised when a typed query will not run."""
+
+
+def run_query(path: str | Path, sql: str) -> tuple[list[str], list[tuple]]:
+    """Run one read-only query and return its columns and rows.
+
+    Read-only is enforced by the connection, not by reading the SQL: DuckDB
+    refuses a write on a read-only handle, which is a far better guarantee than
+    looking for the word "delete".
+    """
+    with _reading(path) as db:
+        if db is None:
+            raise QueryError(f"no database at {path}")
+        try:
+            result = db.execute(sql)
+            names = [column[0] for column in result.description or []]
+            return names, result.fetchall()
+        except Exception as error:
+            raise QueryError(str(error)) from error

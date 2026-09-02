@@ -5,6 +5,10 @@ per lookup. This module runs the login when asked, keeps the resulting cookies
 in a file only you can read, and hands them back on later runs until the server
 decides the session has idled out.
 
+The login itself is not tinglysning's - it is NemLog-in's, which fronts the
+whole Danish public sector, and mitid-client knows how to walk it. All that is
+left here is which URL to start at and how to ask tinglysning whether it worked.
+
 What logging in buys is a second, richer copy of the register:
 
     unsecrest/ejendomsoeg/soeg          rest/ejendom/adresse
@@ -18,16 +22,13 @@ birth, and can look backwards through previous owners.
 
 from __future__ import annotations
 
-import json
-import os
-import stat
-from datetime import datetime, timedelta
+from datetime import timedelta
 from pathlib import Path
 
-import requests
-
 import mitid
-import nemlogin
+import requests
+from mitid.brokers import nemlogin
+from mitid.store import CookieStore
 
 TINGLYSNING = "https://www.tinglysning.dk"
 # The "forespørgsel med login" link. It starts no SAML flow of its own - it
@@ -50,8 +51,10 @@ ALIVE_URL = f"{TINGLYSNING}/tinglysning/rest/alive/nu"
 # between that end it.
 IDLE_LIMIT = timedelta(minutes=29)
 
-SESSION_FILE = "tinglysning-session.json"
-REPORT_FILE = "last-login-report.json"
+# Same file, same place, as before mitid-client held the key to it.
+sessions = CookieStore(
+    "yaybo", "tinglysning-session.json", session_factory=nemlogin.new_session
+)
 
 
 class AuthError(Exception):
@@ -60,66 +63,28 @@ class AuthError(Exception):
 
 def session_path() -> Path:
     """Where the cached cookies live, following the XDG config convention."""
-    root = os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config"
-    return Path(root).expanduser() / "yaybo" / SESSION_FILE
+    return sessions.path
 
 
 def save_session(session: requests.Session, user_id: str = "") -> Path:
-    """Write the session's cookies out, readable by nobody else.
-
-    These cookies are a live login to a government register in your name, so
-    the file is created 0600 and the mode is re-applied on every write in case
-    an older run left it looser.
-    """
-    path = session_path()
-    path.parent.mkdir(parents=True, exist_ok=True)
-    payload = {
-        "saved_at": datetime.now().isoformat(timespec="seconds"),
-        "user_id": user_id,
-        "cookies": [
-            {
-                "name": cookie.name,
-                "value": cookie.value or "",
-                "domain": cookie.domain,
-                "path": cookie.path,
-            }
-            for cookie in session.cookies
-        ],
-    }
-    path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
-    path.chmod(stat.S_IRUSR | stat.S_IWUSR)
-    return path
+    """Write the session's cookies out, readable by nobody else."""
+    return sessions.save(session, user_id=user_id)
 
 
 def restore_session() -> tuple[requests.Session, dict] | None:
     """Rebuild a session from the cache. Returns None when there is nothing to
     restore; says nothing about whether the server still honours it."""
-    path = session_path()
-    if not path.exists():
-        return None
-    try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError):
-        return None
-
-    session = nemlogin.new_session()
-    for cookie in payload.get("cookies") or []:
-        session.cookies.set(
-            cookie["name"],
-            cookie["value"],
-            domain=cookie.get("domain") or "",
-            path=cookie.get("path") or "/",
-        )
-    return session, payload
+    return sessions.restore()
 
 
 def forget_session() -> bool:
     """Delete the cached cookies. Returns whether there was anything to delete."""
-    path = session_path()
-    if not path.exists():
-        return False
-    path.unlink()
-    return True
+    return sessions.forget()
+
+
+def idle_for(saved_at: str | None) -> timedelta | None:
+    """How long since we last used the session, as far as this machine knows."""
+    return sessions.idle_for(saved_at)
 
 
 def who_is_logged_in(session: requests.Session) -> str | None:
@@ -170,7 +135,7 @@ def log_in(
             trace=trace,
         )
     except (nemlogin.NemLogInError, mitid.MitIDError) as error:
-        write_report(trace)
+        sessions.write_report(trace)
         raise AuthError(str(error)) from error
 
     # NemLog-in can hand back a valid assertion that tinglysning then declines,
@@ -188,7 +153,7 @@ def log_in(
         # session turns out to be halfway usable that is worth knowing before
         # asking for another one.
         save_session(session, user_id)
-        report = write_report(trace, final)
+        report = sessions.write_report(trace, final)
         raise AuthError(
             f"MitID accepted the login but tinglysning did not start a session.\n"
             f"  last stop: {final.url}\n"
@@ -197,25 +162,6 @@ def log_in(
 
     save_session(session, user_id)
     return session, who
-
-
-def write_report(trace: list, final=None) -> Path:
-    """Write the login's hop-by-hop trace next to the session file.
-
-    A failed login is only diagnosable from the pages it passed through, and
-    those pages can carry a name and a CPR number, so this lands 0600 in the
-    same private directory as the session itself.
-    """
-    path = session_path().with_name(REPORT_FILE)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    report = {"trace": trace}
-    if final is not None:
-        report["final_url"] = final.url
-        report["final_status"] = final.status_code
-        report["final_html"] = final.text
-    path.write_text(json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8")
-    path.chmod(stat.S_IRUSR | stat.S_IWUSR)
-    return path
 
 
 def keep_alive(session: requests.Session) -> bool:
@@ -227,20 +173,6 @@ def keep_alive(session: requests.Session) -> bool:
     # A lapsed session is answered with a redirect back into NemLog-in rather
     # than an error, so a 200 is the whole of the good news.
     return response.status_code == 200
-
-
-def idle_for(saved_at: str | None) -> timedelta | None:
-    """How long since we last used the session, as far as this machine knows.
-
-    Every run rewrites the session file, so its timestamp is a record of last
-    use rather than of the login - which is the thing the idle limit measures.
-    """
-    if not saved_at:
-        return None
-    try:
-        return datetime.now() - datetime.fromisoformat(saved_at)
-    except ValueError:
-        return None
 
 
 def log_out(session: requests.Session) -> None:

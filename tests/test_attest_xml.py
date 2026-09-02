@@ -9,13 +9,10 @@ in it.
 """
 
 import json
-import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-
-import attest_xml
-import tinglysning_dl as tl
+from yaybo.register import attest_xml
+from yaybo.register import rows as build
 
 RAW = (Path(__file__).parent / "ejdsummarisk_sample.xml").read_text(encoding="utf-8")
 RECORD = attest_xml.parse(RAW)
@@ -95,7 +92,7 @@ def test_an_easement_says_what_it_is_about():
 
 
 def test_every_party_gets_a_row_with_a_role():
-    rows = tl.party_rows(RECORD, "uuid-1")
+    rows = build.party_rows(RECORD, "uuid-1")
     roles = {}
     for row in rows:
         roles.setdefault(row["rolle"], []).append(row)
@@ -112,7 +109,7 @@ def test_every_party_gets_a_row_with_a_role():
 
 
 def test_sub_pledges_get_their_own_rows():
-    rows = tl.underpant_rows(RECORD, "uuid-1")
+    rows = build.underpant_rows(RECORD, "uuid-1")
     assert len(rows) == 1
     assert rows[0]["beloeb_dkk"] == 26000
     assert rows[0]["haeftelse_uuid"] == RECORD["haeftelser"][0]["dokument_uuid"]
@@ -120,7 +117,7 @@ def test_sub_pledges_get_their_own_rows():
 
 
 def test_charge_rows_prefer_the_xml_and_fall_back_to_the_public_record():
-    rich = tl.haeftelse_rows({"adresse": "Prøvegade 1"}, "uuid-1", RECORD)
+    rich = build.haeftelse_rows({"adresse": "Prøvegade 1"}, "uuid-1", RECORD)
     assert rich[0]["hovedstol_dkk"] == 26000
     assert rich[0]["hovedstol"] == "26.000 DKK"  # written back the register's way
     assert rich[0]["antal_underpant"] == 1
@@ -131,7 +128,7 @@ def test_charge_rows_prefer_the_xml_and_fall_back_to_the_public_record():
         "haeftelser": [{"alias": "20250101-1000000002", "haeftelsestype": "realkreditpantebrev",
                         "hovedstol": "2.000.000 DKK", "rente": "2,74", "uuid": "x"}],
     }
-    plain = tl.haeftelse_rows(public, "uuid-1")
+    plain = build.haeftelse_rows(public, "uuid-1")
     assert plain[0]["hovedstol"] == "2.000.000 DKK"
     assert plain[0]["dokumenttype"] == "realkreditpantebrev"
 
