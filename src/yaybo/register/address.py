@@ -163,8 +163,8 @@ def drop_unit(adresse: str) -> str:
 
 
 def split_postcode(text: str) -> tuple[str, str]:
-    """Split "Prøvegade 1, 9999 Prøveby" into the part before the
-    postcode and the postcode itself. Returns ("...", "") if there is none."""
+    """Split "Prøvegade 1, 9999 Prøveby" into the part before the postcode
+    and the postcode itself. Returns ("...", "") if there is none."""
     match = re.search(r",?\s*(\d{4})\s+[^,\d]+$", text)
     if not match:
         return text.strip(), ""

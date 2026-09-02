@@ -51,9 +51,13 @@ jobs:
       - uses: astral-sh/setup-uv@v6
         with:
           python-version: "3.13"
+          # This job installs nothing, so there is no cache to save, and
+          # setup-uv's post step fails the job for finding none.
+          enable-cache: false
       # No API token anywhere: --trusted-publishing exchanges this job's
       # short-lived OIDC identity for an upload token scoped to this project.
-      - run: uv publish --trusted-publishing always
+      # --check-url makes a re-run a no-op rather than a duplicate upload.
+      - run: uv publish --trusted-publishing always --check-url https://pypi.org/simple/yaybo/
 
   github-release:
     # Only once PyPI has it. A GitHub release for a version nobody can install

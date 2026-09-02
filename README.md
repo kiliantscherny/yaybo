@@ -61,7 +61,8 @@ register which properties actually sit there. Two lists, on purpose:
   register would be asked the same question about any of them. `↓` moves from the
   box into the list, `enter` opens one, `a` takes its whole building.
 - **the properties** are the register's, and this is the list that matters: one
-  row for a rented block, 118 for Prøvegade 1. It is a multi-select —
+  row for a rented block, a hundred-odd for a block of owner-occupied flats. It
+  is a multi-select —
   `space` ticks one, `a` ticks all, `n` clears, `f` fetches the ticked ones, and
   `ctrl+C` stops a long run without losing what it already has.
 

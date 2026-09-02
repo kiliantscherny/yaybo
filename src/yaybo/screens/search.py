@@ -5,7 +5,7 @@ Two lists, and they are different kinds of list on purpose.
 The first is DAWA's, and it only answers "which address did you mean". Picking
 from it costs nothing and commits to nothing. Whole buildings come first there,
 because the register indexes buildings and a building is usually what was meant:
-asked about "Prøvegade 1", DAWA answers with a dozen of its flats, which
+asked about a house number, DAWA answers with a dozen of its flats, which
 reads as a list of things to fetch and is not one - the register would be asked
 the same question about any of them.
 
