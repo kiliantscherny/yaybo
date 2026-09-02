@@ -48,9 +48,12 @@ jobs:
         with:
           name: dist
           path: dist/
-      # No API token anywhere: this exchanges a short-lived OIDC identity for
-      # an upload token, and signs the artefacts while it is at it.
-      - uses: pypa/gh-action-pypi-publish@release/v1
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.13"
+      # No API token anywhere: --trusted-publishing exchanges this job's
+      # short-lived OIDC identity for an upload token scoped to this project.
+      - run: uv publish --trusted-publishing always
 
   github-release:
     # Only once PyPI has it. A GitHub release for a version nobody can install

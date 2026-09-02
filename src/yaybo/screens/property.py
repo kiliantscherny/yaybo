@@ -164,6 +164,15 @@ class PropertyScreen(YayboScreen):
         yield Footer()
 
     def on_mount(self) -> None:
+        # After the refresh, not now. The charges tab holds its two tables
+        # inside a VerticalScroll, and a screen's on_mount can arrive before
+        # its grandchildren have been mounted - so querying for them here
+        # finds #table-ejere, which is a direct child of its pane, and then
+        # fails on #table-haeftelser, which is not. Which of those two races
+        # wins varies by interpreter and by machine.
+        self.call_after_refresh(self._prepare_tables)
+
+    def _prepare_tables(self) -> None:
         for identifier, spec in (
             ("#table-ejere", EJERE),
             ("#table-haeftelser", HAEFTELSER),
