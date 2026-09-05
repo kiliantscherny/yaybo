@@ -60,6 +60,34 @@ DataTable > .datatable--hover {
     padding: 1 1 0 1;
 }
 
+/* The library's bar and the line explaining it are one block, so the rule
+   underneath belongs to whichever of the two comes last. */
+#library-bar {
+    border-bottom: none;
+}
+
+#library-filter-label {
+    width: auto;
+    padding: 1 1 0 0;
+    color: $primary;
+    text-style: bold;
+}
+
+#library-new {
+    width: auto;
+    min-width: 22;
+    margin: 0 0 0 1;
+}
+
+#library-scope {
+    width: 100%;
+    height: auto;
+    padding: 0 2 1 2;
+    background: $panel;
+    color: $text-muted;
+    border-bottom: solid $primary 20%;
+}
+
 /* ── search ──────────────────────────────────────────────────────────── */
 
 /* This screen costs requests and adds to the library; the library's filter

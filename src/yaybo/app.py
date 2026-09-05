@@ -267,6 +267,20 @@ class YayboApp(App[None]):
         self._after_enqueue()
         return added
 
+    def enqueue_refetch(self, addresses: list[str]) -> int:
+        """Queue stored addresses to be fetched again, one property each.
+
+        Capped at one property per address on purpose: the address a flat was
+        stored under resolves to its whole building when the register has no
+        separate entry for the flat, and re-fetching one row of the library
+        must not turn into fetching a hundred.
+        """
+        added = sum(
+            1 for address in addresses if self.fetching.add_query(address, limit=1)
+        )
+        self._after_enqueue()
+        return added
+
     def _after_enqueue(self) -> None:
         """Start it now, or leave it parked for the queue screen to start."""
         if self.fetching.auto:

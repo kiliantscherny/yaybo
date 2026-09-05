@@ -589,6 +589,34 @@ def property_tables(path: str | Path, uuid: str) -> dict[str, list[dict]]:
     return found
 
 
+def tables_for(path: str | Path, uuids: list[str]) -> dict[str, list[dict]]:
+    """Every row belonging to any of these properties, shaped like `everything`.
+
+    The multi-property counterpart of `property_tables`, for exporting a chosen
+    handful rather than one or the lot. An empty list of uuids gives nothing
+    back rather than everything: "export what I ticked" with nothing ticked is
+    a question for the caller, not a licence to dump the database.
+    """
+    if not uuids:
+        return {}
+    found: dict[str, list[dict]] = {}
+    holes = ", ".join("?" * len(uuids))
+    with _reading(path) as db:
+        if db is None:
+            return {}
+        held = {row[0] for row in db.execute("SHOW TABLES").fetchall()}
+        for name, spec in TABLES.items():
+            key = spec["key"]
+            if name not in held or key not in ("uuid", "ejendom_uuid"):
+                continue
+            rows = _rows(
+                db, f'SELECT * FROM "{name}" WHERE "{key}" IN ({holes})', *uuids
+            )
+            if rows:
+                found[name] = rows
+    return found
+
+
 def everything(path: str | Path) -> dict[str, list[dict]]:
     """The whole database as rows, for exporting it somewhere else entirely."""
     with _reading(path) as db:
