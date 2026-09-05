@@ -21,6 +21,13 @@ exports/
 # invented people in them, and they belong in the repository.
 !tests/**
 
+# ...and the plugin manifests, which are configuration and not data. The rule
+# above is aimed at what --dump and --outdir produce; these two files are how
+# `/plugin marketplace add` finds anything at all, so leaving them out ships a
+# plugin that cannot load. Kept narrow: only .claude-plugin/, nowhere else.
+!.claude-plugin/*.json
+!plugin/.claude-plugin/*.json
+
 # Python
 __pycache__/
 .venv/

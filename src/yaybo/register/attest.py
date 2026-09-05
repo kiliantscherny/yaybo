@@ -201,4 +201,3 @@ def attest_json(details: dict | None) -> str:
         return json.dumps(details, ensure_ascii=False)
     outline = attest_xml.outline(details["_raw"])
     return json.dumps(outline, ensure_ascii=False) if outline else ""
-
