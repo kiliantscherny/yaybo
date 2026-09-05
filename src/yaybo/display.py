@@ -120,6 +120,26 @@ BOLIGTYPER = {
 }
 
 
+def rgb(colour: str | None, fallback: tuple[int, int, int]) -> tuple[int, int, int]:
+    """A theme colour as plotext wants it.
+
+    Textual keeps colours as "#5eb0ea"; plotext takes a name, a number or an
+    RGB triple, and quietly draws in its own palette when handed anything else
+    - so a chart that looks nothing like the rest of the application is the
+    symptom of passing the string straight through.
+    """
+    if not colour or not colour.startswith("#") or len(colour) != 7:
+        return fallback
+    try:
+        return (
+            int(colour[1:3], 16),
+            int(colour[3:5], 16),
+            int(colour[5:7], 16),
+        )
+    except ValueError:
+        return fallback
+
+
 def boligtype(value) -> str:
     """"condo" becomes "Ejerlejlighed"; anything unmapped is left as it is."""
     if value in (None, ""):

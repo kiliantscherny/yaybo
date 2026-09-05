@@ -91,9 +91,10 @@ COUNTED_TABS = {
     "tab-bygning": ("Bygning", "bygninger"),
 }
 
-# The theme's amber and verdigris, since plotext does not know about it.
-LINE = (224, 164, 88)
-POINT = (127, 179, 163)
+# Fallbacks only. The live theme's colours are read at draw time; these are
+# what a theme that declares neither gets.
+LINE = (94, 176, 234)
+POINT = (232, 185, 106)
 
 TIMELINE = (
     ("Dato", 12),
@@ -527,8 +528,13 @@ class PropertyScreen(YayboScreen):
         # code works whatever plotext decides its date handling looks like.
         xs = [_as_year(when) for when, _, _ in points]
         ys = [float(price or 0) for _, price, _ in points]
-        plot.plt.plot(xs, ys, marker="braille", color=LINE)
-        plot.plt.scatter(xs, ys, marker="●", color=POINT)
+        theme = self.app.current_theme
+        plot.plt.plot(
+            xs, ys, marker="braille", color=display.rgb(theme.primary, LINE)
+        )
+        plot.plt.scatter(
+            xs, ys, marker="●", color=display.rgb(theme.warning, POINT)
+        )
         ticks = sorted({int(x) for x in xs})
         if len(ticks) > 8:
             ticks = ticks[:: max(1, len(ticks) // 8)]

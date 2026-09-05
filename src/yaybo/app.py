@@ -26,27 +26,29 @@ from textual.widgets import Footer, Header
 from yaybo import auth, store
 from yaybo.register.client import Tinglysning
 
-# Land-register colours: aged paper, ink, the amber of a stamped seal.
+# Deep navy for the ground, a light blue for anything that can be acted on,
+# near-white for the data itself. Three jobs, three values: a reader scanning a
+# screen should be able to tell those apart without knowing the palette.
 YAYBO_THEME = Theme(
     name="yaybo",
-    primary="#e0a458",
-    secondary="#7fb3a3",
-    accent="#d98757",
-    foreground="#e9e3d6",
-    background="#14120f",
-    surface="#1e1b17",
-    panel="#2a251f",
-    success="#8fbc6b",
-    warning="#e0a458",
-    error="#d9635f",
+    primary="#5eb0ea",
+    secondary="#9ad0f0",
+    accent="#7fd8f0",
+    foreground="#eef5fb",
+    background="#0b1524",
+    surface="#132133",
+    panel="#1c2f47",
+    success="#5bc9a5",
+    warning="#e8b96a",
+    error="#e8746f",
     dark=True,
     variables={
-        "footer-key-foreground": "#e0a458",
-        "footer-description-foreground": "#a09585",
-        "input-selection-background": "#7fb3a3 35%",
+        "footer-key-foreground": "#5eb0ea",
+        "footer-description-foreground": "#93a7bd",
+        "input-selection-background": "#5eb0ea 35%",
         "block-cursor-text-style": "none",
-        "block-cursor-foreground": "#14120f",
-        "block-cursor-background": "#e0a458",
+        "block-cursor-foreground": "#0b1524",
+        "block-cursor-background": "#5eb0ea",
     },
 )
 
