@@ -27,12 +27,21 @@ from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal
 from textual.coordinate import Coordinate
-from textual.widgets import Button, DataTable, Footer, Header, Input, Static
+from textual.widgets import (
+    Button,
+    DataTable,
+    Footer,
+    Header,
+    Input,
+    Select,
+    Static,
+)
 
-from yaybo import display, store
+from yaybo import display, stats, store
 from yaybo.register.address import split_postcode
 from yaybo.register.fields import normalise
 from yaybo.screens.base import YayboScreen
+from yaybo.widgets.nav import NavTabs
 from yaybo.widgets.queue_bar import QueueBar
 from yaybo.widgets.session_bar import SessionBar
 
@@ -102,7 +111,7 @@ def _postcode(row: dict) -> str:
 # the row is the whole story, and at the far right it is the first thing a
 # narrow terminal cuts off - which is exactly the wrong column to lose.
 COLUMNS: tuple[Column, ...] = (
-    Column("MitID", 8, "mitid", lambda r: r.get("beriget"), field="beriget"),
+    Column("MitID", 7, "mitid", lambda r: r.get("beriget"), field="beriget"),
     Column("Adresse", 34, "adresse", lambda r: display.shorten(r.get("adresse"), 34),
            field="adresse"),
     Column("Postnr", 6, "postnr", _postcode),
@@ -127,6 +136,17 @@ COLUMNS: tuple[Column, ...] = (
 )
 MITID = next(index for index, column in enumerate(COLUMNS) if column.name == "mitid")
 BY_NAME = {column.name: column for column in COLUMNS}
+
+# The questions with a fixed set of answers. A dropdown filled from the data
+# beats a filter grammar for these: nobody should have to know that the field
+# is spelled `_postnr`, or guess which spellings of a boligtype are in there.
+FACETS = (
+    ("facet-by", "By", "_by"),
+    ("facet-postnr", "Postnr", "_postnr"),
+    ("facet-type", "Type", "_type"),
+    ("facet-mitid", "MitID", "_mitid"),
+)
+ALL = "\x00alle"
 
 
 class LibraryScreen(YayboScreen):
@@ -156,6 +176,7 @@ class LibraryScreen(YayboScreen):
         self.held: list[dict] = []
         self.shown: list[dict] = []
         self.ticked: set[str] = set()
+        self.chosen: dict[str, str] = {}
         # Set when a click landed on the tick column, so the row-selected
         # message that follows it opens nothing.
         self._ticked_by_click = False
@@ -165,18 +186,21 @@ class LibraryScreen(YayboScreen):
     def compose(self) -> ComposeResult:
         yield Header()
         yield SessionBar()
+        yield NavTabs("ejendomme")
         # The box and the button are deliberately not peers. One narrows a list
         # that is already here; the other goes out to the register and costs a
         # request. Labelling the box "Filter" and giving the other its own
         # button is what stops the box reading as a way to find new addresses.
         with Horizontal(id="library-bar"):
-            yield Static("Filter", id="library-filter-label")
-            yield Input(
-                placeholder="text, or name:value — try  mitid:nej  postnr:2300",
-                id="library-filter",
-            )
+            yield Static("Søg", id="library-filter-label")
+            yield Input(placeholder="address or owner", id="library-filter")
             yield Static("", id="library-count")
             yield Button("＋ Find new property", id="library-new", variant="primary")
+        with Horizontal(id="library-facets"):
+            for widget_id, label, _ in FACETS:
+                yield Static(label, classes="facet-label")
+                yield Select([], prompt="alle", id=widget_id,
+                             classes="facet-select")
         yield Static("", id="library-scope")
         yield DataTable(id="library-table", cursor_type="row", zebra_stripes=True)
         yield Static("", id="library-empty", classes="empty-state")
@@ -201,12 +225,60 @@ class LibraryScreen(YayboScreen):
         self.app.call_from_thread(self._loaded, held)
 
     def _loaded(self, held: list[dict]) -> None:
-        self.held = held
+        # The same derived fields the figures screen groups by - building,
+        # floor, postcode, town - so a town means the same thing on both.
+        self.held = stats.annotate(held)
+        self._fill_facets()
         self._apply_filter(self.query_one("#library-filter", Input).value)
         # An empty library on the first run is a screen explaining where the
         # search box is. Go there instead - escape comes straight back.
         if not held and self.app.consume_first_run():
             self.app.action_search()
+
+    def _fill_facets(self) -> None:
+        """Fill each dropdown from the whole library, once per load.
+
+        Not cascading, for the reason the figures screen is not: rebuilding a
+        Select's options from inside its own change handler means reacting to a
+        message that arrives while the last one is still settling, and the two
+        chase each other.
+        """
+        for widget_id, _, field in FACETS:
+            select = self.query_one(f"#{widget_id}", Select)
+            select.set_options(
+                [("alle", ALL)]
+                + [(f"{name}  ({n})", name)
+                   for name, n in stats.choices(self.held, field)]
+            )
+            select.value = self.chosen.get(field) or ALL
+
+    @on(Select.Changed, ".facet-select")
+    def _facet_changed(self, event: Select.Changed) -> None:
+        field = next((f for wid, _, f in FACETS if wid == event.select.id), "")
+        if not field:
+            return
+        chosen = None if event.value in (Select.BLANK, ALL, None) else str(event.value)
+        # Idempotent: filling the dropdowns sets their values, and that change
+        # arrives as a message once this handler has already returned.
+        if self.chosen.get(field) == chosen:
+            return
+        if chosen is None:
+            self.chosen.pop(field, None)
+        else:
+            self.chosen[field] = chosen
+        self._apply_filter(self.query_one("#library-filter", Input).value)
+
+    def action_clear_filter(self) -> None:
+        """Escape clears the text, then the dropdowns, then leaves the box."""
+        field = self.query_one("#library-filter", Input)
+        if field.value:
+            field.value = ""
+        elif self.chosen:
+            self.chosen.clear()
+            self._fill_facets()
+            self._apply_filter("")
+        else:
+            self.query_one("#library-table", DataTable).focus()
 
     def queue_changed(self) -> None:
         """A finished fetch has changed what the database holds."""
@@ -216,7 +288,12 @@ class LibraryScreen(YayboScreen):
     # ── filtering ───────────────────────────────────────────────────────
 
     def _apply_filter(self, needle: str) -> None:
-        self.shown = [row for row in self.held if _matches(row, needle)]
+        self.shown = [
+            row
+            for row in self.held
+            if all(row.get(f) == v for f, v in self.chosen.items())
+            and _matches(row, needle)
+        ]
         self._sort()
 
     def _sort(self) -> None:
@@ -264,17 +341,18 @@ class LibraryScreen(YayboScreen):
             table.focus()
 
     def _mitid_cell(self, beriget) -> Text:
-        """Whether this row has the half of the register that needs a login.
+        """Whether this row was fetched while logged in with MitID.
 
-        The loudest thing in the table on purpose. Two rows for the same street
-        can hold quite different amounts, and nothing else on the row says so.
+        A plain yes or no. It used to read "fuld" and "delvis", which described
+        the consequence rather than the fact and left people working out which
+        was which - the question is only ever whether the login was on.
         """
         theme = self.app.current_theme
         if beriget is None:
             return Text("–", style="dim")
         if beriget:
-            return Text("✓ fuld", style=f"bold {theme.success or 'green'}")
-        return Text("○ delvis", style=f"bold {theme.warning or 'yellow'}")
+            return Text("✓ ja", style=f"bold {theme.success or 'green'}")
+        return Text("✗ nej", style=f"bold {theme.warning or 'yellow'}")
 
     def _describe(self) -> None:
         column = COLUMNS[self.sort_by]
@@ -289,9 +367,15 @@ class LibraryScreen(YayboScreen):
             )
         else:
             count.update("")
+        chosen = "  ·  ".join(
+            f"{label}: {self.chosen[field]}"
+            for _, label, field in FACETS
+            if self.chosen.get(field)
+        )
         self.query_one("#library-scope", Static).update(
-            f"Already fetched — the filter searches these only. "
+            f"Already fetched — searching here never leaves the database. "
             f"Sorted by {column.label} {arrow} (o, i) · ＋ for a new address."
+            + (f"\n{chosen}" if chosen else "")
         )
 
         table = self.query_one("#library-table", DataTable)
@@ -335,15 +419,16 @@ class LibraryScreen(YayboScreen):
     def _new_property(self) -> None:
         self.app.action_search()
 
+    def show_only(self, text: str) -> None:
+        """Narrow to one thing by name, as though it had been typed."""
+        self.chosen.clear()
+        self._fill_facets()
+        field = self.query_one("#library-filter", Input)
+        field.value = text
+        self._apply_filter(text)
+
     def action_focus_filter(self) -> None:
         self.query_one("#library-filter", Input).focus()
-
-    def action_clear_filter(self) -> None:
-        field = self.query_one("#library-filter", Input)
-        if field.value:
-            field.value = ""
-        else:
-            self.query_one("#library-table", DataTable).focus()
 
     # ── choosing rows ───────────────────────────────────────────────────
 
