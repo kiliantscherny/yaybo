@@ -22,10 +22,11 @@ from dataclasses import dataclass
 from datetime import datetime
 
 from rich.text import Text
-from textual import on, work
+from textual import events, on, work
 from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal
+from textual.coordinate import Coordinate
 from textual.widgets import Button, DataTable, Footer, Header, Input, Static
 
 from yaybo import display, store
@@ -155,6 +156,9 @@ class LibraryScreen(YayboScreen):
         self.held: list[dict] = []
         self.shown: list[dict] = []
         self.ticked: set[str] = set()
+        # Set when a click landed on the tick column, so the row-selected
+        # message that follows it opens nothing.
+        self._ticked_by_click = False
         self.sort_by = len(COLUMNS) - 1  # Hentet: newest lookup first
         self.descending = True
 
@@ -251,9 +255,7 @@ class LibraryScreen(YayboScreen):
         for row in self.shown:
             cells = [column.show(row) for column in COLUMNS]
             cells[MITID] = self._mitid_cell(row.get("beriget"))
-            table.add_row(
-                "✓" if row["uuid"] in self.ticked else "", *cells, key=row["uuid"]
-            )
+            table.add_row(self._tick_cell(row["uuid"]), *cells, key=row["uuid"])
         self._describe()
         # Only on the way in. A reload can land while the filter is being typed
         # in, or after a background re-fetch, and pulling the cursor out of the
@@ -356,19 +358,57 @@ class LibraryScreen(YayboScreen):
 
     def action_tick(self) -> None:
         row = self._selected()
-        if row is None:
-            return
-        self.ticked.symmetric_difference_update({row["uuid"]})
-        self._fill()
+        if row is not None:
+            self._toggle(row["uuid"])
+
+    def _toggle(self, uuid: str) -> None:
+        """Tick or untick one row, in place.
+
+        Repainting the one cell rather than refilling the table, because
+        clearing a DataTable puts the cursor back on the first row - so ticking
+        the fortieth property walked you back to the first, every time.
+        """
+        self.ticked.symmetric_difference_update({uuid})
+        table = self.query_one("#library-table", DataTable)
+        for index, row in enumerate(self.shown):
+            if row["uuid"] == uuid:
+                table.update_cell_at(Coordinate(index, 0), self._tick_cell(uuid))
+                break
+        self._describe()
 
     def action_tick_all(self) -> None:
         """Everything the filter is currently showing, not the whole database."""
         self.ticked = {row["uuid"] for row in self.shown}
-        self._fill()
+        self._repaint_ticks()
 
     def action_tick_none(self) -> None:
         self.ticked.clear()
-        self._fill()
+        self._repaint_ticks()
+
+    def _repaint_ticks(self) -> None:
+        table = self.query_one("#library-table", DataTable)
+        for index, row in enumerate(self.shown):
+            table.update_cell_at(Coordinate(index, 0), self._tick_cell(row["uuid"]))
+        self._describe()
+
+    def _tick_cell(self, uuid: str) -> str:
+        return "✓" if uuid in self.ticked else ""
+
+    @on(events.Click)
+    def _clicked(self, event: events.Click) -> None:
+        """A click in the tick column ticks, rather than opening the property.
+
+        The DataTable has already moved its cursor and queued a RowSelected by
+        the time this runs, so the flag is what stops that turning into an
+        open. Everywhere else on the row still opens it.
+        """
+        meta = event.style.meta
+        if meta.get("column") != 0 or "row" not in meta:
+            return
+        index = meta["row"]
+        if 0 <= index < len(self.shown):
+            self._toggle(self.shown[index]["uuid"])
+            self._ticked_by_click = True
 
     def _chosen(self) -> list[dict]:
         """The ticked rows, or the one under the cursor when none are ticked."""
@@ -381,6 +421,9 @@ class LibraryScreen(YayboScreen):
 
     @on(DataTable.RowSelected, "#library-table")
     def _opened(self, event: DataTable.RowSelected) -> None:
+        if self._ticked_by_click:
+            self._ticked_by_click = False
+            return
         self._open(str(event.row_key.value))
 
     def action_open(self) -> None:
@@ -406,7 +449,7 @@ class LibraryScreen(YayboScreen):
             return
         added = self.app.enqueue_refetch([row["adresse"] for row in chosen])
         self.ticked.clear()
-        self._fill()
+        self._repaint_ticks()
         held = "property" if added == 1 else "properties"
         self.notify(
             f"Queued {added} {held} to re-fetch. {self.app.queued_note()}"
