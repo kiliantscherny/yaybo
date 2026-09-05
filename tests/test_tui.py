@@ -345,18 +345,33 @@ def test_search_offers_the_building_before_its_flats(tmp_path, monkeypatch):
 
             rows = app.screen.matches
             assert len(rows) == 2, "expected a building row and a flat row"
-            # A freshly filled list must arrive with a cursor, or the first key
-            # aimed at it is swallowed.
-            assert app.screen.query_one("#search-matches", OptionList).highlighted == 0
             assert rows[0]["tekst"] == "Prøvegade 1, 9999 Prøveby"
             assert not rows[0]["etage"] and not rows[0]["doer"]
             assert rows[1]["etage"] == "1"
 
+            # The list itself is in two labelled sections, so a heading sits
+            # above each kind and the indices no longer line up with `matches`.
+            from yaybo.screens.search import BUILDINGS, UNITS
+
+            shown = app.screen.rows
+            assert shown[0] == BUILDINGS and shown[2] == UNITS
+            assert shown[1] is rows[0] and shown[3] is rows[1]
+            # A freshly filled list must arrive with a cursor, or the first key
+            # aimed at it is swallowed - and it must not arrive on a heading.
+            listing = app.screen.query_one("#search-matches", OptionList)
+            assert listing.highlighted == 1 == app.screen._first_choosable()
+
     asyncio.run(walk())
 
 
-def test_search_fetches_the_ticked_property_and_opens_it(tmp_path, monkeypatch):
-    """Pick one flat, and the single result arrives ticked so f just works."""
+def test_search_queues_the_ticked_property_and_fetches_it(tmp_path, monkeypatch):
+    """Pick one flat, and the single result arrives ticked so f just works.
+
+    f hands the work to the application's queue rather than doing it here. The
+    screen stays where it is and stays usable, which is the point: a building
+    of thirty flats used to mean thirty properties' worth of waiting on this
+    screen before anything else could be looked up.
+    """
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
     database = tmp_path / "fetched.duckdb"
     unit = {"uuid": "u1", "adresse": "Prøvegade 1, 1. tv, 9999 Prøveby"}
@@ -364,8 +379,9 @@ def test_search_fetches_the_ticked_property_and_opens_it(tmp_path, monkeypatch):
 
     from textual.widgets import OptionList, SelectionList
 
+    from yaybo import fetching
     from yaybo.app import YayboApp
-    from yaybo.screens.property import PropertyScreen
+    from yaybo.screens.search import SearchScreen
 
     async def walk() -> None:
         app = YayboApp(database=database)
@@ -374,10 +390,11 @@ def test_search_fetches_the_ticked_property_and_opens_it(tmp_path, monkeypatch):
             screen = app.screen
             await _type_address(pilot, screen)
 
-            # Row 1 is the flat itself, floor and door intact.
+            # The flat itself, floor and door intact - found by identity
+            # rather than by index, because headings sit between the sections.
             matches = screen.query_one("#search-matches", OptionList)
             matches.focus()
-            matches.highlighted = 1
+            matches.highlighted = screen.rows.index(screen.matches[1])
             await pilot.press("enter")
             await pilot.pause(0.4)
             assert asked["address"] == address
@@ -385,20 +402,22 @@ def test_search_fetches_the_ticked_property_and_opens_it(tmp_path, monkeypatch):
             listing = screen.query_one("#search-units", SelectionList)
             assert listing.selected == [0], "a lone property should arrive ticked"
 
-            # The fetch runs in a thread and the property screen reads the
-            # database in another, so wait for the rows rather than for the
-            # screen: arriving on it says nothing about whether it has loaded.
             await pilot.press("f")
-            for _ in range(40):
+            await pilot.pause()
+            # Handed over, not waited on.
+            assert isinstance(app.screen, SearchScreen), "f should not move screen"
+            assert app.fetching.jobs, "nothing reached the queue"
+            assert listing.selected == [], "queued rows should not stay ticked"
+
+            for _ in range(60):
                 await pilot.pause(0.1)
-                if isinstance(app.screen, PropertyScreen) and app.screen.tables:
+                if not app.fetching.active:
                     break
 
             assert asked["units"] == [unit]
-            assert isinstance(app.screen, PropertyScreen), "the property never opened"
-            assert app.screen.tables, "the property opened but never loaded"
-            assert app.screen.property_row["adresse"].startswith("Prøvegade 1")
-            assert app.screen.tables["ejere"][0]["navn"] == "Ida Testesen"
+            job = app.fetching.jobs[0]
+            assert job.state == fetching.DONE, job.note
+            assert job.rows, "the job finished without writing anything"
 
         assert len(store.library(database)) == 1
 

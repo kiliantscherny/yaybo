@@ -67,7 +67,7 @@ class YayboApp(App[None]):
 
     BINDINGS = [
         Binding("q", "quit", "Quit"),
-        Binding("slash", "search", "Search"),
+        Binding("slash", "search", "Find new"),
         Binding("l", "library", "Library"),
         Binding("b", "queue", "Queue"),
         Binding("s", "sql", "SQL"),
@@ -360,9 +360,18 @@ class YayboApp(App[None]):
         self._show(LibraryScreen)
 
     def action_search(self) -> None:
+        self.search_for("")
+
+    def search_for(self, query: str) -> None:
+        """Open the search screen, optionally with the box already filled in.
+
+        The library's filter is the one place someone reliably types an address
+        that is not in the library yet. Carrying that text across turns a dead
+        end into the search they meant.
+        """
         from yaybo.screens.search import SearchScreen
 
-        self._show(SearchScreen)
+        self._show(SearchScreen, query=query)
 
     def action_queue(self) -> None:
         from yaybo.screens.queue import QueueScreen
@@ -374,7 +383,7 @@ class YayboApp(App[None]):
 
         self._show(SqlScreen)
 
-    def _show(self, screen_type) -> None:
+    def _show(self, screen_type, **kwargs) -> None:
         """Switch to a screen, or do nothing if it is already the one on top.
 
         The four main screens are peers, not a stack: pressing `l` from Search
@@ -389,7 +398,7 @@ class YayboApp(App[None]):
         while len(self.screen_stack) > 2:
             self.pop_screen()
         if screen_type is not LibraryScreen:
-            self.push_screen(screen_type())
+            self.push_screen(screen_type(**kwargs))
 
 
 def run(database: str | Path | None = None) -> int:
