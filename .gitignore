@@ -29,3 +29,6 @@ __pycache__/
 .tox/
 dist/
 *.egg-info/
+
+# misc
+.DS_Store
