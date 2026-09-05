@@ -2,13 +2,15 @@
 
 ## Versioning
 
-[Semantic versioning](https://semver.org/). While this is `0.x`, a breaking
-change bumps the minor and everything else bumps the patch.
+[Semantic versioning](https://semver.org/). A breaking change bumps the major,
+a new feature bumps the minor, and everything else bumps the patch.
 
 What counts as breaking: the `yaybo` command's arguments, the exported file
-formats, and the table and column names in `store.TABLES`. A database written
+formats, and the table and column names in `store.TABLES`. Adding a column or
+a subcommand is not breaking; renaming or removing one is. A database written
 by one version should still be readable by the next, and `yaybo backfill`
-should be able to bring it forward.
+should be able to bring it forward - a major version is not a licence to break
+that, only to change what the command line and the exports look like.
 
 The registers change their own markup and their own APIs without warning.
 Following them is a patch here even when the diff is large, as long as the
