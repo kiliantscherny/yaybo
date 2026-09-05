@@ -62,6 +62,8 @@ src/yaybo/
 ├── backfill.py        re-derive stored tables without fetching anything
 ├── auth.py            the MitID login, as tinglysning.dk wants it
 ├── display.py         formatting numbers, dates and Danish text for a screen
+├── stats.py           figures over a set of properties - rows in, numbers out,
+│                      so what it computes can be checked without a terminal
 ├── register/          tinglysning.dk itself
 │   ├── client.py      the HTTP session, its proof-of-work and its tokens
 │   ├── address.py     DAWA lookup and address parsing
@@ -73,11 +75,15 @@ src/yaybo/
 ├── enrich/            the two public sources that need no login
 │   ├── boligsiden.py  sale prices, price per m², and the BBR record
 │   └── laantype.py    DST rates, and reading a bare rate as a loan product
-├── screens/           library, search, property, queue, sql
+├── screens/           library, search, property, queue, stats, analysis, sql
 ├── widgets/           the export dialog
 └── styles/            Textual CSS
 
 tests/                 fixtures with invented people, and what they prove
+scripts/               generate_schema_dbml.py, which writes schema.dbml
+plugin/                the Claude Code plugin: manifest and the skill for
+                       using the data. `claude --plugin-dir ./plugin` loads it
+                       from a clone without installing anything
 ```
 
 ## What goes where

@@ -62,6 +62,7 @@ SAMPLE = {
         {
             "ejendom_uuid": "u1",
             "dokument_uuid": "d1",
+            "dokument_version": "1",
             "adresse": "Prøvegade 1, 1. tv, 9999 Prøveby",
             "dato_loebenummer": "01.05.2019-1001",
             "prioritet": 1,
@@ -78,6 +79,7 @@ SAMPLE = {
         {
             "ejendom_uuid": "u1",
             "dokument_uuid": "d2",
+            "dokument_version": "1",
             "adresse": "Prøvegade 1, 1. tv, 9999 Prøveby",
             "dato_loebenummer": "14.02.1962-2002",
             "prioritet": 2,
@@ -103,6 +105,7 @@ SAMPLE = {
             "ejendom_uuid": "u1",
             "haeftelse_uuid": "d1",
             "dokument_uuid": "d3",
+            "rettighed_uuid": "r3",
             "dato_loebenummer": "01.11.2021-3003",
             "beloeb_dkk": 400000,
             "prioritet": 1,
@@ -114,6 +117,7 @@ SAMPLE = {
             "ejendom_uuid": "u1",
             "adresse": "Prøvegade 1, 1. tv, 9999 Prøveby",
             "dato": "2014-06-01",
+            "registrering_id": "100001",
             "beloeb_dkk": 1800000,
             "areal_m2": 75,
             "pris_pr_m2": 24000,
@@ -123,6 +127,7 @@ SAMPLE = {
             "ejendom_uuid": "u1",
             "adresse": "Prøvegade 1, 1. tv, 9999 Prøveby",
             "dato": "2019-04-11",
+            "registrering_id": "100002",
             "beloeb_dkk": 2500000,
             "areal_m2": 75,
             "pris_pr_m2": 33333,
@@ -345,18 +350,33 @@ def test_search_offers_the_building_before_its_flats(tmp_path, monkeypatch):
 
             rows = app.screen.matches
             assert len(rows) == 2, "expected a building row and a flat row"
-            # A freshly filled list must arrive with a cursor, or the first key
-            # aimed at it is swallowed.
-            assert app.screen.query_one("#search-matches", OptionList).highlighted == 0
             assert rows[0]["tekst"] == "Prøvegade 1, 9999 Prøveby"
             assert not rows[0]["etage"] and not rows[0]["doer"]
             assert rows[1]["etage"] == "1"
 
+            # The list itself is in two labelled sections, so a heading sits
+            # above each kind and the indices no longer line up with `matches`.
+            from yaybo.screens.search import BUILDINGS, UNITS
+
+            shown = app.screen.rows
+            assert shown[0] == BUILDINGS and shown[2] == UNITS
+            assert shown[1] is rows[0] and shown[3] is rows[1]
+            # A freshly filled list must arrive with a cursor, or the first key
+            # aimed at it is swallowed - and it must not arrive on a heading.
+            listing = app.screen.query_one("#search-matches", OptionList)
+            assert listing.highlighted == 1 == app.screen._first_choosable()
+
     asyncio.run(walk())
 
 
-def test_search_fetches_the_ticked_property_and_opens_it(tmp_path, monkeypatch):
-    """Pick one flat, and the single result arrives ticked so f just works."""
+def test_search_queues_the_ticked_property_and_fetches_it(tmp_path, monkeypatch):
+    """Pick one flat, and the single result arrives ticked so f just works.
+
+    f hands the work to the application's queue rather than doing it here. The
+    screen stays where it is and stays usable, which is the point: a building
+    of thirty flats used to mean thirty properties' worth of waiting on this
+    screen before anything else could be looked up.
+    """
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
     database = tmp_path / "fetched.duckdb"
     unit = {"uuid": "u1", "adresse": "Prøvegade 1, 1. tv, 9999 Prøveby"}
@@ -364,20 +384,25 @@ def test_search_fetches_the_ticked_property_and_opens_it(tmp_path, monkeypatch):
 
     from textual.widgets import OptionList, SelectionList
 
+    from yaybo import fetching
     from yaybo.app import YayboApp
-    from yaybo.screens.property import PropertyScreen
+    from yaybo.screens.search import SearchScreen
 
     async def walk() -> None:
         app = YayboApp(database=database)
         async with app.run_test(size=(160, 48)) as pilot:
             await pilot.pause()
             screen = app.screen
+            # Narrowed the way the other walks do it, so the type checker knows
+            # what the screen is and the test says what it expects.
+            assert isinstance(screen, SearchScreen)
             await _type_address(pilot, screen)
 
-            # Row 1 is the flat itself, floor and door intact.
+            # The flat itself, floor and door intact - found by identity
+            # rather than by index, because headings sit between the sections.
             matches = screen.query_one("#search-matches", OptionList)
             matches.focus()
-            matches.highlighted = 1
+            matches.highlighted = screen.rows.index(screen.matches[1])
             await pilot.press("enter")
             await pilot.pause(0.4)
             assert asked["address"] == address
@@ -385,20 +410,22 @@ def test_search_fetches_the_ticked_property_and_opens_it(tmp_path, monkeypatch):
             listing = screen.query_one("#search-units", SelectionList)
             assert listing.selected == [0], "a lone property should arrive ticked"
 
-            # The fetch runs in a thread and the property screen reads the
-            # database in another, so wait for the rows rather than for the
-            # screen: arriving on it says nothing about whether it has loaded.
             await pilot.press("f")
-            for _ in range(40):
+            await pilot.pause()
+            # Handed over, not waited on.
+            assert isinstance(app.screen, SearchScreen), "f should not move screen"
+            assert app.fetching.jobs, "nothing reached the queue"
+            assert listing.selected == [], "queued rows should not stay ticked"
+
+            for _ in range(60):
                 await pilot.pause(0.1)
-                if isinstance(app.screen, PropertyScreen) and app.screen.tables:
+                if not app.fetching.active:
                     break
 
             assert asked["units"] == [unit]
-            assert isinstance(app.screen, PropertyScreen), "the property never opened"
-            assert app.screen.tables, "the property opened but never loaded"
-            assert app.screen.property_row["adresse"].startswith("Prøvegade 1")
-            assert app.screen.tables["ejere"][0]["navn"] == "Ida Testesen"
+            job = app.fetching.jobs[0]
+            assert job.state == fetching.DONE, job.note
+            assert job.rows, "the job finished without writing anything"
 
         assert len(store.library(database)) == 1
 
@@ -460,5 +487,359 @@ def test_a_takes_the_whole_building_and_ticks_everything(tmp_path, monkeypatch):
             await pilot.press("a")
             await pilot.pause(0.2)
             assert sorted(listing.selected) == [0, 1, 2]
+
+    asyncio.run(walk())
+
+
+# ── the library, the buildings and the figures ──────────────────────────
+#
+# One database with two buildings in two towns, half of it fetched while
+# logged in, so the columns and the dropdowns have something to say.
+
+BLOCK = [
+    ("p1", "Islands Brygge 30B", "2300", "København S", "st. tv", 70, 3_500_000, True),
+    ("p2", "Islands Brygge 30B", "2300", "København S", "3. tv", 70, 4_200_000, False),
+    ("p3", "Islands Brygge 30B", "2300", "København S", "10. th", 70, 7_000_000, True),
+    ("p4", "Saxogade 10", "8600", "Silkeborg", "1. tv", 90, 2_800_000, False),
+]
+
+
+@pytest.fixture
+def library(tmp_path, monkeypatch):
+    """A database with four properties across two buildings and two towns."""
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
+    path = tmp_path / "library.duckdb"
+    for uuid, building, postcode, town, unit, area, value, beriget in BLOCK:
+        store.save(
+            path,
+            {
+                "ejendomme": [
+                    {
+                        "uuid": uuid,
+                        "adresse": f"{building}, {unit}, {postcode} {town}",
+                        "lejlighed": unit,
+                        "ejendomstype": "Ejerlejlighed",
+                        "boligtype": "condo",
+                        "boligareal_m2": area,
+                        "ejendomsvurdering_dkk": value,
+                        "samlet_gaeld_dkk": value // 2,
+                        "belaaningsgrad_pct": 50.0,
+                        "beriget": beriget,
+                    }
+                ],
+                "ejere": [
+                    {"ejendom_uuid": uuid, "nummer": 1, "navn": f"Ejer {uuid}",
+                     "foedselsdato": "1980-01-01", "andel": "1/1"}
+                ],
+                "handelshistorik": [
+                    {"ejendom_uuid": uuid, "registrering_id": f"{uuid}-1",
+                     "dato": "2019-04-11", "beloeb_dkk": value,
+                     "areal_m2": area, "pris_pr_m2": value // area}
+                ],
+            },
+        )
+    return path
+
+
+def test_the_library_says_which_rows_were_fetched_with_a_login(library):
+    """The one column that says whether the rest of the row is the whole story."""
+    from textual.widgets import DataTable
+
+    from yaybo.app import YayboApp
+    from yaybo.screens.library import COLUMNS, MITID, LibraryScreen
+
+    async def walk() -> None:
+        app = YayboApp(database=library)
+        async with app.run_test(size=(160, 48)) as pilot:
+            await pilot.pause(0.3)
+            screen = app.screen
+            assert isinstance(screen, LibraryScreen)
+            assert len(screen.shown) == 4
+            table = screen.query_one("#library-table", DataTable)
+            # Column 0 is the tick; the MitID column is deliberately next to
+            # it, where a narrow terminal cannot cut it off.
+            assert COLUMNS[MITID].label == "MitID" and MITID == 0
+            said = {str(table.get_row_at(i)[1]) for i in range(4)}
+            assert said == {"✓ ja", "✗ nej"}, "a plain yes or no, not fuld/delvis"
+
+    asyncio.run(walk())
+
+
+def test_the_library_filters_by_dropdown_and_by_text(library):
+    from textual.widgets import Input, Select
+
+    from yaybo.app import YayboApp
+    from yaybo.screens.library import ALL, LibraryScreen
+
+    async def walk() -> None:
+        app = YayboApp(database=library)
+        async with app.run_test(size=(160, 48)) as pilot:
+            await pilot.pause(0.3)
+            screen = app.screen
+            assert isinstance(screen, LibraryScreen)
+
+            towns = [
+                value for _, value in screen.query_one("#facet-by", Select)._options
+                if isinstance(value, str) and value != ALL
+            ]
+            assert sorted(towns) == ["København S", "Silkeborg"]
+
+            screen.query_one("#facet-by", Select).value = "Silkeborg"
+            await pilot.pause(0.3)
+            assert [row["uuid"] for row in screen.shown] == ["p4"]
+
+            screen.query_one("#facet-mitid", Select).value = "ja"
+            await pilot.pause(0.3)
+            assert screen.shown == [], "the two conditions are both required"
+
+            screen.query_one("#facet-by", Select).value = ALL
+            screen.query_one("#facet-mitid", Select).value = ALL
+            await pilot.pause(0.3)
+            screen.query_one("#library-filter", Input).value = "Saxogade"
+            await pilot.pause(0.3)
+            assert [row["uuid"] for row in screen.shown] == ["p4"]
+
+    asyncio.run(walk())
+
+
+def test_ticking_a_row_does_not_move_the_cursor(library):
+    """Refilling the table used to walk the cursor back to the first row."""
+    from textual.coordinate import Coordinate
+    from textual.widgets import DataTable
+
+    from yaybo.app import YayboApp
+    from yaybo.screens.library import LibraryScreen
+
+    async def walk() -> None:
+        app = YayboApp(database=library)
+        async with app.run_test(size=(160, 48)) as pilot:
+            await pilot.pause(0.3)
+            screen = app.screen
+            assert isinstance(screen, LibraryScreen)
+            table = screen.query_one("#library-table", DataTable)
+            table.focus()
+            table.cursor_coordinate = Coordinate(2, 0)
+            await pilot.pause(0.2)
+
+            await pilot.press("space")
+            await pilot.pause(0.2)
+            assert table.cursor_row == 2, "ticking must not send you to the top"
+            assert screen.shown[2]["uuid"] in screen.ticked
+            assert str(table.get_row_at(2)[0]) == "✓"
+
+            await pilot.press("down")
+            await pilot.press("space")
+            await pilot.pause(0.2)
+            assert len(screen.ticked) == 2 and table.cursor_row == 3
+
+    asyncio.run(walk())
+
+
+def test_the_buildings_screen_groups_the_library_by_address(library):
+    from textual.widgets import DataTable
+
+    from yaybo.app import YayboApp
+    from yaybo.screens.buildings import BuildingsScreen
+    from yaybo.screens.library import LibraryScreen
+
+    async def walk() -> None:
+        app = YayboApp(database=library)
+        async with app.run_test(size=(160, 48)) as pilot:
+            await pilot.pause(0.3)
+            app.action_buildings()
+            await pilot.pause(0.5)
+            screen = app.screen
+            assert isinstance(screen, BuildingsScreen)
+            assert len(screen.shown) == 2, "four properties, two buildings"
+
+            block = next(b for b in screen.shown if b.held == 3)
+            assert block.complete == 2, "two of its three had a login"
+            table = screen.query_one("#buildings-table", DataTable)
+            row = table.get_row_at(screen.shown.index(block))
+            assert str(row[0]) == "2/3", "part of a building can differ from the rest"
+
+            # Into that building's properties, on the properties tab. The
+            # cursor decides which, and the newest fetch sorts first.
+            from textual.coordinate import Coordinate
+
+            table.focus()
+            table.cursor_coordinate = Coordinate(screen.shown.index(block), 0)
+            await pilot.pause(0.2)
+            screen.action_open()
+            await pilot.pause(0.6)
+            opened = app.screen
+            assert isinstance(opened, LibraryScreen)
+            assert len(opened.shown) == 3
+
+    asyncio.run(walk())
+
+
+def test_the_figures_open_over_whatever_is_in_scope(library):
+    from textual.widgets import DataTable, OptionList, Select
+
+    from yaybo import stats
+    from yaybo.app import YayboApp
+    from yaybo.screens.analysis import AnalysisScreen
+    from yaybo.screens.stats import StatsScreen
+
+    async def walk() -> None:
+        app = YayboApp(database=library)
+        async with app.run_test(size=(160, 48)) as pilot:
+            await pilot.pause(0.3)
+            app.action_stats()
+            await pilot.pause(0.6)
+            screen = app.screen
+            assert isinstance(screen, StatsScreen)
+            assert len(screen.scope) == 4
+
+            screen.query_one("#scope-bygning", Select).value = (
+                "Islands Brygge 30B, 2300 København S"
+            )
+            await pilot.pause(0.4)
+            assert len(screen.scope) == 3
+
+            listing = screen.query_one("#stats-analyses", OptionList)
+            listing.highlighted = next(
+                i for i in range(listing.option_count)
+                if str(listing.get_option_at_index(i).id) == "sammenlign"
+            )
+            listing.focus()
+            await pilot.press("enter")
+            await pilot.pause(0.6)
+
+            modal = app.screen
+            assert isinstance(modal, AnalysisScreen)
+            assert len(modal.scope) == 3, "the modal inherits the selection"
+            assert modal.by == "_etage"
+            assert modal.query_one("#analysis-table", DataTable).row_count == 3
+
+            # Every analysis has to survive being opened, since a broken one is
+            # only found by opening it.
+            for analysis in stats.ANALYSES:
+                modal.analysis = analysis
+                modal.measure = analysis.measures[0] if analysis.measures else ""
+                if modal.measure:
+                    modal.how = stats.BY_KEY[modal.measure].default
+                modal._redraw()
+
+            await pilot.press("escape")
+            await pilot.pause(0.4)
+            back = app.screen
+            assert isinstance(back, StatsScreen)
+            assert len(back.scope) == 3, "escape keeps the selection"
+
+    asyncio.run(walk())
+
+
+def test_every_tab_names_a_place_that_exists(library):
+    """The nav bar is only useful if each tab actually goes somewhere."""
+    from yaybo.app import YayboApp
+    from yaybo.widgets.nav import PLACES, NavTabs
+
+    async def walk() -> None:
+        app = YayboApp(database=library)
+        async with app.run_test(size=(160, 48)) as pilot:
+            await pilot.pause(0.3)
+            for key, _, action in PLACES:
+                getattr(app, f"action_{action}")()
+                await pilot.pause(0.5)
+                tabs = app.screen.query_one(NavTabs)
+                assert tabs.active == key, f"{action} should sit on the {key} tab"
+
+    asyncio.run(walk())
+
+
+def test_the_queue_screen_acts_on_what_is_ticked(library, monkeypatch):
+    """Every action there works on a selection, or on all of it when none is."""
+    from textual.coordinate import Coordinate
+    from textual.widgets import Button, DataTable
+
+    from yaybo import fetching
+    from yaybo.app import YayboApp
+    from yaybo.screens.queue import QueueScreen
+
+    async def walk() -> None:
+        app = YayboApp(database=library)
+        async with app.run_test(size=(160, 48)) as pilot:
+            await pilot.pause(0.3)
+            # Nothing starts on its own, so the list can be looked at.
+            app.fetching.auto = False
+            app.enqueue_refetch([row[1] + ", " + row[4] for row in
+                                 [(b[0], b[1], b[2], b[3], b[4]) for b in BLOCK]])
+            app.action_queue()
+            await pilot.pause(0.5)
+
+            screen = app.screen
+            assert isinstance(screen, QueueScreen)
+            assert not screen.query("#queue-input"), "nothing is added here any more"
+            assert len(screen.shown) == 4
+            assert app.fetching.held == 4, "auto-fetch off parks them"
+            assert "off" in str(screen.query_one("#queue-auto", Button).label)
+
+            table = screen.query_one("#queue-table", DataTable)
+            table.focus()
+            table.cursor_coordinate = Coordinate(1, 0)
+            await pilot.pause(0.2)
+            await pilot.press("space")
+            await pilot.pause(0.2)
+            assert screen.ticked == {screen.shown[1].key}
+            assert str(table.get_row_at(1)[0]) == "✓"
+
+            # Removing takes the ticked one and leaves the rest alone.
+            await pilot.press("d")
+            await pilot.pause(0.3)
+            assert len(app.fetching.jobs) == 3
+            assert screen.ticked == set(), "the selection goes with what it removed"
+
+            await pilot.press("a")
+            await pilot.pause(0.2)
+            assert len(screen.ticked) == 3
+
+            # And the toggle really does flip the application's setting.
+            await pilot.press("t")
+            await pilot.pause(0.3)
+            assert app.fetching.auto is True
+            assert app.fetching.held == 0, "turning it on releases what was parked"
+
+    monkeypatch.setattr(fetching, "POLITE_DELAY", 0)
+    asyncio.run(walk())
+
+
+def test_the_export_dialog_offers_exactly_what_it_can_write(database, tmp_path):
+    """The formats it lists and the formats the exporter knows are one list.
+
+    Writing is covered by test_exports_every_format, which calls the exporter
+    directly. What can only go wrong here is the two drifting apart - a button
+    for a format nothing knows how to produce.
+    """
+    from textual.widgets import RadioButton, RadioSet
+
+    from yaybo import export
+    from yaybo.app import YayboApp
+    from yaybo.widgets.export_dialog import ExportDialog
+
+    async def walk() -> None:
+        app = YayboApp(database=database)
+        async with app.run_test(size=(160, 48)) as pilot:
+            await pilot.pause(0.3)
+            app.push_screen(
+                ExportDialog(store.everything(database), "prøve", outdir=tmp_path)
+            )
+            await pilot.pause(0.4)
+
+            dialog = app.screen
+            assert isinstance(dialog, ExportDialog)
+            # Empty tables are dropped before the dialog says what it will write.
+            assert all(rows for rows in dialog.tables.values())
+            assert "ejendomme" in dialog.tables
+
+            offered = [
+                str(button.label)
+                for button in dialog.query_one("#export-format", RadioSet).query(
+                    RadioButton
+                )
+            ]
+            assert set(offered) == set(export.FORMATS)
+            assert dialog.chosen in offered, "something has to be picked to start with"
 
     asyncio.run(walk())

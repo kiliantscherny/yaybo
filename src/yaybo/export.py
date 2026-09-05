@@ -83,7 +83,10 @@ def export_csv(
 
     if len(tables) == 1:
         name, rows = next(iter(tables.items()))
-        return [_write_csv(destination / f"{slug}-{name}-{at}.csv", name, rows)]
+        # A query exported under its own name would otherwise come out as
+        # priser-priser-....csv, the stem and the table being the same word.
+        label = name if slugify(name) == slug else f"{slug}-{name}"
+        return [_write_csv(destination / f"{label}-{at}.csv", name, rows)]
 
     folder = destination / f"{slug}-{at}"
     folder.mkdir(parents=True, exist_ok=True)

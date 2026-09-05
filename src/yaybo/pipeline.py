@@ -196,7 +196,15 @@ def fetch(
                 gathered["bygninger"] += rows.bygning_rows(bolig, uuid, adresse)
 
         gathered["ejendomme"].append(
-            {**rows.property_row(record, uuid, parcel, flat), **rows.bolig_row(bolig)}
+            {
+                **rows.property_row(record, uuid, parcel, flat),
+                **rows.bolig_row(bolig),
+                # Per property, not per run. A session that lapses halfway
+                # leaves a database where some rows have owners' dates of birth
+                # and previous owners and some do not, and the only useful
+                # answer to "is this row complete" is the one recorded here.
+                "beriget": details is not None,
+            }
         )
         gathered["ejere"] += rows.owner_rows(record, uuid, flat)
         gathered["haeftelser"] += rows.haeftelse_rows(record, uuid, parsed)

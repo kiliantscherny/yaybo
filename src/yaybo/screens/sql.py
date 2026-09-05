@@ -27,6 +27,9 @@ from textual.widgets import (
 
 from yaybo import display, store
 from yaybo.screens.base import YayboScreen
+from yaybo.widgets.nav import NavTabs
+from yaybo.widgets.queue_bar import QueueBar
+from yaybo.widgets.session_bar import SessionBar
 
 # Worth having ready: each one is a question the tables can answer but no single
 # screen shows, and each is a decent starting point to edit.
@@ -120,6 +123,8 @@ class SqlScreen(YayboScreen):
 
     def compose(self) -> ComposeResult:
         yield Header()
+        yield SessionBar()
+        yield NavTabs("ejendomme")
         with Horizontal(id="sql-bar"):
             yield Select(
                 [(name, name) for name in SNIPPETS],
@@ -130,6 +135,7 @@ class SqlScreen(YayboScreen):
         yield TextArea(next(iter(SNIPPETS.values())), id="sql-query")
         yield Static("", id="sql-status")
         yield DataTable(id="sql-results", cursor_type="row", zebra_stripes=True)
+        yield QueueBar()
         yield Footer()
 
     def on_mount(self) -> None:

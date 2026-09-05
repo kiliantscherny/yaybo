@@ -120,7 +120,8 @@ def test_an_older_database_gains_the_columns_it_is_missing():
             db.execute("INSERT INTO haeftelser VALUES ('old-1', '1.000 DKK', now())")
 
         store.save(path, {"haeftelser": [
-            {"ejendom_uuid": "uuid-1", "hovedstol": "26.000 DKK",
+            {"ejendom_uuid": "uuid-1", "dokument_uuid": "d1",
+             "dokument_version": "1", "hovedstol": "26.000 DKK",
              "hovedstol_dkk": 26000, "rentesats_pct": 3.5, "overfoert": "true",
              "saerlige_vilkaar": ["inkonvertibel"]}
         ]})
@@ -136,6 +137,85 @@ def test_an_older_database_gains_the_columns_it_is_missing():
             assert _one(
                 db, "SELECT hovedstol FROM haeftelser WHERE ejendom_uuid = 'old-1'"
             ) == "1.000 DKK"
+
+
+def _keys(db):
+    """Every table's primary key, as the database itself reports it."""
+    return {
+        name: tuple(columns)
+        for name, columns in db.sql(
+            "SELECT table_name, constraint_column_names FROM duckdb_constraints() "
+            "WHERE constraint_type = 'PRIMARY KEY' "
+            "AND database_name = current_database()"
+        ).fetchall()
+    }
+
+
+def test_every_table_is_keyed():
+    """A row has to be identifiable, and by more than the property it belongs
+    to - a property has many charges, and each of them many parties."""
+    with tempfile.TemporaryDirectory() as folder:
+        path = Path(folder) / "new.duckdb"
+        store.save(path, {})
+        with duckdb.connect(str(path), read_only=True) as db:
+            held = _keys(db)
+        assert set(held) == set(store.TABLES)
+        for name, spec in store.TABLES.items():
+            assert held[name] == tuple(spec["pk"]), name
+
+
+def test_an_older_database_gains_its_keys():
+    """DuckDB cannot add a foreign key after the fact but can add a primary
+    key, which is the only reason keying an existing database is possible at
+    all - it gains them on the next write instead of being thrown away."""
+    with tempfile.TemporaryDirectory() as folder:
+        path = Path(folder) / "old.duckdb"
+        with duckdb.connect(str(path)) as db:
+            db.execute(
+                'CREATE TABLE "ejere" ("ejendom_uuid" VARCHAR, "nummer" BIGINT, '
+                '"navn" VARCHAR, "hentet" TIMESTAMP)'
+            )
+            db.execute("INSERT INTO ejere VALUES ('old-1', 1, 'Ida Testesen', now())")
+
+        store.save(path, {"ejere": [
+            {"ejendom_uuid": "uuid-1", "nummer": 1, "navn": "Ole Prøvesen"}
+        ]})
+
+        with duckdb.connect(str(path), read_only=True) as db:
+            assert _keys(db)["ejere"] == ("ejendom_uuid", "nummer")
+            assert _one(db, "SELECT count(*) FROM ejere") == 2
+
+
+def test_a_key_seen_twice_in_one_batch_folds():
+    """The register hands the same document over once per charge it secures,
+    so the same people arrive two or three times. That is one row described
+    repeatedly, not a reason to lose the whole run."""
+    with tempfile.TemporaryDirectory() as folder:
+        path = Path(folder) / "dupes.duckdb"
+        written = store.save(path, {"dokument_parter": [
+            {"ejendom_uuid": "u1", "dokument_uuid": "d1", "dokumentart": "haeftelse",
+             "rolle": "kreditor", "nummer": 1, "navn": "First reading"},
+            {"ejendom_uuid": "u1", "dokument_uuid": "d1", "dokumentart": "haeftelse",
+             "rolle": "kreditor", "nummer": 1, "navn": "Second reading"},
+        ]})
+        assert written["dokument_parter"] == 1
+        with duckdb.connect(str(path), read_only=True) as db:
+            assert _one(db, "SELECT navn FROM dokument_parter") == "Second reading"
+
+
+def test_a_row_whose_key_is_incomplete_is_left_out():
+    """Every primary key column is NOT NULL, so a row missing one has nowhere
+    to go. It is dropped rather than taking the run with it - and said out
+    loud, because a row quietly missing is worse than one known to be."""
+    with tempfile.TemporaryDirectory() as folder:
+        path = Path(folder) / "partial.duckdb"
+        written = store.save(path, {"bygninger": [
+            {"ejendom_uuid": "u1", "bygning_nr": None, "bygningstype": "no number"},
+            {"ejendom_uuid": "u1", "bygning_nr": "1", "bygningstype": "kept"},
+        ]})
+        assert written["bygninger"] == 1
+        with duckdb.connect(str(path), read_only=True) as db:
+            assert _one(db, "SELECT bygningstype FROM bygninger") == "kept"
 
 
 if __name__ == "__main__":

@@ -60,7 +60,74 @@ DataTable > .datatable--hover {
     padding: 1 1 0 1;
 }
 
+/* The library's bar and the line explaining it are one block, so the rule
+   underneath belongs to whichever of the two comes last. */
+#library-bar {
+    border-bottom: none;
+}
+
+#library-filter-label {
+    width: auto;
+    padding: 1 1 0 0;
+    color: $primary;
+    text-style: bold;
+}
+
+#library-new {
+    width: auto;
+    min-width: 22;
+    margin: 0 0 0 1;
+}
+
+/* The categorical questions, as dropdowns rather than a filter grammar. */
+#library-facets {
+    width: 100%;
+    height: auto;
+    padding: 0 1;
+    background: $panel;
+}
+
+.facet-label {
+    width: auto;
+    padding: 1 1 0 1;
+    color: $primary;
+    text-style: bold;
+}
+
+.facet-select {
+    width: 1fr;
+    min-width: 12;
+    margin: 0 1 0 0;
+}
+
+#library-scope {
+    width: 100%;
+    height: auto;
+    padding: 0 2 1 2;
+    background: $panel;
+    color: $text-muted;
+    border-bottom: solid $primary 20%;
+}
+
 /* ── search ──────────────────────────────────────────────────────────── */
+
+/* This screen costs requests and adds to the library; the library's filter
+   box does neither. They are told apart by this heading more than by
+   anything else on either screen. */
+#search-heading {
+    width: 100%;
+    height: auto;
+    padding: 1 2 0 2;
+    color: $primary;
+    text-style: bold;
+}
+
+#search-steps {
+    width: 100%;
+    height: auto;
+    padding: 0 2;
+    color: $text-muted;
+}
 
 #search-input {
     height: 3;
@@ -111,6 +178,116 @@ DataTable > .datatable--hover {
 #search-units > .selection-list--button-selected-highlighted {
     color: $background;
     background: $success;
+}
+
+/* ── nøgletal ────────────────────────────────────────────────────────── */
+
+#stats-scope-bar {
+    width: 100%;
+    height: auto;
+    min-height: 3;
+    padding: 0 1;
+    background: $panel;
+}
+
+.scope-label {
+    width: auto;
+    padding: 1 1 0 1;
+    color: $primary;
+    text-style: bold;
+}
+
+.scope-select {
+    width: 1fr;
+    min-width: 14;
+    margin: 0 1 0 0;
+}
+
+/* A median over four flats is not a statistic, so the line saying what the
+   figures are computed over sits with them rather than out of the way. */
+#stats-scope {
+    width: 100%;
+    height: auto;
+    padding: 0 2 1 2;
+    background: $panel;
+    color: $text-muted;
+    border-bottom: solid $primary 20%;
+}
+
+#stats-analyses {
+    height: 1fr;
+    margin: 1 2 0 2;
+    padding: 1;
+    border: round $primary 30%;
+    background: $surface;
+}
+
+/* ── one analysis, over that selection ───────────────────────────────── */
+
+AnalysisScreen {
+    align: center middle;
+}
+
+#analysis-box {
+    width: 92%;
+    height: 90%;
+    padding: 1 2;
+    border: thick $primary 60%;
+    background: $surface;
+}
+
+#analysis-title {
+    width: 100%;
+    text-align: center;
+    text-style: bold;
+    color: $primary;
+}
+
+#analysis-where {
+    width: 100%;
+    text-align: center;
+    color: $secondary;
+    margin-bottom: 1;
+}
+
+#analysis-controls {
+    width: 100%;
+    height: 3;
+    margin-bottom: 1;
+}
+
+#analysis-controls Select {
+    width: 1fr;
+    margin: 0 1 0 0;
+}
+
+#analysis-blurb {
+    width: 1fr;
+    padding: 1 1 0 0;
+    color: $text-muted;
+}
+
+#analysis-close {
+    width: auto;
+    min-width: 8;
+}
+
+#analysis-chart {
+    height: 1fr;
+    min-height: 12;
+}
+
+#analysis-table {
+    height: 40%;
+    margin-top: 1;
+}
+
+#analysis-note {
+    width: 100%;
+    height: auto;
+    padding: 1 0 0 0;
+    color: $text-muted;
+    text-style: italic;
 }
 
 /* ── property ────────────────────────────────────────────────────────── */
@@ -175,9 +352,16 @@ Tab:hover { color: $secondary; }
     color: $secondary;
 }
 
-#queue-progress {
-    height: 1;
-    margin: 0 2 1 2;
+#queue-actions {
+    width: 100%;
+    height: auto;
+    padding: 0 2 1 2;
+}
+
+#queue-actions Button {
+    width: auto;
+    min-width: 13;
+    margin: 0 1 0 0;
 }
 
 /* ── sql ─────────────────────────────────────────────────────────────── */
@@ -254,6 +438,152 @@ ExportDialog {
 
 #export-buttons Button {
     margin-left: 1;
+}
+
+/* ── the navigation tabs, which every screen carries ─────────────────── */
+
+/* The screens were always peers; this is what says so. Kept flat and quiet -
+   it is a signpost, not the content. */
+NavTabs {
+    width: 100%;
+    height: 2;
+    background: $panel;
+    border-bottom: solid $primary 25%;
+}
+
+NavTabs Tab {
+    padding: 0 2;
+    color: $text-muted;
+}
+
+NavTabs Tab.-active {
+    color: $primary;
+    text-style: bold;
+}
+
+NavTabs Underline > .underline--bar {
+    color: $primary;
+}
+
+/* ── bygninger ───────────────────────────────────────────────────────── */
+
+#buildings-bar {
+    width: 100%;
+    height: auto;
+    min-height: 3;
+    padding: 0 1;
+    background: $panel;
+}
+
+#buildings-filter-label {
+    width: auto;
+    padding: 1 1 0 0;
+    color: $primary;
+    text-style: bold;
+}
+
+#buildings-bar Input {
+    width: 1fr;
+    margin: 0 1 0 0;
+}
+
+#buildings-count {
+    width: auto;
+    min-width: 16;
+    padding: 1 1 0 1;
+    color: $text-muted;
+    content-align: right middle;
+}
+
+#buildings-scope {
+    width: 100%;
+    height: auto;
+    padding: 0 2 1 2;
+    background: $panel;
+    color: $text-muted;
+    border-bottom: solid $primary 20%;
+}
+
+/* ── the session bar, which every screen carries ─────────────────────── */
+
+/* Loud on purpose. Which half of the register is answering decides what every
+   row on every screen means, and it is not otherwise visible anywhere. */
+SessionBar {
+    width: 100%;
+    height: 1;
+    padding: 0 2;
+    text-style: bold;
+}
+
+SessionBar.session-in {
+    background: $success 20%;
+    color: $success;
+}
+
+SessionBar.session-soon {
+    background: $warning 25%;
+    color: $warning;
+}
+
+SessionBar.session-out {
+    background: $error 18%;
+    color: $error;
+}
+
+/* ── the fetch queue's bar, which every screen carries ───────────────── */
+
+/* Deliberately not docked. Footer is, and two widgets docked to the same edge
+   stack in composition order - which would put this underneath the footer.
+   Composed last before it, ordinary layout already lands it exactly here, and
+   it costs no height at all on the screens where nothing is being fetched. */
+QueueBar {
+    width: 100%;
+    height: 3;
+    padding: 0 1;
+    background: $panel;
+    border-top: solid $primary 30%;
+}
+
+#queue-bar-label {
+    width: 1fr;
+    height: 1;
+    margin: 1 1 0 1;
+    color: $secondary;
+}
+
+#queue-bar-progress {
+    width: 30;
+    height: 1;
+    margin: 1 1 0 0;
+}
+
+#queue-bar-stop {
+    width: auto;
+    min-width: 10;
+}
+
+/* ── search, step two ────────────────────────────────────────────────── */
+
+/* Every row below this can read identically, so the line saying which
+   building they belong to is the only thing telling you where you are. */
+#search-context {
+    width: 100%;
+    height: auto;
+    margin: 0 2;
+    padding: 0 1;
+    background: $primary 15%;
+}
+
+#search-actions {
+    width: 100%;
+    height: auto;
+    padding: 0 2 1 2;
+}
+
+#search-actions Button {
+    width: auto;
+    min-width: 14;
+    margin: 0 1 0 0;
 }
 
 /* ── shared odds and ends ────────────────────────────────────────────── */

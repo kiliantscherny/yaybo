@@ -259,18 +259,22 @@ def slugify(text: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", text).strip("-")
 
 
-def street_buildings(vejnavn: str, postnummer: str) -> list[dict]:
+def street_buildings(vejnavn: str, postnummer: str = "") -> list[dict]:
     """Every house number on one street in one postcode, as addresses to fetch.
 
     Access addresses rather than unit addresses: the register searches at
     building level anyway, and one query per building is the difference between
     forty requests for a street and four hundred.
     """
+    # Without a postcode this answers for every street of that name in the
+    # country, which is the right answer to a street typed without one - there
+    # are four Matthæusgades and the user has not said which.
+    params = {"vejnavn": vejnavn, "struktur": "mini"}
+    if postnummer:
+        params["postnr"] = postnummer
     try:
         found = requests.get(
-            f"{DAWA}/adgangsadresser",
-            params={"vejnavn": vejnavn, "postnr": postnummer, "struktur": "mini"},
-            timeout=30,
+            f"{DAWA}/adgangsadresser", params=params, timeout=30
         ).json()
     except (requests.RequestException, ValueError):
         return []

@@ -23,3 +23,17 @@ class YayboScreen(Screen[None]):
 
         @property
         def app(self) -> YayboApp: ...  # type: ignore[override]
+
+    def on_screen_resume(self) -> None:
+        """Catch up with the fetch queue on the way in.
+
+        Defined here rather than on each screen because no screen overrides it,
+        and because the one that needs it most is the Library: it is mounted
+        once, at the bottom of the stack, usually before anything has been
+        queued at all. Coming back to it must not show the queue as it was then.
+
+        Deferred, because a screen is resumed before its children are mounted:
+        asking a half-built screen about its widgets finds nothing there.
+        """
+        self.app.call_after_refresh(self.app.refresh_queue_views)
+        self.app.call_after_refresh(self.app.refresh_session_views)
