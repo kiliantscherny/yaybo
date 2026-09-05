@@ -684,6 +684,27 @@ def property_tables(path: str | Path, uuid: str) -> dict[str, list[dict]]:
     return found
 
 
+def held_addresses(path: str | Path) -> list[tuple[str, datetime | None]]:
+    """Every property held, as (address, when it was fetched).
+
+    Deliberately thin: the search screen wants to know whether it already has
+    an address before spending a request on it, and that question needs two
+    columns rather than the whole library row.
+    """
+    with _reading(path) as db:
+        if db is None:
+            return []
+        held = {row[0] for row in db.execute("SHOW TABLES").fetchall()}
+        if "ejendomme" not in held:
+            return []
+        return [
+            (row["adresse"] or "", row["hentet"])
+            for row in _rows(
+                db, f'SELECT adresse, "{FETCHED}" AS hentet FROM ejendomme'
+            )
+        ]
+
+
 def tables_for(path: str | Path, uuids: list[str]) -> dict[str, list[dict]]:
     """Every row belonging to any of these properties, shaped like `everything`.
 

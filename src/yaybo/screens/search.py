@@ -23,6 +23,8 @@ back to the top and looks up somewhere else.
 
 from __future__ import annotations
 
+from datetime import datetime
+
 from rich.text import Text
 from textual import on, work
 from textual.app import ComposeResult
@@ -40,15 +42,18 @@ from textual.widgets import (
 from textual.widgets.option_list import Option
 from textual.widgets.selection_list import Selection
 
-from yaybo import pipeline
+from yaybo import display, pipeline, store
 from yaybo.register.address import (
     AddressError,
+    address_parts,
     autocomplete,
     drop_unit,
     select_units,
+    street_buildings,
 )
 from yaybo.register.fields import normalise
 from yaybo.screens.base import YayboScreen
+from yaybo.widgets.nav import NavTabs
 from yaybo.widgets.queue_bar import QueueBar
 from yaybo.widgets.session_bar import SessionBar
 
@@ -56,9 +61,10 @@ from yaybo.widgets.session_bar import SessionBar
 # enough that the list feels like it is keeping up.
 SETTLE = 0.35
 # How many addresses to ask DAWA for. Generous, because the buildings are pulled
-# out of these, and one block of flats can otherwise crowd its neighbours off the
-# list entirely.
-MATCHES = 30
+# out of these, and one block of flats can otherwise crowd its neighbours off
+# the list entirely - a street of forty buildings needs more than a screenful
+# before its numbers stop being cut off halfway.
+MATCHES = 200
 # How long to sit on a highlighted address before asking the register what is
 # registered there. Longer than SETTLE on purpose: this one costs a request,
 # and arrowing down a list should not fire one for every row passed over.
@@ -96,6 +102,15 @@ class SearchScreen(YayboScreen):
         self._settling = None
         self._probing = None
         self._capped = False
+        self._whole_street = False
+        # Set when the screen has just said something worth leaving on the
+        # status line, so the redescribe that deselecting causes does not
+        # immediately overwrite it with "0 ticked".
+        self._just_announced = False
+        # Address -> when it was last fetched, and building -> (how many, when
+        # the newest of them was). Read once per search rather than per row.
+        self.mine: dict[str, datetime | None] = {}
+        self.mine_buildings: dict[str, tuple[int, datetime | None]] = {}
         # What the register holds at each building already asked about, keyed
         # the way find_units queries: postcode, street, number. That query
         # ignores floor and door entirely, so one lookup answers for a building
@@ -110,6 +125,7 @@ class SearchScreen(YayboScreen):
     def compose(self) -> ComposeResult:
         yield Header()
         yield SessionBar()
+        yield NavTabs("soeg")
         # This screen is the only one that reaches the register, and the only
         # one that adds to the library. Saying so at the top is what separates
         # it from the library's filter box, which looks the same and is not.
@@ -149,8 +165,33 @@ class SearchScreen(YayboScreen):
             "is fine."
         )
         self.query_one("#search-input", Input).focus()
+        self._load_mine()
         if self.typed:
             self._lookup(self.typed)
+
+    @work(thread=True, exclusive=True, group="mine")
+    def _load_mine(self) -> None:
+        """Index what the database already holds, by address and by building."""
+        held = store.held_addresses(self.app.database)
+        self.app.call_from_thread(self._indexed, held)
+
+    def _indexed(self, held: list[tuple[str, datetime | None]]) -> None:
+        self.mine = {normalise(address): when for address, when in held}
+        buildings: dict[str, tuple[int, datetime | None]] = {}
+        for address, when in held:
+            key = normalise(drop_unit(address))
+            count, newest = buildings.get(key, (0, None))
+            if when is not None and (newest is None or when > newest):
+                newest = when
+            buildings[key] = (count + 1, newest)
+        self.mine_buildings = buildings
+        if self.matches and not self._picking_units:
+            self._relabel()
+
+    def queue_changed(self) -> None:
+        """A finished fetch means the database holds more than it did."""
+        if not self.app.fetching.running:
+            self._load_mine()
 
     def _say(self, message: str) -> None:
         self.query_one("#search-status", Static).update(message)
@@ -171,16 +212,21 @@ class SearchScreen(YayboScreen):
         self.query_one("#search-steps", Static).update(line)
 
     @property
-    def _palette(self) -> tuple[str, str]:
-        """The two colours the address list annotates itself with.
+    def _palette(self) -> tuple[str, str, str]:
+        """The three colours the address list annotates itself with.
 
-        Read off the live theme rather than written down here, so the red and
-        the amber stay the theme's red and amber if it is ever changed.
+        Read off the live theme rather than written down here, so they stay the
+        theme's colours if it is ever changed: red for a dead end, amber for
+        what a row would cost, green for what is already held.
         """
         theme = self.app.current_theme
         # A theme is allowed to leave these unset, so fall back to the
-        # terminal's own red and yellow rather than to no colour at all.
-        return theme.error or "red", theme.warning or "yellow"
+        # terminal's own rather than to no colour at all.
+        return (
+            theme.error or "red",
+            theme.warning or "yellow",
+            theme.success or "green",
+        )
 
     @property
     def _picking_units(self) -> bool:
@@ -199,10 +245,25 @@ class SearchScreen(YayboScreen):
 
     @work(thread=True, exclusive=True, group="autocomplete")
     def _lookup(self, query: str) -> None:
-        found = autocomplete(query, MATCHES) if len(query.strip()) >= 3 else []
-        self.app.call_from_thread(self._show_matches, found, query)
+        if len(query.strip()) < 3:
+            self.app.call_from_thread(self._show_matches, [], query, False)
+            return
+        # A street with no house number is a question about the street, and
+        # autocomplete answers it a page at a time. The access-address endpoint
+        # answers it whole - forty-three buildings on Matthæusgade rather than
+        # DAWA's first thirty of everything that matched the letters.
+        parts = address_parts(query.strip())
+        whole_street = not parts["husnummer"]
+        if whole_street:
+            found = street_buildings(parts["vejnavn"], parts["postnummer"])
+        else:
+            found = autocomplete(query, MATCHES)
+        self.app.call_from_thread(self._show_matches, found, query, whole_street)
 
-    def _show_matches(self, found: list[dict], query: str) -> None:
+    def _show_matches(
+        self, found: list[dict], query: str, whole_street: bool = False
+    ) -> None:
+        self._whole_street = whole_street
         self.matches = _buildings_first(found)
         self.rows = _in_sections(self.matches)
         matches = self.query_one("#search-matches", OptionList)
@@ -221,7 +282,7 @@ class SearchScreen(YayboScreen):
                 self._say(f"DAWA knows no address like {query.strip()!r}.")
             return
 
-        self._capped = len(found) >= MATCHES
+        self._capped = not whole_street and len(found) >= MATCHES
         self._describe_matches()
 
     def _options(self) -> list[Option]:
@@ -234,7 +295,11 @@ class SearchScreen(YayboScreen):
                 # does nothing when you press enter.
                 out.append(Option(Text(row, style="bold dim"), disabled=True))
                 continue
-            out.append(Option(_match_label(row, self._cost(row), palette)))
+            out.append(
+                Option(
+                    _match_label(row, self._cost(row), palette, self._mine_note(row))
+                )
+            )
         return out
 
     def _first_choosable(self) -> int | None:
@@ -249,6 +314,22 @@ class SearchScreen(YayboScreen):
         except IndexError:
             return None
         return None if isinstance(row, str) else row
+
+    def _mine_note(self, match: dict) -> str:
+        """What the database already holds for this row, if anything.
+
+        Worth as much as the register's own answer: knowing an address is
+        already held, and how stale it is, is the difference between a useful
+        request and one that fetches what you fetched last week.
+        """
+        if match["etage"] or match["doer"]:
+            when = self.mine.get(normalise(match["tekst"]))
+            return f"i basen · {display.ago(when)}" if when else ""
+        held = self.mine_buildings.get(normalise(drop_unit(match["tekst"])))
+        if not held:
+            return ""
+        count, newest = held
+        return f"{count} i basen · {display.ago(newest)}"
 
     def _cost(self, match: dict) -> tuple[int, bool] | None:
         """What choosing this row would fetch: how many, and whether that is
@@ -278,12 +359,13 @@ class SearchScreen(YayboScreen):
         anything until the cursor is in the list.
         """
         capped = f" (DAWA's first {MATCHES})" if self._capped else ""
+        whole = " · the whole street" if self._whole_street else ""
         dead = self._dead_ends()
         # Only ever counts what the register has actually answered for, so this
         # says "2 of these are empty", never "2 might be".
         empty = f" · {dead} with nothing tinglyst" if dead else ""
         self._say(
-            f"{len(self.matches)} address(es){capped}{empty}.\n"
+            f"{len(self.matches)} address(es){capped}{whole}{empty}.\n"
             "↓ or enter moves to the list · then enter opens one, "
             "or a takes its whole building"
         )
@@ -381,7 +463,7 @@ class SearchScreen(YayboScreen):
                 continue
             cost = self._cost(row)
             matches.replace_option_prompt_at_index(
-                index, _match_label(row, cost, palette)
+                index, _match_label(row, cost, palette, self._mine_note(row))
             )
             # A row with nothing behind it is not a choice, so it stops being
             # selectable as well as looking spent. Textual skips disabled rows
@@ -532,6 +614,9 @@ class SearchScreen(YayboScreen):
 
     @on(SelectionList.SelectedChanged, "#search-units")
     def _selection_changed(self) -> None:
+        if self._just_announced:
+            self._just_announced = False
+            return
         if self._picking_units:
             self._describe_selection()
 
@@ -597,19 +682,19 @@ class SearchScreen(YayboScreen):
                 "dates of birth and the chain of previous owners."
             )
         # Unticked on the way out, so the same rows cannot be queued twice by
-        # pressing f again without meaning to.
+        # pressing f again without meaning to. That posts SelectedChanged,
+        # which would redescribe the selection over the top of what is said
+        # below - so the one redescribe it causes is skipped. Deterministic,
+        # unlike saying it after a refresh: the refresh this lands in is not
+        # ours to predict once anything else on the screen also reacts.
         listing.deselect_all()
+        self._just_announced = True
         held = "property" if len(units) == 1 else "properties"
         note = self.app.queued_note()
-        # After the refresh, not now: deselect_all posts SelectedChanged, which
-        # arrives once this handler has returned and rewrites the status line
-        # with "0 ticked". Saying this last is what makes it the thing left on
-        # screen rather than the thing flashed and overwritten.
-        self.call_after_refresh(
-            self._say,
+        self._say(
             f"Queued {len(units)} {held} from {self.address['tekst']}.\n"
             f"{note}  ← goes back to the addresses to queue more, "
-            "b shows the queue, l the library.",
+            "b shows the queue, l the library."
         )
         self.notify(f"Queued {len(units)} {held}. {note}")
 
@@ -721,7 +806,10 @@ def _in_sections(matches: list[dict]) -> list[dict | str]:
 
 
 def _match_label(
-    match: dict, cost: tuple[int, bool] | None, palette: tuple[str, str]
+    match: dict,
+    cost: tuple[int, bool] | None,
+    palette: tuple[str, str, str],
+    mine: str = "",
 ) -> Text:
     """One row of the address list, annotated once the register has answered.
 
@@ -731,10 +819,12 @@ def _match_label(
     and only a real answer from the register earns a row a number or a strike.
     """
     label = Text(match["tekst"])
+    if mine:
+        label.append(f"   ● {mine}", style=f"bold {palette[2]}")
     if cost is None:
         return label
     count, fell_back = cost
-    empty, some = palette
+    empty, some, _ = palette
     if count == 0:
         label.stylize("strike")
         label.append("   intet tinglyst her", style=f"bold {empty}")
