@@ -617,6 +617,24 @@ def tables_for(path: str | Path, uuids: list[str]) -> dict[str, list[dict]]:
     return found
 
 
+def stats_tables(path: str | Path, wanted: tuple[str, ...]) -> dict[str, list[dict]]:
+    """Whole tables, by name, for aggregating across every property at once.
+
+    `everything` would do, except that it also reads `attester`, which holds
+    the register's own document for each property - hundreds of kilobytes
+    apiece, and nothing that counts properties has any use for them.
+    """
+    with _reading(path) as db:
+        if db is None:
+            return {}
+        held = {row[0] for row in db.execute("SHOW TABLES").fetchall()}
+        return {
+            name: _rows(db, f'SELECT * FROM "{name}"')
+            for name in wanted
+            if name in held
+        }
+
+
 def everything(path: str | Path) -> dict[str, list[dict]]:
     """The whole database as rows, for exporting it somewhere else entirely."""
     with _reading(path) as db:

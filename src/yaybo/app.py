@@ -71,6 +71,7 @@ class YayboApp(App[None]):
         Binding("l", "library", "Library"),
         Binding("b", "queue", "Queue"),
         Binding("s", "sql", "SQL"),
+        Binding("k", "stats", "Nøgletal"),
         Binding("ctrl+l", "login", "Log in", show=False),
         # The queue bar carries a Stop button, which is where anyone will
         # actually reach for this - so it stays out of an already busy footer.
@@ -396,6 +397,23 @@ class YayboApp(App[None]):
         from yaybo.screens.sql import SqlScreen
 
         self._show(SqlScreen)
+
+    def action_stats(self) -> None:
+        from yaybo.screens.stats import StatsScreen
+
+        self._show(StatsScreen)
+
+    def stats_for(self, query: str) -> None:
+        """Open the figures already narrowed to something - one building, say."""
+        from yaybo.screens.stats import StatsScreen
+
+        self._show(StatsScreen, query=query)
+
+    def stats_tables(self) -> dict[str, list[dict]]:
+        """The tables the figures aggregate over. Reads; call it off the UI thread."""
+        from yaybo import stats
+
+        return store.stats_tables(self.database, stats.TABLES)
 
     def _show(self, screen_type, **kwargs) -> None:
         """Switch to a screen, or do nothing if it is already the one on top.

@@ -113,6 +113,7 @@ class PropertyScreen(YayboScreen):
         Binding("escape", "back", "Back"),
         Binding("e", "export", "Export"),
         Binding("f", "refetch", "Re-fetch"),
+        Binding("k", "building_stats", "Nøgletal"),
     ]
 
     def __init__(self, uuid: str) -> None:
@@ -569,6 +570,22 @@ class PropertyScreen(YayboScreen):
         area.text = documents[0].get("dokument") or ""
 
     # ── acting on it ────────────────────────────────────────────────────
+
+    def action_building_stats(self) -> None:
+        """The figures for this property's whole building, not just this flat.
+
+        The obvious next question from any one flat's page - is this dear for
+        the block, is the third floor cheaper than the tenth - and it only
+        needs the building's address to ask it.
+        """
+        from yaybo.register.address import drop_unit
+
+        address = (self.property_row or {}).get("adresse") or ""
+        building = drop_unit(address)
+        if not building:
+            self.notify("No address to group this building by.")
+            return
+        self.app.stats_for(f'bygning:"{building}"')
 
     def action_back(self) -> None:
         self.app.pop_screen()
