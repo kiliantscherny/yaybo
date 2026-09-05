@@ -228,9 +228,18 @@ class YayboApp(App[None]):
             auth.log_out(self.session)
             self.session = None
             self.who = None
+            self.session_touched = None
+            # The user ID goes too. log_out deletes the file that remembered
+            # it, so keeping the in-memory copy would mean the next login
+            # silently reused it - and logging out is the one moment someone
+            # might be doing so in order to log in as somebody else.
+            self.user_id = ""
             self.api = Tinglysning(None)
             self._describe_session()
-            self.notify("Logged out. The public lookup still works.")
+            self.notify(
+                "Logged out. The public lookup still works, and ctrl+L will "
+                "ask for your MitID user ID again."
+            )
             return
 
         remembered = auth.restore_session()
@@ -281,6 +290,20 @@ class YayboApp(App[None]):
         )
         self._after_enqueue()
         return added
+
+    def queued_note(self) -> str:
+        """What actually becomes of something just added to the queue.
+
+        Asked rather than assumed, because the answer changes with the
+        auto-fetch setting and a screen that promises a background fetch while
+        the queue is parked is simply lying about it.
+        """
+        return (
+            "It fetches in the background."
+            if self.fetching.auto
+            else "Auto-fetch is off, so it waits in the queue - press b, then "
+            "f to start it."
+        )
 
     def _after_enqueue(self) -> None:
         """Start it now, or leave it parked for the queue screen to start."""
