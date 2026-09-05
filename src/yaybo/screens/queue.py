@@ -29,6 +29,7 @@ from textual.widgets import Button, DataTable, Footer, Header, Static
 
 from yaybo.fetching import DONE
 from yaybo.screens.base import YayboScreen
+from yaybo.widgets.nav import NavTabs
 from yaybo.widgets.queue_bar import QueueBar
 from yaybo.widgets.session_bar import SessionBar
 
@@ -69,6 +70,7 @@ class QueueScreen(YayboScreen):
     def compose(self) -> ComposeResult:
         yield Header()
         yield SessionBar()
+        yield NavTabs("koe")
         yield Static("", id="queue-status")
         with Horizontal(id="queue-actions"):
             yield Button("▶  Start", id="queue-run", variant="primary")

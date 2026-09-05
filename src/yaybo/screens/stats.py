@@ -27,6 +27,7 @@ from textual.widgets.option_list import Option
 
 from yaybo import stats
 from yaybo.screens.base import YayboScreen
+from yaybo.widgets.nav import NavTabs
 from yaybo.widgets.queue_bar import QueueBar
 from yaybo.widgets.session_bar import SessionBar
 
@@ -64,6 +65,7 @@ class StatsScreen(YayboScreen):
     def compose(self) -> ComposeResult:
         yield Header()
         yield SessionBar()
+        yield NavTabs("noegletal")
         with Horizontal(id="stats-scope-bar"):
             for widget_id, label, _, _ in SCOPE:
                 yield Static(label, classes="scope-label")

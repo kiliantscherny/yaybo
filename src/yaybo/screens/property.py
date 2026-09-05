@@ -32,6 +32,7 @@ from textual_plotext import PlotextPlot
 
 from yaybo import display, pipeline, store
 from yaybo.screens.base import YayboScreen
+from yaybo.widgets.nav import NavTabs
 from yaybo.widgets.queue_bar import QueueBar
 from yaybo.widgets.session_bar import SessionBar
 
@@ -129,6 +130,7 @@ class PropertyScreen(YayboScreen):
     def compose(self) -> ComposeResult:
         yield Header()
         yield SessionBar()
+        yield NavTabs("ejendomme")
         yield Static("Loading…", id="property-title")
         with TabbedContent(id="property-tabs"):
             with TabPane("Oversigt", id="tab-overview"):
@@ -650,4 +652,3 @@ def _as_year(iso_date: str) -> float:
     """2019-04-11 becomes 2019.28 - a number an axis can be drawn against."""
     year, month, day = int(iso_date[:4]), int(iso_date[5:7]), int(iso_date[8:10])
     return year + ((month - 1) + (day - 1) / 31) / 12
-

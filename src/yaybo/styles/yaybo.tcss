@@ -440,6 +440,70 @@ ExportDialog {
     margin-left: 1;
 }
 
+/* ── the navigation tabs, which every screen carries ─────────────────── */
+
+/* The screens were always peers; this is what says so. Kept flat and quiet -
+   it is a signpost, not the content. */
+NavTabs {
+    width: 100%;
+    height: 2;
+    background: $panel;
+    border-bottom: solid $primary 25%;
+}
+
+NavTabs Tab {
+    padding: 0 2;
+    color: $text-muted;
+}
+
+NavTabs Tab.-active {
+    color: $primary;
+    text-style: bold;
+}
+
+NavTabs Underline > .underline--bar {
+    color: $primary;
+}
+
+/* ── bygninger ───────────────────────────────────────────────────────── */
+
+#buildings-bar {
+    width: 100%;
+    height: auto;
+    min-height: 3;
+    padding: 0 1;
+    background: $panel;
+}
+
+#buildings-filter-label {
+    width: auto;
+    padding: 1 1 0 0;
+    color: $primary;
+    text-style: bold;
+}
+
+#buildings-bar Input {
+    width: 1fr;
+    margin: 0 1 0 0;
+}
+
+#buildings-count {
+    width: auto;
+    min-width: 16;
+    padding: 1 1 0 1;
+    color: $text-muted;
+    content-align: right middle;
+}
+
+#buildings-scope {
+    width: 100%;
+    height: auto;
+    padding: 0 2 1 2;
+    background: $panel;
+    color: $text-muted;
+    border-bottom: solid $primary 20%;
+}
+
 /* ── the session bar, which every screen carries ─────────────────────── */
 
 /* Loud on purpose. Which half of the register is answering decides what every

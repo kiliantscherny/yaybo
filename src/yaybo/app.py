@@ -1,8 +1,9 @@
-"""The yaybo TUI: one application, one database, five ways into it.
+"""The yaybo TUI: one application, one database, six ways into it.
 
     Library   everything already fetched, browsable offline
     Search    an address, resolved as you type, then fetched
     Queue     a whole street at a time, with a progress bar
+    Nøgletal  figures across a set of properties rather than about one
     SQL       the accumulated database, queried directly
     Property  one property in full, tab by tab
 
@@ -71,6 +72,7 @@ class YayboApp(App[None]):
         Binding("l", "library", "Library"),
         Binding("b", "queue", "Queue"),
         Binding("s", "sql", "SQL"),
+        Binding("g", "buildings", "Bygninger"),
         Binding("k", "stats", "Nøgletal"),
         Binding("ctrl+l", "login", "Log in", show=False),
         # The queue bar carries a Stop button, which is where anyone will
@@ -431,6 +433,27 @@ class YayboApp(App[None]):
         from yaybo.screens.sql import SqlScreen
 
         self._show(SqlScreen)
+
+    def action_buildings(self) -> None:
+        from yaybo.screens.buildings import BuildingsScreen
+
+        self._show(BuildingsScreen)
+
+    def library_for(self, building: str) -> None:
+        """Show one building's properties, on the properties tab.
+
+        Through the search box rather than by some hidden state, so the reason
+        the list is short is on screen and can be undone by clearing it.
+        """
+        from yaybo.screens.library import LibraryScreen
+
+        self.action_library()
+
+        def narrow() -> None:
+            if isinstance(self.screen, LibraryScreen):
+                self.screen.show_only(building)
+
+        self.call_after_refresh(narrow)
 
     def action_stats(self) -> None:
         from yaybo.screens.stats import StatsScreen

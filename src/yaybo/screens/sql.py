@@ -27,6 +27,7 @@ from textual.widgets import (
 
 from yaybo import display, store
 from yaybo.screens.base import YayboScreen
+from yaybo.widgets.nav import NavTabs
 from yaybo.widgets.queue_bar import QueueBar
 from yaybo.widgets.session_bar import SessionBar
 
@@ -123,6 +124,7 @@ class SqlScreen(YayboScreen):
     def compose(self) -> ComposeResult:
         yield Header()
         yield SessionBar()
+        yield NavTabs("ejendomme")
         with Horizontal(id="sql-bar"):
             yield Select(
                 [(name, name) for name in SNIPPETS],
