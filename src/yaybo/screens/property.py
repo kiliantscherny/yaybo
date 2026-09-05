@@ -32,6 +32,7 @@ from textual_plotext import PlotextPlot
 
 from yaybo import display, pipeline, store
 from yaybo.screens.base import YayboScreen
+from yaybo.widgets.queue_bar import QueueBar
 
 # label, column, how to write it, how wide
 EJERE = (
@@ -162,6 +163,7 @@ class PropertyScreen(YayboScreen):
                 yield VerticalScroll(id="bygning")
             with TabPane("Dokument", id="tab-dokument"):
                 yield TextArea("", read_only=True, id="dokument")
+        yield QueueBar()
         yield Footer()
 
     def on_mount(self) -> None:

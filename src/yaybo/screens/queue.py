@@ -1,11 +1,18 @@
-"""Fetch many addresses in a row, and be able to walk away while it happens.
+"""Everything queued, and what to do with any of it.
 
-One address at a time is fine for one address. A street is forty buildings and
-several hundred properties, and doing that from a prompt means watching it. Here
-it is a list with a progress bar: queue what you want, start it, and come back.
+Nothing is added here. Properties come from the Search screen, which is the one
+place that knows what the register actually holds at an address - this screen
+used to take a typed address as well, and guessing a street out of free text was
+a worse version of the search that already exists.
+
+What it is for is the list itself: which of the queued buildings to start, which
+to retry, which to drop, which to export. Every action works on whatever is
+ticked, or on all of them when nothing is - a list with no selection reads as
+"this list", and making someone tick forty rows in order to act on forty rows is
+not a safety feature.
 
 Two things it deliberately does not do. It does not race - a fixed pause sits
-between requests, because the register is a public service and this is one
+between properties, because the register is a public service and this is one
 person's curiosity. And it does not lose work when the login lapses partway
 through: the rows already fetched are already in the database.
 """
@@ -13,273 +20,251 @@ through: the rows already fetched are already in the database.
 from __future__ import annotations
 
 import asyncio
-import threading
-from pathlib import Path
 
 from textual import on, work
 from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal
-from textual.widgets import (
-    Button,
-    DataTable,
-    Footer,
-    Header,
-    Input,
-    ProgressBar,
-    Static,
-)
+from textual.widgets import Button, DataTable, Footer, Header, Static
 
-from yaybo import pipeline, store
-from yaybo.register.address import (
-    AddressError,
-    address_parts,
-    street_buildings,
-)
+from yaybo.fetching import DONE
 from yaybo.screens.base import YayboScreen
+from yaybo.widgets.queue_bar import QueueBar
+from yaybo.widgets.session_bar import SessionBar
 
-WAITING, RUNNING, DONE, FAILED = "·", "⟳", "✓", "✗"
-# Between properties. The register is a public service, not a scraping target.
-POLITE_DELAY = 1.0
+COLUMNS = (
+    ("", 3),
+    ("", 3),
+    ("Adresse", 46),
+    ("Ejendomme", 11),
+    ("Rækker", 9),
+    ("Note", 40),
+)
 
 
 class QueueScreen(YayboScreen):
-    """A list of addresses to fetch, and something that works through it."""
+    """The queue as a list, with every action working on a selection of it."""
+
+    AUTO_FOCUS = "#queue-table"
 
     BINDINGS = [
-        Binding("space", "run_or_pause", "Start / pause"),
-        Binding("c", "clear", "Clear"),
-        Binding("e", "export", "Export all"),
+        Binding("space", "tick", "Tick"),
+        Binding("a", "tick_all", "Tick all"),
+        Binding("n", "tick_none", "Tick none"),
+        Binding("f", "start", "Start"),
+        Binding("r", "retry", "Retry"),
+        Binding("d", "remove", "Remove"),
+        Binding("e", "export", "Export"),
+        Binding("t", "toggle_auto", "Auto-fetch"),
         Binding("escape", "back", "Back"),
     ]
 
     def __init__(self) -> None:
         super().__init__()
-        self.jobs: list[dict] = []
-        self.running = False
-        # Set while a run should stop. The worker checks it between properties,
-        # so pausing never abandons a half-fetched one.
-        self._pause = threading.Event()
+        # Job keys, not row numbers: the list is redrawn on every move the
+        # queue makes, and rows come and go underneath the selection.
+        self.ticked: set[str] = set()
+        self.shown: list = []
 
     def compose(self) -> ComposeResult:
         yield Header()
-        with Horizontal(id="queue-bar"):
-            yield Input(
-                placeholder="An address, or a street: Prøvegade, 9999",
-                id="queue-input",
-            )
-            yield Button("Add", id="queue-add")
-            yield Button("Whole street", id="queue-street")
-            yield Button("From file", id="queue-file")
+        yield SessionBar()
         yield Static("", id="queue-status")
-        yield ProgressBar(id="queue-progress", show_eta=False)
+        with Horizontal(id="queue-actions"):
+            yield Button("▶  Start", id="queue-run", variant="primary")
+            yield Button("Retry", id="queue-retry")
+            yield Button("Remove", id="queue-remove")
+            yield Button("Export", id="queue-export")
+            yield Button("", id="queue-auto")
         yield DataTable(id="queue-table", cursor_type="row", zebra_stripes=True)
+        yield Static("", id="queue-empty", classes="empty-state")
+        yield QueueBar()
         yield Footer()
 
     def on_mount(self) -> None:
         table = self.query_one("#queue-table", DataTable)
-        table.add_column("", width=3)
-        table.add_column("Adresse", width=52)
-        table.add_column("Ejendomme", width=11)
-        table.add_column("Rækker", width=9)
-        table.add_column("Note", width=40)
-        self.query_one("#queue-progress", ProgressBar).display = False
-        self._say(
-            "Type an address and press Add, or a street and a postcode and press "
-            "Whole street. From file reads one address per line."
-        )
-        self.query_one("#queue-input", Input).focus()
+        for label, width in COLUMNS:
+            table.add_column(label, width=width)
+        self.queue_changed()
 
     def _say(self, message: str) -> None:
         self.query_one("#queue-status", Static).update(message)
 
-    # ── filling the queue ───────────────────────────────────────────────
+    # ── choosing rows ───────────────────────────────────────────────────
 
-    @on(Button.Pressed, "#queue-add")
-    @on(Input.Submitted, "#queue-input")
-    def _add(self) -> None:
-        field = self.query_one("#queue-input", Input)
-        query = field.value.strip()
-        if not query:
-            return
-        self._queue([query])
-        field.value = ""
-
-    @on(Button.Pressed, "#queue-street")
-    def _add_street(self) -> None:
-        field = self.query_one("#queue-input", Input)
-        query = field.value.strip()
-        if not query:
-            self._say("Type a street and a postcode first, e.g. Prøvegade, 9999.")
-            return
-        self._say(f"Asking DAWA for every house number on {query}…")
-        self._expand_street(query)
-        field.value = ""
-
-    @work(thread=True, exclusive=True, group="street")
-    def _expand_street(self, query: str) -> None:
-        # address_parts is built for a full address, so it reads "Islands
-        # Brygge, 2300" as a street with no number - which is exactly what is
-        # wanted here.
-        parts = address_parts(query)
-        vejnavn = " ".join(filter(None, [parts["vejnavn"], parts["husnummer"]])).strip()
-        buildings = street_buildings(vejnavn, parts["postnummer"])
-        self.app.call_from_thread(self._street_found, query, buildings)
-
-    def _street_found(self, query: str, buildings: list[dict]) -> None:
-        if not buildings:
-            self._say(
-                f"DAWA knows no street matching {query!r}. It wants the street "
-                "and the postcode, e.g. Prøvegade, 9999."
-            )
-            return
-        self._queue([building["tekst"] for building in buildings])
-        self._say(f"Queued {len(buildings)} buildings on {query}.")
-
-    @on(Button.Pressed, "#queue-file")
-    def _add_file(self) -> None:
-        field = self.query_one("#queue-input", Input)
-        path = Path(field.value.strip()).expanduser()
-        if not path.is_file():
-            self._say(f"No file at {path}. Type a path and press From file.")
-            return
-        lines = [
-            line.strip()
-            for line in path.read_text(encoding="utf-8").splitlines()
-            if line.strip() and not line.startswith("#")
-        ]
-        self._queue(lines)
-        self._say(f"Queued {len(lines)} addresses from {path}.")
-        field.value = ""
-
-    def _queue(self, addresses: list[str]) -> None:
-        held = {job["query"] for job in self.jobs}
-        for address in addresses:
-            if address not in held:
-                self.jobs.append(
-                    {
-                        "query": address,
-                        "state": WAITING,
-                        "units": 0,
-                        "rows": 0,
-                        "note": "",
-                    }
-                )
-        self._redraw()
-
-    def action_clear(self) -> None:
-        if self.running:
-            self._say("Pause it first - space toggles.")
-            return
-        self.jobs = []
-        self._redraw()
-        self._say("Queue cleared.")
-
-    # ── running it ──────────────────────────────────────────────────────
-
-    def action_run_or_pause(self) -> None:
-        if self.running:
-            self._pause.set()
-            self.running = False
-            self._say("Pausing after the property being fetched now…")
-            return
-        waiting = [job for job in self.jobs if job["state"] in (WAITING, FAILED)]
-        if not waiting:
-            self._say("Nothing waiting. Add an address first.")
-            return
-        self._pause.clear()
-        self.running = True
-        self.query_one("#queue-progress", ProgressBar).display = True
-        self._run()
-
-    @work(thread=True, exclusive=True, group="queue")
-    def _run(self) -> None:
-        call = self.app.call_from_thread
-        todo = [job for job in self.jobs if job["state"] in (WAITING, FAILED)]
-        progress = self.query_one("#queue-progress", ProgressBar)
-        call(progress.update, total=len(todo), progress=0)
-
-        for done, job in enumerate(todo):
-            if self._pause.is_set():
-                call(self._finished, "Paused.")
-                return
-            job["state"], job["note"] = RUNNING, ""
-            call(self._redraw)
-            call(self._say, f"[{done + 1}/{len(todo)}] {job['query']}")
-
-            try:
-                bundle = pipeline.lookup(
-                    self.app.api,
-                    job["query"],
-                    limit=0,
-                    delay=POLITE_DELAY,
-                    should_stop=self._pause.is_set,
-                )
-                written = store.save(self.app.database, bundle.tables)
-            except AddressError as error:
-                job.update(state=FAILED, note=str(error))
-                call(self._redraw)
-                continue
-            except Exception as error:  # noqa: BLE001 - shown in the row
-                job.update(state=FAILED, note=f"{type(error).__name__}: {error}")
-                call(self._redraw)
-                continue
-
-            job.update(
-                state=DONE,
-                units=len(bundle.properties),
-                rows=sum(written.values()),
-                note=bundle.warning,
-            )
-            call(self._redraw)
-            call(progress.update, progress=done + 1)
-
-        call(self._finished, "Done.")
-
-    def _finished(self, message: str) -> None:
-        self.running = False
-        self.query_one("#queue-progress", ProgressBar).display = False
-        fetched = sum(job["units"] for job in self.jobs)
-        rows = sum(job["rows"] for job in self.jobs)
-        failed = sum(1 for job in self.jobs if job["state"] == FAILED)
-        self._say(
-            f"{message} {fetched} properties, {rows} rows into {self.app.database}."
-            + (
-                f" {failed} address(es) failed - press space to retry them."
-                if failed
-                else ""
-            )
-        )
-        self.notify(f"{message} {rows} rows written.")
-
-    def _redraw(self) -> None:
+    def _under_cursor(self):
         table = self.query_one("#queue-table", DataTable)
-        table.clear()
-        for job in self.jobs:
-            table.add_row(
-                job["state"],
-                job["query"][:52],
-                str(job["units"] or ""),
-                str(job["rows"] or ""),
-                job["note"][:40],
-            )
+        if not self.shown or table.cursor_row < 0:
+            return None
+        try:
+            return self.shown[table.cursor_row]
+        except IndexError:
+            return None
 
-    # ── getting the results out ─────────────────────────────────────────
+    def action_tick(self) -> None:
+        job = self._under_cursor()
+        if job is None:
+            return
+        self.ticked.symmetric_difference_update({job.key})
+        self.queue_changed()
 
+    def action_tick_all(self) -> None:
+        self.ticked = {job.key for job in self.app.fetching.jobs}
+        self.queue_changed()
+
+    def action_tick_none(self) -> None:
+        self.ticked.clear()
+        self.queue_changed()
+
+    @property
+    def _chosen(self) -> set[str] | None:
+        """What the actions act on. None means "everything in the list"."""
+        return self.ticked or None
+
+    # ── acting on them ──────────────────────────────────────────────────
+
+    @on(Button.Pressed, "#queue-run")
+    def action_start(self) -> None:
+        queue = self.app.fetching
+        if queue.running:
+            self.app.action_stop_fetching()
+            return
+        started = queue.start(self._chosen)
+        if not started and not queue.waiting:
+            self._say("Nothing to start. Queue something from the search screen.")
+            return
+        self.app.start_fetching()
+
+    @on(Button.Pressed, "#queue-retry")
+    def action_retry(self) -> None:
+        retried = self.app.fetching.retry(self._chosen)
+        if not retried:
+            self._say("Nothing among those has failed.")
+            return
+        self.app.start_fetching()
+        self._say(f"Retrying {retried}.")
+
+    @on(Button.Pressed, "#queue-remove")
+    def action_remove(self) -> None:
+        """Drop the ticked jobs, or the whole list when none are ticked."""
+        gone = self.app.fetching.remove(self._chosen)
+        self.ticked.clear()
+        self.queue_changed()
+        self._say(
+            f"Removed {gone} from the queue."
+            if gone
+            else "Nothing to remove - what is left is being fetched now."
+        )
+
+    @on(Button.Pressed, "#queue-auto")
+    def action_toggle_auto(self) -> None:
+        self.app.action_toggle_auto_fetch()
+        self.queue_changed()
+
+    @on(Button.Pressed, "#queue-export")
     @work
     async def action_export(self) -> None:
+        from yaybo import store
         from yaybo.widgets.export_dialog import ExportDialog
 
-        tables = await asyncio.to_thread(store.everything, self.app.database)
-        if not tables:
-            self.notify("Nothing in the database to export yet.")
+        uuids = self.app.fetching.uuids_for(self._chosen)
+        if not uuids:
+            self.notify("Those have not fetched anything yet.")
             return
+        tables = await asyncio.to_thread(store.tables_for, self.app.database, uuids)
+        if not tables:
+            self.notify("Nothing in the database for those yet.")
+            return
+        held = "property" if len(uuids) == 1 else "properties"
         await self.app.push_screen_wait(
-            ExportDialog(tables, "yaybo-queue", title="Export the whole database")
+            ExportDialog(
+                tables,
+                "yaybo-queue",
+                title=f"Export {len(uuids)} {held} from the queue",
+            )
+        )
+
+    # ── showing it ──────────────────────────────────────────────────────
+
+    def queue_changed(self) -> None:
+        """Called by the application whenever the queue moves, and on mount."""
+        queue = self.app.fetching
+        found = self.query("#queue-table")
+        # The worker reaches this from its own thread, and the screen may be
+        # anywhere between not yet composed and fully mounted. Neither a
+        # missing table nor one without its columns can take a row, and
+        # on_mount calls this again once both are true.
+        if not found:
+            return
+        table = found.first(DataTable)
+        if not table.columns:
+            return
+
+        # Ticks on jobs that have since been removed would otherwise linger and
+        # silently widen the next action.
+        self.ticked &= {job.key for job in queue.jobs}
+        self.shown = list(queue.jobs)
+        table.clear()
+        for job in self.shown:
+            table.add_row(
+                "✓" if job.key in self.ticked else "",
+                job.state,
+                job.label[:46],
+                f"{job.fetched}/{job.expected}"
+                if job.expected > 1
+                else str(job.fetched or ""),
+                str(job.rows or ""),
+                job.note[:40],
+                key=job.key,
+            )
+
+        self.query_one("#queue-run", Button).label = (
+            "■  Stop" if queue.running else "▶  Start"
+        )
+        self.query_one("#queue-auto", Button).label = (
+            "Auto-fetch: on" if queue.auto else "Auto-fetch: off"
+        )
+        table.display = bool(self.shown)
+        empty = self.query_one("#queue-empty", Static)
+        empty.display = not self.shown
+        empty.update(
+            "Nothing queued.\n\nPress / to find a property, tick what you want\n"
+            "and press f to send it here."
+        )
+        self._describe(queue)
+
+    def _describe(self, queue) -> None:
+        if not queue.jobs:
+            self._say(
+                "Auto-fetch is "
+                + (
+                    "on - queued properties start straight away."
+                    if queue.auto
+                    else "off - queued properties wait here to be started."
+                )
+            )
+            return
+        chosen = f"{len(self.ticked)} ticked · " if self.ticked else ""
+        state = (
+            f"fetching {queue.current}"
+            if queue.running and queue.current
+            else "running"
+            if queue.running
+            else f"{queue.held} held"
+            if queue.held
+            else f"{queue.waiting} waiting"
+            if queue.waiting
+            else "idle"
+        )
+        failed = f" · {queue.failed} failed, r retries" if queue.failed else ""
+        done = sum(1 for job in queue.jobs if job.state == DONE)
+        self._say(
+            f"{chosen}{len(queue.jobs)} jobs, {done} done · "
+            f"{queue.done} of {queue.total} properties · {queue.rows} rows · "
+            f"{state}{failed}"
         )
 
     def action_back(self) -> None:
-        if self.running:
-            self._say("Still fetching - press space to pause before leaving.")
-            return
+        # No longer refuses to leave while a run is going: that is the whole
+        # point of the queue living on the application rather than here.
         self.app.action_library()

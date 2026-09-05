@@ -24,6 +24,7 @@ from textual.theme import Theme
 from textual.widgets import Footer, Header
 
 from yaybo import auth, store
+from yaybo.fetching import FetchQueue
 from yaybo.register.client import Tinglysning
 
 # Deep navy for the ground, a light blue for anything that can be acted on,
@@ -70,6 +71,10 @@ class YayboApp(App[None]):
         Binding("b", "queue", "Queue"),
         Binding("s", "sql", "SQL"),
         Binding("ctrl+l", "login", "Log in", show=False),
+        # The queue bar carries a Stop button, which is where anyone will
+        # actually reach for this - so it stays out of an already busy footer.
+        Binding("ctrl+x", "stop_fetching", "Stop fetching", show=False),
+        Binding("ctrl+t", "toggle_auto_fetch", "Auto-fetch on/off", show=False),
     ]
 
     def __init__(self, *, database: str | Path | None = None) -> None:
@@ -84,6 +89,9 @@ class YayboApp(App[None]):
         self.who: str | None = None
         self.user_id: str = ""
         self.api = Tinglysning(None)
+        # Owned here rather than by a screen so that a run started on Search
+        # keeps going while the user reads something on Library.
+        self.fetching = FetchQueue()
         # Cleared the first time the library reports what it holds. An empty
         # database on the first run means the useful screen is Search.
         self._first_run = True
@@ -201,6 +209,104 @@ class YayboApp(App[None]):
         self.notify(f"Logged in as {who}. The register will show more now.")
         # Only the screens that read the database have one, and logging in
         # changes what the database is allowed to say.
+        refresh = getattr(self.screen, "action_refresh", None)
+        if callable(refresh):
+            refresh()
+
+    # ── the fetch queue ─────────────────────────────────────────────────
+
+    def enqueue_units(self, label: str, address: dict, units: list[dict]) -> None:
+        """Queue properties the register has already listed for an address."""
+        self.fetching.add_units(label, address, units)
+        self._after_enqueue()
+
+    def enqueue_queries(self, queries: list[str]) -> int:
+        """Queue raw addresses, skipping any already waiting. Returns how many."""
+        added = sum(1 for query in queries if self.fetching.add_query(query))
+        self._after_enqueue()
+        return added
+
+    def _after_enqueue(self) -> None:
+        """Start it now, or leave it parked for the queue screen to start."""
+        if self.fetching.auto:
+            self.start_fetching()
+        else:
+            self.refresh_queue_views()
+
+    def action_toggle_auto_fetch(self) -> bool:
+        """Switch between fetching on arrival and piling up to be started.
+
+        Turning it back on releases whatever piled up while it was off: having
+        asked for things to be fetched automatically, being left with a parked
+        list would be the surprising outcome.
+        """
+        self.fetching.auto = not self.fetching.auto
+        if self.fetching.auto:
+            self.fetching.start()
+            self.start_fetching()
+        else:
+            self.refresh_queue_views()
+        self.notify(
+            "Auto-fetch on: queued properties start straight away."
+            if self.fetching.auto
+            else "Auto-fetch off: queued properties wait to be started."
+        )
+        return self.fetching.auto
+
+    def start_fetching(self) -> None:
+        self.refresh_queue_views()
+        if not self.fetching.running and self.fetching.waiting:
+            self._drain()
+
+    def action_stop_fetching(self) -> None:
+        if not self.fetching.running:
+            return
+        self.fetching.stop()
+        self.refresh_queue_views()
+        self.notify("Stopping after the property being fetched now…")
+
+    @work(thread=True, group="fetchqueue")
+    def _drain(self) -> None:
+        # FetchQueue takes its own lock, so a second start while one is already
+        # running costs a thread that returns immediately and nothing worse.
+        self.fetching.run(
+            self.api,
+            self.database,
+            lambda: self.call_from_thread(self.refresh_queue_views),
+        )
+        self.call_from_thread(self._drained)
+
+    def refresh_queue_views(self) -> None:
+        """Tell whatever is on screen what the queue is doing.
+
+        Called when the queue moves, and by every screen as it surfaces: a
+        screen that was mounted before anything was queued still holds a bar
+        from that emptier moment, and would otherwise sit there showing it.
+
+        Pushed rather than polled, and pushed at whoever happens to be mounted:
+        screens come and go during a run, and none of them should have to
+        register or unregister anything to stay honest about it.
+        """
+        from yaybo.widgets.queue_bar import QueueBar
+
+        for bar in self.screen.query(QueueBar):
+            bar.refresh_state()
+        watching = getattr(self.screen, "queue_changed", None)
+        if callable(watching):
+            watching()
+
+    def _drained(self) -> None:
+        queue = self.fetching
+        self.refresh_queue_views()
+        if not queue.jobs:
+            return
+        failed = f", {queue.failed} failed" if queue.failed else ""
+        self.notify(
+            f"Fetched {queue.done} propert{'y' if queue.done == 1 else 'ies'}, "
+            f"{queue.rows} rows{failed}."
+        )
+        # The library is the one screen whose contents the queue changes behind
+        # its back, so it gets told rather than left showing a stale list.
         refresh = getattr(self.screen, "action_refresh", None)
         if callable(refresh):
             refresh()

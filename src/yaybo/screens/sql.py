@@ -27,6 +27,7 @@ from textual.widgets import (
 
 from yaybo import display, store
 from yaybo.screens.base import YayboScreen
+from yaybo.widgets.queue_bar import QueueBar
 
 # Worth having ready: each one is a question the tables can answer but no single
 # screen shows, and each is a decent starting point to edit.
@@ -130,6 +131,7 @@ class SqlScreen(YayboScreen):
         yield TextArea(next(iter(SNIPPETS.values())), id="sql-query")
         yield Static("", id="sql-status")
         yield DataTable(id="sql-results", cursor_type="row", zebra_stripes=True)
+        yield QueueBar()
         yield Footer()
 
     def on_mount(self) -> None:

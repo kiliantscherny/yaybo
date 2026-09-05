@@ -175,9 +175,16 @@ Tab:hover { color: $secondary; }
     color: $secondary;
 }
 
-#queue-progress {
-    height: 1;
-    margin: 0 2 1 2;
+#queue-actions {
+    width: 100%;
+    height: auto;
+    padding: 0 2 1 2;
+}
+
+#queue-actions Button {
+    width: auto;
+    min-width: 13;
+    margin: 0 1 0 0;
 }
 
 /* ── sql ─────────────────────────────────────────────────────────────── */
@@ -254,6 +261,38 @@ ExportDialog {
 
 #export-buttons Button {
     margin-left: 1;
+}
+
+/* ── the fetch queue's bar, which every screen carries ───────────────── */
+
+/* Deliberately not docked. Footer is, and two widgets docked to the same edge
+   stack in composition order - which would put this underneath the footer.
+   Composed last before it, ordinary layout already lands it exactly here, and
+   it costs no height at all on the screens where nothing is being fetched. */
+QueueBar {
+    width: 100%;
+    height: 3;
+    padding: 0 1;
+    background: $panel;
+    border-top: solid $primary 30%;
+}
+
+#queue-bar-label {
+    width: 1fr;
+    height: 1;
+    margin: 1 1 0 1;
+    color: $secondary;
+}
+
+#queue-bar-progress {
+    width: 30;
+    height: 1;
+    margin: 1 1 0 0;
+}
+
+#queue-bar-stop {
+    width: auto;
+    min-width: 10;
 }
 
 /* ── shared odds and ends ────────────────────────────────────────────── */
