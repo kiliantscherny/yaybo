@@ -148,7 +148,14 @@ def hold_session(session, minutes: int, user_id: str = "") -> None:
             if remaining <= 0:
                 break
             time.sleep(min(ping_every, remaining))
-            if not auth.keep_alive(session):
+            alive = auth.keep_alive(session)
+            if alive is None:
+                # Could not ask. Say so and keep holding: the register has not
+                # refused anything, and its own limit is far off yet.
+                print("  could not reach the register - still holding",
+                      file=sys.stderr)
+                continue
+            if not alive:
                 print("  the register ended the session anyway", file=sys.stderr)
                 return
             auth.save_session(session, user_id)

@@ -201,10 +201,21 @@ class YayboApp(App[None]):
         """Say "still here" now and then, the way the register's own page does."""
         if self.session is None:
             return
-        if auth.keep_alive(self.session):
+        alive = auth.keep_alive(self.session)
+        if alive:
             auth.save_session(self.session, self.user_id)
             self.session_touched = datetime.now()
             self.call_from_thread(self.refresh_session_views)
+            return
+        if alive is None:
+            # We could not ask. The session is not ours to throw away on that
+            # evidence; the next ping is eight minutes off and the register's
+            # own limit is twenty-nine.
+            return
+        # A refusal, checked a second way before acting on it. The ping is one
+        # endpoint on one request, and the cost of being wrong is making
+        # somebody log in again with their phone.
+        if auth.who_is_logged_in(self.session) is not None:
             return
         self.call_from_thread(self._session_lapsed)
 

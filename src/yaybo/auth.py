@@ -164,15 +164,27 @@ def log_in(
     return session, who
 
 
-def keep_alive(session: requests.Session) -> bool:
-    """Tell the register the session is still wanted; True while it agrees."""
+def keep_alive(session: requests.Session) -> bool | None:
+    """Tell the register the session is still wanted.
+
+    Three answers, not two. True while the register agrees, False when it says
+    the session is gone, and None when we could not get an answer at all - a
+    timeout, a dropped connection, a gateway having a bad minute. Those are not
+    the same thing, and treating "could not ask" as "logged out" throws away a
+    session the register is still perfectly happy with, which is a login the
+    user then has to do again for no reason.
+    """
     try:
         response = session.get(ALIVE_URL, timeout=30, allow_redirects=False)
     except requests.RequestException:
-        return False
+        return None
+    if response.status_code == 200:
+        return True
     # A lapsed session is answered with a redirect back into NemLog-in rather
-    # than an error, so a 200 is the whole of the good news.
-    return response.status_code == 200
+    # than an error, so that - and an outright refusal - is the bad news.
+    if response.is_redirect or response.status_code in (401, 403):
+        return False
+    return None  # 5xx and anything else is the register's problem, not ours
 
 
 def log_out(session: requests.Session) -> None:
