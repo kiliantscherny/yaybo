@@ -11,6 +11,8 @@ import importlib.util
 import sys
 from pathlib import Path
 
+import pytest
+
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
@@ -18,8 +20,16 @@ from yaybo import store  # noqa: E402
 
 
 def _generator():
-    """Load the generator, which lives outside the package."""
+    """Load the generator, which lives outside the package.
+
+    The source archive carries the tests but not the repository around them,
+    so anyone repackaging this finds the generator missing. That is not a
+    failure - what these check is that the checked-in DBML matches the code,
+    which is a question about the repository rather than about the package.
+    """
     path = ROOT / "scripts" / "generate_schema_dbml.py"
+    if not path.is_file():
+        pytest.skip("the schema generator is not in this archive")
     spec = importlib.util.spec_from_file_location("generate_schema_dbml", path)
     assert spec and spec.loader, path
     module = importlib.util.module_from_spec(spec)
