@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import contextlib
 import json
+import logging
 import re
 import threading
 from datetime import datetime
@@ -32,14 +33,22 @@ from typing import TypedDict
 # short, and the alternative is an empty screen or a lost fetch.
 _ACCESS = threading.RLock()
 
+log = logging.getLogger(__name__)
+
 TEXT, INTEGER, DECIMAL, DATE = "VARCHAR", "BIGINT", "DOUBLE", "DATE"
 BOOLEAN, JSON = "BOOLEAN", "JSON"
 
 
 class TableSpec(TypedDict):
-    """What one table is: the column it is replaced on, and its columns."""
+    """What one table is: how it is replaced, what identifies a row, its columns.
+
+    `key` is the column a re-run deletes on - always the property, because a
+    property is what gets fetched. `pk` is what makes a row unique within the
+    table, which is a different question and usually needs more columns.
+    """
 
     key: str
+    pk: list[str]
     columns: list[tuple[str, str]]
 
 
@@ -48,6 +57,7 @@ class TableSpec(TypedDict):
 TABLES: dict[str, TableSpec] = {
     "ejendomme": {
         "key": "uuid",
+        "pk": ["uuid"],
         "columns": [
             ("uuid", TEXT),
             ("adresse", TEXT),
@@ -102,6 +112,7 @@ TABLES: dict[str, TableSpec] = {
     },
     "ejere": {
         "key": "ejendom_uuid",
+        "pk": ["ejendom_uuid", "nummer"],
         "columns": [
             ("ejendom_uuid", TEXT),
             ("nummer", INTEGER),
@@ -113,6 +124,7 @@ TABLES: dict[str, TableSpec] = {
     },
     "haeftelser": {
         "key": "ejendom_uuid",
+        "pk": ["ejendom_uuid", "dokument_uuid", "dokument_version"],
         "columns": [
             ("ejendom_uuid", TEXT),
             ("dokument_uuid", TEXT),
@@ -159,6 +171,7 @@ TABLES: dict[str, TableSpec] = {
     },
     "servitutter": {
         "key": "ejendom_uuid",
+        "pk": ["ejendom_uuid", "dokument_uuid", "dokument_version"],
         "columns": [
             ("ejendom_uuid", TEXT),
             ("dokument_uuid", TEXT),
@@ -188,6 +201,7 @@ TABLES: dict[str, TableSpec] = {
     # is the whole reason the logged-in record is worth fetching.
     "dokument_parter": {
         "key": "ejendom_uuid",
+        "pk": ["ejendom_uuid", "dokument_uuid", "dokumentart", "rolle", "nummer"],
         "columns": [
             ("ejendom_uuid", TEXT),
             ("dokument_uuid", TEXT),
@@ -205,6 +219,7 @@ TABLES: dict[str, TableSpec] = {
     # amount, its own priority and its own holder.
     "underpant": {
         "key": "ejendom_uuid",
+        "pk": ["ejendom_uuid", "haeftelse_uuid", "rettighed_uuid"],
         "columns": [
             ("ejendom_uuid", TEXT),
             ("haeftelse_uuid", TEXT),
@@ -223,6 +238,7 @@ TABLES: dict[str, TableSpec] = {
     # square metre, which the register does not record.
     "handelshistorik": {
         "key": "ejendom_uuid",
+        "pk": ["ejendom_uuid", "registrering_id"],
         "columns": [
             ("ejendom_uuid", TEXT),
             ("adresse", TEXT),
@@ -240,6 +256,7 @@ TABLES: dict[str, TableSpec] = {
     # of this.
     "bygninger": {
         "key": "ejendom_uuid",
+        "pk": ["ejendom_uuid", "bygning_nr"],
         "columns": [
             ("ejendom_uuid", TEXT),
             ("adresse", TEXT),
@@ -267,6 +284,7 @@ TABLES: dict[str, TableSpec] = {
     },
     "adkomsthistorik": {
         "key": "ejendom_uuid",
+        "pk": ["ejendom_uuid", "post_nummer"],
         "columns": [
             ("ejendom_uuid", TEXT),
             ("post_nummer", INTEGER),
@@ -282,6 +300,7 @@ TABLES: dict[str, TableSpec] = {
     # the register prints there. Joins back on (ejendom_uuid, post_nummer).
     "adkomsthistorik_ejere": {
         "key": "ejendom_uuid",
+        "pk": ["ejendom_uuid", "post_nummer", "nummer"],
         "columns": [
             ("ejendom_uuid", TEXT),
             ("post_nummer", INTEGER),
@@ -300,6 +319,7 @@ TABLES: dict[str, TableSpec] = {
     # can be checked rather than taken on trust.
     "rentestatistik": {
         "key": "maaned",
+        "pk": ["maaned", "rentfix_kode"],
         "columns": [
             ("maaned", TEXT),
             ("rentfix_kode", TEXT),
@@ -311,6 +331,7 @@ TABLES: dict[str, TableSpec] = {
     },
     "attester": {
         "key": "ejendom_uuid",
+        "pk": ["ejendom_uuid"],
         "columns": [
             ("ejendom_uuid", TEXT),
             ("adresse", TEXT),
@@ -350,9 +371,10 @@ def save(path: str | Path, tables: dict[str, list[dict]]) -> dict[str, int]:
         for name, spec in TABLES.items():
             columns = spec["columns"]
             definition = ", ".join(f'"{column}" {sort}' for column, sort in columns)
+            primary = ", ".join(f'"{column}"' for column in spec["pk"])
             db.execute(
                 f'CREATE TABLE IF NOT EXISTS "{name}" '
-                f'({definition}, "{FETCHED}" TIMESTAMP)'
+                f'({definition}, "{FETCHED}" TIMESTAMP, PRIMARY KEY ({primary}))'
             )
             _add_new_columns(db, name, columns)
 
@@ -366,21 +388,94 @@ def save(path: str | Path, tables: dict[str, list[dict]]) -> dict[str, int]:
                     f'DELETE FROM "{name}" WHERE "{spec["key"]}" IN ({holes})', keys
                 )
 
-            if rows:
-                values = [
-                    [coerce(row.get(column), sort) for column, sort in columns]
-                    + [stamped]
-                    for row in rows
-                ]
+            values = _insertable(name, spec, rows)
+            if values:
                 named = ", ".join(f'"{column}"' for column, _ in columns)
                 holes = ", ".join("?" * (len(columns) + 1))
                 db.executemany(
                     f'INSERT INTO "{name}" ({named}, "{FETCHED}") VALUES ({holes})',
-                    values,
+                    [record + [stamped] for record in values],
                 )
-            written[name] = len(rows)
+            # After the write, not before it. A database from an older version
+            # may hold rows this file would now consider duplicates, and the
+            # write is what clears them - asking first would refuse the key on
+            # data that is about to be replaced, and leave it a run behind.
+            _add_primary_key(db, name, spec["pk"])
+            written[name] = len(values)
 
     return written
+
+
+def _insertable(name: str, spec: TableSpec, rows: list[dict]) -> list[list]:
+    """Coerce a table's rows and reduce them to one row per primary key.
+
+    Two things have to happen before a keyed table will accept a batch, and
+    both are about the batch rather than about what is already stored.
+
+    A row whose key is not complete has nowhere to go: DuckDB makes every
+    primary key column NOT NULL, so one unreadable field would otherwise take
+    the whole run down with it. Those rows are dropped and said out loud,
+    because a row quietly missing is worse than a row known to be missing.
+
+    A key seen twice in one batch is the same row described twice - the same
+    document reached by two routes - so the last description wins. Without
+    this the insert fails outright, which is a poor answer to "the register
+    listed this document under two of its versions".
+    """
+    columns = spec["columns"]
+    places = {column: index for index, (column, _) in enumerate(columns)}
+    wanted = [places[column] for column in spec["pk"]]
+
+    seen: dict[tuple, list] = {}
+    dropped = 0
+    for row in rows:
+        record = [coerce(row.get(column), sort) for column, sort in columns]
+        identity = tuple(record[index] for index in wanted)
+        if any(part is None for part in identity):
+            dropped += 1
+            continue
+        seen[identity] = record
+
+    if dropped:
+        log.warning(
+            "%s: dropped %d row(s) with an incomplete %s",
+            name, dropped, " + ".join(spec["pk"]),
+        )
+    if (folded := len(rows) - dropped - len(seen)) > 0:
+        log.debug("%s: folded %d row(s) onto a key already in the batch", name, folded)
+    return list(seen.values())
+
+
+def _add_primary_key(db, name: str, pk: list[str]) -> None:
+    """Give a table written before this file declared keys its primary key.
+
+    CREATE TABLE IF NOT EXISTS leaves an existing table exactly as it was, so a
+    database from an earlier version has the columns and none of the key.
+    DuckDB can add one after the fact - ALTER TABLE ... ADD PRIMARY KEY - which
+    is the only reason enforcing keys here is worth doing at all: an existing
+    database gains them on the next write rather than needing to be thrown away.
+
+    It refuses when the stored rows already contain duplicates or a NULL in a
+    key column, and that refusal must not stop the write. Such a database keeps
+    working exactly as before, unkeyed, and `yaybo backfill` rebuilds the
+    derived tables cleanly enough for the key to take.
+    """
+    held = db.execute(
+        "SELECT count(*) FROM duckdb_constraints() "
+        "WHERE database_name = current_database() "
+        "AND table_name = ? AND constraint_type = 'PRIMARY KEY'",
+        [name],
+    ).fetchone()
+    if held and held[0]:
+        return
+    primary = ", ".join(f'"{column}"' for column in pk)
+    try:
+        db.execute(f'ALTER TABLE "{name}" ADD PRIMARY KEY ({primary})')
+    except Exception as error:  # noqa: BLE001 - any refusal is the same answer
+        log.warning(
+            "%s: keeping the table unkeyed - %s. Run `yaybo backfill` to rebuild it.",
+            name, str(error).splitlines()[0],
+        )
 
 
 def _add_new_columns(db, name: str, columns) -> None:

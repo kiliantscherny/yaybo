@@ -404,17 +404,22 @@ def party_rows(document: dict | None, uuid: str) -> list[dict]:
     cell throws away both who is which and how to find them again.
     """
     document = document or {}
-    rows: list[dict] = []
+    # A party belongs to a document and a role, not to a charge, and the two
+    # are not the same thing: the register lists one document once per charge
+    # it secures, and an amended document appears under each of its versions.
+    # An ejerpantebrev raised twice therefore hands the same four people over
+    # twice - and, seen in the wild, with the creditors in a different order
+    # each time. Gathering them per (art, document, role) merges those repeats
+    # while keeping anyone who really is only on one of them.
+    groups: dict[tuple[str, str, str], dict[tuple, dict]] = {}
 
     def add(art: str, doc_uuid: str, rolle: str, parties):
-        for number, party in enumerate(parties or [], start=1):
+        found = groups.setdefault((art, doc_uuid, rolle), {})
+        for party in parties or []:
             if party.get("navn") or party.get("cvr"):
-                rows.append({
-                    "dokumentart": art, "dokument_uuid": doc_uuid, "rolle": rolle,
-                    "nummer": number, "ejendom_uuid": uuid,
-                    **{key: party.get(key, "") for key in
-                       ("navn", "foedselsdato", "cvr", "andel", "adresse_kode")},
-                })
+                # First spelling of a person wins; later ones are the same
+                # person read again, not new information.
+                found.setdefault(_same_party(party), party)
 
     adkomst = document.get("adkomst") or {}
     add("adkomst", adkomst.get("dokument_uuid", ""), "adkomsthaver", adkomst.get("ejere"))
@@ -427,7 +432,35 @@ def party_rows(document: dict | None, uuid: str) -> list[dict]:
     for s in document.get("servitutter") or []:
         add("servitut", s["dokument_uuid"], "paataleberettiget",
             s.get("paataleberettigede"))
-    return rows
+
+    # Numbered only now that every reading of a document has been folded in, so
+    # the number counts people rather than the order one reading happened to
+    # arrive in - which is what makes it safe to key the stored table on.
+    return [
+        {
+            "dokumentart": art, "dokument_uuid": doc_uuid, "rolle": rolle,
+            "nummer": number, "ejendom_uuid": uuid,
+            **{key: party.get(key, "") for key in
+               ("navn", "foedselsdato", "cvr", "andel", "adresse_kode")},
+        }
+        for (art, doc_uuid, rolle), found in groups.items()
+        for number, party in enumerate(found.values(), start=1)
+    ]
+
+
+def _same_party(party: dict) -> tuple[str, str, str]:
+    """What makes two named parties on one document the same party.
+
+    A name alone is not enough - two people can share one, and the register
+    does not promise to spell either the same way twice. A date of birth or a
+    CVR number is what actually distinguishes them, and it is exactly what the
+    logged-in record is fetched for.
+    """
+    return (
+        normalise(str(party.get("navn") or "")),
+        str(party.get("foedselsdato") or ""),
+        str(party.get("cvr") or ""),
+    )
 
 
 def underpant_rows(document: dict | None, uuid: str) -> list[dict]:
