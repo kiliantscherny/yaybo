@@ -47,7 +47,7 @@ from pathlib import Path
 import mitid
 from mitid.ui.console import LoginConsole
 
-from yaybo import auth, export, pipeline, store
+from yaybo import __version__, auth, export, pipeline, store
 from yaybo.register.address import AddressError, drop_unit, slugify
 from yaybo.register.client import Tinglysning
 
@@ -186,12 +186,52 @@ def _session(args):
 
 
 def run_fetch(args) -> int:
+    """Look each address up in turn, and say plainly which ones worked.
+
+    Several addresses in one command is what anything scripted wants, and it
+    is also the only place a pause between them can be guaranteed - separate
+    invocations of `yaybo fetch` cannot know about each other, and the register
+    is a public service. One address that cannot be resolved does not stop the
+    rest: its rows would have been independent anyway, and losing four good
+    lookups to one typo helps nobody.
+    """
     formats = _formats(args.format)
+    if args.out and len(args.address) > 1:
+        raise SystemExit("--out names one file, so it takes only one address")
+
     session = _session(args)
     api = Tinglysning(session)
 
     def say(message: str) -> None:
         print(message, file=sys.stderr)
+
+    failed = []
+    for index, address in enumerate(args.address):
+        if index:
+            # The register is a public service. This is the same courtesy the
+            # queue shows between properties, applied between addresses.
+            time.sleep(args.delay)
+        if len(args.address) > 1:
+            say(f"\n[{index + 1}/{len(args.address)}] {address}")
+        try:
+            _fetch_one(args, api, formats, address, say)
+        except AddressError as error:
+            say(f"  could not look that up: {error}")
+            failed.append(address)
+
+    if len(args.address) > 1:
+        done = len(args.address) - len(failed)
+        say(f"\nfetched {done} of {len(args.address)} address(es)")
+        for address in failed:
+            say(f"  failed: {address}")
+
+    if args.keepalive and session is not None:
+        hold_session(session, args.keepalive, args.user or "")
+    return 1 if failed else 0
+
+
+def _fetch_one(args, api, formats: set[str], address: str, say) -> None:
+    """One address: look it up, then write it in every format asked for."""
 
     def each(index: int, total: int, unit: dict) -> None:
         print(f"  [{index}/{total}] {unit.get('adresse', '')}", file=sys.stderr)
@@ -201,22 +241,19 @@ def run_fetch(args) -> int:
             _dump(args.dump, record, details, history)
             say(f"dumped the first raw record to {args.dump}")
 
-    try:
-        bundle = pipeline.lookup(
-            api,
-            args.address,
-            limit=args.limit,
-            use_dawa=not args.no_dawa,
-            delay=args.delay,
-            boligsiden_on=not args.no_boligsiden,
-            laantype_on=not args.no_laantype,
-            on_status=say,
-            on_unit=each,
-            on_raw=raw,
-            on_session_expired=lambda done, total: _keep_going(done, total),
-        )
-    except AddressError as error:
-        raise SystemExit(str(error)) from error
+    bundle = pipeline.lookup(
+        api,
+        address,
+        limit=args.limit,
+        use_dawa=not args.no_dawa,
+        delay=args.delay,
+        boligsiden_on=not args.no_boligsiden,
+        laantype_on=not args.no_laantype,
+        on_status=say,
+        on_unit=each,
+        on_raw=raw,
+        on_session_expired=lambda done, total: _keep_going(done, total),
+    )
     if bundle.warning:
         say(f"note: {bundle.warning}")
 
@@ -257,10 +294,6 @@ def run_fetch(args) -> int:
             (folder / name).write_text(document["dokument"], encoding="utf-8")
         say(f"wrote {len(documents)} attest(er) to {folder}/")
 
-    if args.keepalive and session is not None:
-        hold_session(session, args.keepalive, args.user or "")
-    return 0
-
 
 def _keep_going(done: int, total: int) -> bool:
     """Decide what happens when the login lapses partway through a run.
@@ -272,6 +305,66 @@ def _keep_going(done: int, total: int) -> bool:
     """
     print(f"  session expired after {done} of {total}", file=sys.stderr)
     return True
+
+
+# ── exporting what is already stored ────────────────────────────────────
+
+
+def run_export(args) -> int:
+    """Write the stored database, or one query's result, to a file.
+
+    `fetch` exports what it has just fetched; this exports what is already
+    there. That is the difference that matters to anything scripted, which
+    typically fetches several addresses and then wants one workbook of the lot.
+
+    The path written is printed on stdout, and everything else on stderr, so
+    `file=$(yaybo export)` gives you the file and nothing else.
+    """
+    formats = _formats(args.format)
+    database = Path(args.db) if args.db else store.default_path(store.OUTDIR)
+    if not Path(database).exists():
+        raise SystemExit(f"no database at {database} - run `yaybo fetch` first")
+
+    def say(message: str) -> None:
+        print(message, file=sys.stderr)
+
+    sql = args.query
+    if args.query_file:
+        try:
+            sql = Path(args.query_file).read_text(encoding="utf-8")
+        except OSError as error:
+            raise SystemExit(f"could not read {args.query_file}: {error}") from error
+
+    if sql:
+        try:
+            names, rows = store.run_query(database, sql)
+        except store.QueryError as error:
+            raise SystemExit(f"query failed: {error}") from error
+        tables = {args.name: [dict(zip(names, row, strict=True)) for row in rows]}
+        say(f"{len(rows)} row(s) from the query")
+    else:
+        tables = store.everything(database)
+
+    # A signed attest is hundreds of kilobytes of XML, and Excel refuses a cell
+    # over 32767 characters, so the documents stay out of the spreadsheet
+    # formats. A DuckDB export is the database's own shape and keeps them.
+    if formats & {"csv", "xlsx"} and tables.get("attester"):
+        say("leaving attester out of csv/xlsx: whole documents do not fit a cell")
+        if "duckdb" not in formats:
+            tables = {name: rows for name, rows in tables.items() if name != "attester"}
+
+    if not any(tables.values()):
+        raise SystemExit("nothing to export - the database is empty")
+
+    for kind in sorted(formats):
+        rows_for = tables
+        if kind in ("csv", "xlsx"):
+            rows_for = {n: r for n, r in tables.items() if n != "attester"}
+        written = export.FORMATS[_label(kind)](rows_for, args.name, outdir=args.outdir)
+        paths = written if isinstance(written, list) else [written] if written else []
+        for path in paths:
+            print(path)
+    return 0
 
 
 def _formats(spec: str) -> set[str]:
@@ -343,12 +436,24 @@ def build_parser() -> argparse.ArgumentParser:
     # set_defaults would reach in and overwrite SUPPRESS on the shared one -
     # which is exactly the wiping this was meant to avoid. main() fills the
     # gaps instead.
+    parser.add_argument(
+        "--version",
+        "-V",
+        action="version",
+        version=f"%(prog)s {__version__}",
+        help="show the installed version and exit",
+    )
     commands = parser.add_subparsers(dest="command")
 
     fetch = commands.add_parser(
         "fetch", parents=[common], help="look an address up and write the tables"
     )
-    fetch.add_argument("address", help='e.g. "Prøvegade 1, 9999 Prøveby"')
+    fetch.add_argument(
+        "address",
+        nargs="+",
+        metavar="ADDRESS",
+        help='one or more, e.g. "Prøvegade 1, 9999 Prøveby" "Prøvevej 2, 9999 Prøveby"',
+    )
     fetch.add_argument(
         "--out", help="explicit output path (default: named after the address)"
     )
@@ -407,6 +512,32 @@ def build_parser() -> argparse.ArgumentParser:
         "--password", help="MitID password, needed only with --method TOKEN"
     )
 
+    writer = commands.add_parser(
+        "export",
+        parents=[common],
+        help="write the stored database, or a query's result, to a file",
+    )
+    writer.add_argument(
+        "--format",
+        default="xlsx",
+        metavar="LIST",
+        help="comma-separated: xlsx (default), csv, duckdb",
+    )
+    writer.add_argument(
+        "--query", metavar="SQL", help="export this query's result instead of every table"
+    )
+    writer.add_argument(
+        "--query-file", metavar="PATH", help="read the query from a file instead"
+    )
+    writer.add_argument(
+        "--name", default="yaybo", help="stem for the filename (default: yaybo)"
+    )
+    writer.add_argument(
+        "--outdir",
+        default=str(export.EXPORT_DIR),
+        help=f"where the file goes (default: {export.EXPORT_DIR}/, git-ignored)",
+    )
+
     commands.add_parser(
         "logout", parents=[common], help="end the session and forget the cookies"
     )
@@ -450,9 +581,17 @@ def main(argv: list[str] | None = None) -> int:
         format="%(name)s: %(message)s",
         stream=sys.stderr,
     )
+    # Except our own. The line above is aimed at the vendored MitID client;
+    # applied to yaybo it would also swallow the warnings that say a row was
+    # dropped or a table left unkeyed, which are the ones worth reading.
+    if not args.debug:
+        logging.getLogger("yaybo").setLevel(logging.WARNING)
 
     if args.command == "fetch":
         return run_fetch(args)
+
+    if args.command == "export":
+        return run_export(args)
 
     if args.command == "login":
         try:
