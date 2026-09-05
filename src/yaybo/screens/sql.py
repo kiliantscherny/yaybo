@@ -28,6 +28,7 @@ from textual.widgets import (
 from yaybo import display, store
 from yaybo.screens.base import YayboScreen
 from yaybo.widgets.queue_bar import QueueBar
+from yaybo.widgets.session_bar import SessionBar
 
 # Worth having ready: each one is a question the tables can answer but no single
 # screen shows, and each is a decent starting point to edit.
@@ -121,6 +122,7 @@ class SqlScreen(YayboScreen):
 
     def compose(self) -> ComposeResult:
         yield Header()
+        yield SessionBar()
         with Horizontal(id="sql-bar"):
             yield Select(
                 [(name, name) for name in SNIPPETS],

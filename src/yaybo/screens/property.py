@@ -33,6 +33,7 @@ from textual_plotext import PlotextPlot
 from yaybo import display, pipeline, store
 from yaybo.screens.base import YayboScreen
 from yaybo.widgets.queue_bar import QueueBar
+from yaybo.widgets.session_bar import SessionBar
 
 # label, column, how to write it, how wide
 EJERE = (
@@ -126,6 +127,7 @@ class PropertyScreen(YayboScreen):
 
     def compose(self) -> ComposeResult:
         yield Header()
+        yield SessionBar()
         yield Static("Loading…", id="property-title")
         with TabbedContent(id="property-tabs"):
             with TabPane("Oversigt", id="tab-overview"):

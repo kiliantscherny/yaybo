@@ -263,6 +263,32 @@ ExportDialog {
     margin-left: 1;
 }
 
+/* ── the session bar, which every screen carries ─────────────────────── */
+
+/* Loud on purpose. Which half of the register is answering decides what every
+   row on every screen means, and it is not otherwise visible anywhere. */
+SessionBar {
+    width: 100%;
+    height: 1;
+    padding: 0 2;
+    text-style: bold;
+}
+
+SessionBar.session-in {
+    background: $success 20%;
+    color: $success;
+}
+
+SessionBar.session-soon {
+    background: $warning 25%;
+    color: $warning;
+}
+
+SessionBar.session-out {
+    background: $error 18%;
+    color: $error;
+}
+
 /* ── the fetch queue's bar, which every screen carries ───────────────── */
 
 /* Deliberately not docked. Footer is, and two widgets docked to the same edge

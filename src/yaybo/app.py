@@ -14,6 +14,7 @@ the next without anything having to be told about it.
 
 from __future__ import annotations
 
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import requests
@@ -88,6 +89,9 @@ class YayboApp(App[None]):
         self.session: requests.Session | None = None
         self.who: str | None = None
         self.user_id: str = ""
+        # When the session was last known good. The register measures its own
+        # limit from the last request, so this is what a countdown counts from.
+        self.session_touched: datetime | None = None
         self.api = Tinglysning(None)
         # Owned here rather than by a screen so that a run started on Search
         # keeps going while the user reads something on Library.
@@ -106,6 +110,8 @@ class YayboApp(App[None]):
         self.push_screen(LibraryScreen())
         self._resume_session()
         self.set_interval(KEEPALIVE_SECONDS, self._keep_alive)
+        # Only so the countdown moves; the session itself is kept alive above.
+        self.set_interval(30, self.refresh_session_views)
 
     def consume_first_run(self) -> bool:
         """True once, for whoever asks first, then False forever."""
@@ -130,6 +136,36 @@ class YayboApp(App[None]):
         # State first: a long database path is truncated from the right, and
         # which half of the register we are on is the half worth keeping.
         self.sub_title = f"{state}  ·  {self.database}"
+
+    def session_state(self) -> tuple[str, str]:
+        """A line describing the login, and how urgently to colour it.
+
+        The tone is one of "in", "soon", "out". Which half of the register is
+        answering changes what every row on every screen means, so it is worth
+        a colour rather than a word buried in a subtitle.
+        """
+        if self.session is None or self.who is None:
+            return ("Not logged in - public register only, ctrl+L to log in", "out")
+        left = self.session_expires_in()
+        if left is None:
+            return (f"MitID: {self.who}", "in")
+        minutes = int(left.total_seconds() // 60)
+        if minutes <= 0:
+            return (f"MitID: {self.who} - session lapsing now", "soon")
+        tone = "soon" if minutes <= 5 else "in"
+        return (f"MitID: {self.who} - {minutes} min left", tone)
+
+    def session_expires_in(self) -> timedelta | None:
+        """How long the register will keep answering if nothing else is asked."""
+        if self.session is None or self.session_touched is None:
+            return None
+        return auth.IDLE_LIMIT - (datetime.now() - self.session_touched)
+
+    def refresh_session_views(self) -> None:
+        from yaybo.widgets.session_bar import SessionBar
+
+        for bar in self.screen.query(SessionBar):
+            bar.refresh_state()
 
     @work(thread=True)
     def _resume_session(self) -> None:
@@ -156,6 +192,7 @@ class YayboApp(App[None]):
         self.who = who
         self.user_id = user_id or self.user_id
         self.api = Tinglysning(session)
+        self.session_touched = datetime.now()
         self._describe_session()
 
     @work(thread=True)
@@ -165,12 +202,15 @@ class YayboApp(App[None]):
             return
         if auth.keep_alive(self.session):
             auth.save_session(self.session, self.user_id)
+            self.session_touched = datetime.now()
+            self.call_from_thread(self.refresh_session_views)
             return
         self.call_from_thread(self._session_lapsed)
 
     def _session_lapsed(self) -> None:
         self.session = None
         self.who = None
+        self.session_touched = None
         self.api = Tinglysning(None)
         self._describe_session()
         self.notify(
@@ -206,6 +246,7 @@ class YayboApp(App[None]):
             return
         session, who = result
         self._adopt(session, who, user_id)
+        self.refresh_session_views()
         self.notify(f"Logged in as {who}. The register will show more now.")
         # Only the screens that read the database have one, and logging in
         # changes what the database is allowed to say.

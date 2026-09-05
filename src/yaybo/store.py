@@ -93,6 +93,11 @@ TABLES: dict[str, TableSpec] = {
             ("samlet_gaeld_dkk", INTEGER),
             ("frivaerdi_dkk", INTEGER),
             ("belaaningsgrad_pct", DECIMAL),
+            # Whether this property was fetched by someone the register knew.
+            # Per property, not per run: a session that lapses partway leaves
+            # some rows with owners' birth dates and previous owners and some
+            # without, and only the row itself can say which it is.
+            ("beriget", BOOLEAN),
         ],
     },
     "ejere": {
@@ -539,6 +544,11 @@ def library(path: str | Path) -> list[dict]:
             if owners
             else "NULL AS antal_ejere, NULL AS ejere,"
         )
+        # A database written before this column existed still has to open. It
+        # gains the column the next time anything is saved into it; until then
+        # every row honestly reports "not known" rather than failing to load.
+        present = {row[0] for row in db.execute("DESCRIBE ejendomme").fetchall()}
+        beriget = "e.beriget," if "beriget" in present else "NULL AS beriget,"
         return _rows(
             db,
             f"""
@@ -548,6 +558,7 @@ def library(path: str | Path) -> list[dict]:
                    e.seneste_salg_dato, e.seneste_salg_dkk, e.seneste_salg_pris_m2,
                    e.til_salg, e.antal_haeftelser, e.antal_servitutter,
                    e.boligsiden_url, e.breddegrad, e.laengdegrad,
+                   {beriget}
                    {columns}
                    e."{FETCHED}" AS hentet
             FROM ejendomme e
