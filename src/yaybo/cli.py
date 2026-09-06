@@ -246,6 +246,7 @@ def _fetch_one(args, api, formats: set[str], address: str, say) -> None:
         address,
         limit=args.limit,
         use_dawa=not args.no_dawa,
+        andele_on=not args.no_andele,
         delay=args.delay,
         boligsiden_on=not args.no_boligsiden,
         laantype_on=not args.no_laantype,
@@ -479,6 +480,12 @@ def build_parser() -> argparse.ArgumentParser:
         "--no-dawa",
         action="store_true",
         help="skip DAWA address cleaning and use tinglysning's own autocomplete",
+    )
+    fetch.add_argument(
+        "--no-andele",
+        action="store_true",
+        help="skip the andelsboligbog: co-op buildings then give only the "
+             "association's own property, as before",
     )
     fetch.add_argument(
         "--no-boligsiden",

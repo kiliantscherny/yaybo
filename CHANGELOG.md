@@ -5,6 +5,54 @@ versions follow [semantic versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- **Andelsboliger.** The register is four books and yaybo read one of them.
+  It now also reads the andelsboligbog, which holds co-op shares. The two
+  disagree about what a co-op building is, and both are right: to the tingbog
+  a block is one property owned by the association, however many doors it has;
+  to the andelsboligbog the same block is one entry per flat. Looking an
+  address up asks both, and reports what it found as "1 property and 10 co-op
+  shares" rather than pretending they are the same kind of thing.
+- Two tables, `andele` and `andel_haeftelser`, joined to the building by
+  `andele.ejendom_uuid`. They are separate from `ejendomme` because a share is
+  not real property: it has no valuation, no matrikel, no registered area, no
+  easements and no named owner, so the derived columns a property carries have
+  nothing to divide by.
+- **Andele**, a tab for them beside Ejendomme, and a screen for one share:
+  its address and municipality codes, its charges with everyone named on each,
+  and its notices. Enter opens a share, g opens the association's building -
+  which is where everything a share does not have is.
+- `andel_meddelelser`, the notices noted on a share - a death, a bankruptcy, a
+  court removing the andelshaver's power to dispose of it. It is the only
+  place this book names anybody other than a creditor, and the Andele screen
+  counts them in a column of their own because a notice is worth noticing.
+- `yaybo fetch --no-andele` skips the second book and behaves as before.
+
+### Notes
+
+- **The andelsboligbog has no owner of record.** It registers rights over a
+  share, not title to one; who holds an andel is the association's record.
+  Names appear in two places and neither is the register stating ownership:
+  `andel_haeftelser.kreditorer`, which for an ejerpantebrev is the owner
+  issuing to themselves, and `andel_meddelelser.debitorer`. Neither carries a
+  date of birth.
+
+- `andele.samlet_gaeld_dkk` totals what is charged against one share. It is
+  not what living there owes: an andelshaver also owes a portion of the
+  association's own mortgage, which is registered against the building and is
+  in `ejendomme`/`haeftelser`.
+- No sale price is stored for a share, deliberately. Boligsiden reports the
+  building's own sale against every door in the block - the same date and
+  amount on all of them, divided by each flat's area into a price per square
+  metre that describes nothing. That sale is kept where it is true, on the
+  `ejendomme` row.
+- A flat absent from `andele` is not evidence it is not an andel. A share only
+  enters the book once something is registered against it.
+- `yaybo backfill` does not rebuild the two new tables and does not touch
+  them. The register stores no signed document for a share, so there is
+  nothing to re-derive them from.
+
 ## [1.0.0] - 2026-09-05
 
 The command line, the exported formats and the table names have been stable

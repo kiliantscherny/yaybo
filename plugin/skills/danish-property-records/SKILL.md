@@ -53,7 +53,8 @@ be compared. `--db PATH` overrides it if the user wants the file elsewhere.
 ### 2. Decide about the login
 
 **Most data needs no login**: address, valuation, owners' names, mortgages and
-their interest terms, easements, sale prices, BBR building data.
+their interest terms, easements, sale prices, BBR building data, and the whole
+of the andelsboligbog.
 
 **Four tables need a MitID login**: `dokument_parter` (everyone named on each
 document), `adkomsthistorik` and `adkomsthistorik_ejere` (previous owners), and
@@ -72,6 +73,41 @@ Code they can type this directly in the prompt:
 
 Then confirm with `yaybo status` before continuing. The session is cached and
 lasts a while, so this is occasional rather than per-command.
+
+### Andelsboliger are a second register
+
+A co-op flat is not real property, and the two registers describe it
+differently. Both are fetched, and both are right:
+
+- `ejendomme` holds **one** row for the whole block — the property the
+  association owns.
+- `andele` holds **one row per flat** — the shares, joined back by
+  `andele.ejendom_uuid`.
+
+So a co-op address that looks like a single anonymous building in `ejendomme`
+usually has a dozen rows in `andele`. When a user asks about a specific co-op
+flat, `andele` is where the flat is; `ejendomme` is where its building is.
+
+**Nobody owns an andel, as far as the register is concerned.** It records
+rights *over* a share, not title *to* one. If asked who lives in or owns a
+co-op flat, say so, then offer `andel_haeftelser.kreditorer` — for an
+ejerpantebrev, which most of these are, the creditor is the owner issuing to
+themselves — and `andel_meddelelser.debitorer`, which names them when a death
+or bankruptcy has been noted. Neither is the register stating ownership, and
+neither carries a date of birth.
+
+Three answers that look right and are wrong:
+
+- A flat missing from `andele` is **not** evidence it is not an andel — a share
+  only enters the book once something is registered against it.
+- `andele.samlet_gaeld_dkk` is **not** what living there owes: it excludes the
+  andelshaver's portion of the association's own mortgage, which is charged
+  against the building.
+- There is **no sale price for a share**. Do not reach through the join to
+  `ejendomme.seneste_salg_*` and present it as the flat's — it is the
+  building's own sale, identical for every flat in the block.
+
+See `reference/data-model.md` for the joins and the rest of the traps.
 
 If the user does not want to log in, carry on and say plainly which parts of
 the answer are unavailable without it.

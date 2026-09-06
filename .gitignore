@@ -39,3 +39,8 @@ dist/
 
 # misc
 .DS_Store
+
+# coverage, which is a build artefact and not a record of anything
+.coverage
+.coverage.*
+htmlcov/

@@ -63,6 +63,15 @@ TABLES = {
     "laantype_estimat was matched against, kept so an estimate can be checked.",
     "attester": "The property's whole register document, as signed and as "
     "queryable JSON. Needs a MitID login.",
+    "andele": "One row per co-op share, from the andelsboligbog - a different "
+    "book about a different thing. An andel is not real property, so it has "
+    "no valuation, no matrikel and no area of its own; ejendom_uuid points at "
+    "the association's building in the tingbog, which is where all of that is.",
+    "andel_haeftelser": "Charges registered against one share. The same fields "
+    "the tingbog uses for a property's mortgages, under a different key.",
+    "andel_meddelelser": "Notices noted on a share - a death, a bankruptcy, a "
+    "court removing the andelshaver's power to dispose of it. The only place "
+    "this book names anyone other than a creditor.",
 }
 
 # Columns worth a word of warning, because they are not what they look like.
@@ -92,6 +101,23 @@ NOTES = {
     ("attester", "dokument"): "the bytes the register signed",
     ("attester", "dokument_json"): "the same content as queryable JSON, with "
     "the namespace prefixes dropped",
+    ("andele", "uuid"): "the andelsboligbog's own uuid - a different register "
+    "from ejendomme.uuid, and the two namespaces never mix",
+    ("andele", "ejendom_uuid"): "the association's building in the tingbog, "
+    "when the same lookup found exactly one. Empty otherwise",
+    ("andele", "samlet_gaeld_dkk"): "DERIVED: sum of what is charged against "
+    "this share alone. NOT what living there owes - an andelshaver also owes "
+    "a share of the association's own mortgage, which is against the building "
+    "in the tingbog and is nowhere in this table",
+    ("andele", "boligareal_m2"): "BBR living area, from Boligsiden. The book "
+    "records no area at all",
+    ("andele", "boligtype"): "Boligsiden's word for it; reads 'cooperative' "
+    "for a share",
+    ("andel_meddelelser", "debitorer"): "the andelshaver the notice concerns. "
+    "The andelsboligbog has no owner register, so this is the nearest it comes "
+    "to naming who lives there",
+    ("andel_meddelelser", "disponenter"): "whoever may act for them - an "
+    "executor, a trustee",
 }
 
 # How the tables relate. DuckDB cannot add a foreign key to an existing table,
@@ -107,6 +133,9 @@ REFS = [
     ("underpant", "ejendom_uuid", "ejendomme", "uuid", ">"),
     ("attester", "ejendom_uuid", "ejendomme", "uuid", "-"),
     ("underpant", "haeftelse_uuid", "haeftelser", "dokument_uuid", ">"),
+    ("andele", "ejendom_uuid", "ejendomme", "uuid", ">"),
+    ("andel_haeftelser", "andel_uuid", "andele", "uuid", ">"),
+    ("andel_meddelelser", "andel_uuid", "andele", "uuid", ">"),
 ]
 
 # Relationships DBML cannot state in one line, because the target depends on a

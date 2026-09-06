@@ -292,7 +292,7 @@ AnalysisScreen {
 
 /* ── property ────────────────────────────────────────────────────────── */
 
-#property-title {
+#property-title, #andel-title {
     width: 100%;
     height: auto;
     padding: 0 2;
@@ -308,7 +308,7 @@ Underline > .underline--bar { color: $primary 40%; }
 Tab.-active { color: $text; text-style: bold; }
 Tab:hover { color: $secondary; }
 
-#overview, #bygning {
+#overview, #bygning, #andel-overview {
     height: 1fr;
     padding: 1 2;
 }
@@ -496,6 +496,47 @@ NavTabs Underline > .underline--bar {
 }
 
 #buildings-scope {
+    width: 100%;
+    height: auto;
+    padding: 0 2 1 2;
+    background: $panel;
+    color: $text-muted;
+    border-bottom: solid $primary 20%;
+}
+
+/* ── andele ──────────────────────────────────────────────────────────── */
+
+/* The same bar as bygninger. Sharing the rules rather than copying them is
+   what stops the two tabs drifting apart a pixel at a time. */
+#andele-bar {
+    width: 100%;
+    height: auto;
+    min-height: 3;
+    padding: 0 1;
+    background: $panel;
+}
+
+#andele-filter-label {
+    width: auto;
+    padding: 1 1 0 0;
+    color: $primary;
+    text-style: bold;
+}
+
+#andele-bar Input {
+    width: 1fr;
+    margin: 0 1 0 0;
+}
+
+#andele-count {
+    width: auto;
+    min-width: 16;
+    padding: 1 1 0 1;
+    color: $text-muted;
+    content-align: right middle;
+}
+
+#andele-scope {
     width: 100%;
     height: auto;
     padding: 0 2 1 2;

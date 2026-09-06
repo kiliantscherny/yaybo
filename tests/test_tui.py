@@ -180,6 +180,52 @@ SAMPLE = {
             "dokument_json": '{"ejendom": "ingenting"}',
         }
     ],
+    # The other book. Joined to the property above, the way a co-op flat joins
+    # to the building its association owns.
+    "andele": [
+        {
+            "uuid": "a1",
+            "adresse": "Prøvegade 1, ST. TH, 9999 Prøveby",
+            "lejlighed": "ST. TH",
+            "kommunekode": "0999",
+            "vejkode": "1234",
+            "ejendom_uuid": "u1",
+            "bygning_adresse": "Prøvegade 1, 9999 Prøveby",
+            "antal_haeftelser": 1,
+            "samlet_gaeld_dkk": 1500000,
+            "boligtype": "cooperative",
+            "boligareal_m2": 77,
+            "til_salg": "false",
+        }
+    ],
+    "andel_meddelelser": [
+        {
+            "andel_uuid": "a1",
+            "dato_loebenummer": "11.03.2024-1000000009",
+            "adresse": "Prøvegade 1, ST. TH, 9999 Prøveby",
+            "prioritet": 1,
+            "dokumenttype": "Konkursdekret",
+            "afgoerelsesdato": "2024-03-11",
+            "debitorer": "Ida Testesen",
+            "disponenter": "Kurator Prøvesen",
+            "tillaegstekst": "Skifteretten har noteret konkurs.",
+        }
+    ],
+    "andel_haeftelser": [
+        {
+            "andel_uuid": "a1",
+            "dokument_uuid": "ad1",
+            "dokument_version": "1",
+            "adresse": "Prøvegade 1, ST. TH, 9999 Prøveby",
+            "dato_loebenummer": "04.03.2024-1000000001",
+            "prioritet": 1,
+            "dokumenttype": "Ejerpantebrev",
+            "hovedstol": "1.500.000 DKK",
+            "hovedstol_dkk": "1.500.000 DKK",
+            "rentetype": "variabel",
+            "kreditorer": "Ida Testesen",
+        }
+    ],
 }
 
 
@@ -225,6 +271,10 @@ def test_exports_every_format(database, tmp_path):
     filled = [name for name, rows in tables.items() if rows]
     assert len(written) == len(filled)
     assert all(path.exists() for path in written)
+    # The second register travels with the rest rather than being a TUI-only
+    # view of the database.
+    assert {"andele", "andel_haeftelser"} <= set(filled)
+    assert any("andel_haeftelser" in path.name for path in written)
 
 
 def test_every_screen_opens(database):
@@ -731,6 +781,252 @@ def test_the_figures_open_over_whatever_is_in_scope(library):
     asyncio.run(walk())
 
 
+def test_the_andele_screen_shows_the_other_book(database):
+    """A share is not a property, and the screen for it reads a different table.
+
+    Also the join: what makes a co-op flat worth looking up is the building
+    the association owns, and the row has to be able to name it.
+    """
+    from textual.widgets import DataTable
+
+    from yaybo.app import YayboApp
+    from yaybo.screens.andele import AndeleScreen
+    from yaybo.screens.library import LibraryScreen
+
+    async def walk() -> None:
+        app = YayboApp(database=database)
+        async with app.run_test(size=(160, 48)) as pilot:
+            await pilot.pause()
+            # The share is not in the properties list: different book.
+            assert isinstance(app.screen, LibraryScreen)
+            assert [row["uuid"] for row in app.screen.shown] == ["u1"]
+
+            app.action_andele()
+            await pilot.pause(0.5)
+            assert isinstance(app.screen, AndeleScreen)
+            assert len(app.screen.shown) == 1
+            share = app.screen.shown[0]
+            assert share["uuid"] == "a1"
+            assert share["lejlighed"] == "ST. TH"
+            # Joined out to the association's property, which is where the
+            # valuation and the association's own mortgages are.
+            assert share["ejendom_uuid"] == "u1"
+            assert share["bygning"] == "Prøvegade 1, 1. tv, 9999 Prøveby"
+
+            table = app.screen.query_one("#andele-table", DataTable)
+            assert table.row_count == 1
+
+            # Filtering is on the address, like everywhere else.
+            app.screen._apply_filter("ST. TH")
+            await pilot.pause()
+            assert len(app.screen.shown) == 1
+            app.screen._apply_filter("nowhere at all")
+            await pilot.pause()
+            assert app.screen.shown == []
+
+    asyncio.run(walk())
+
+
+def test_enter_on_an_andel_opens_it_and_names_who_is_on_its_charges(database):
+    """The list counts a share's charges without showing them, so everyone
+    named on one was unreachable until enter led somewhere.
+
+    Driven with a keypress rather than by calling the action, because the bug
+    was that the binding existed and did nothing: a focused DataTable takes
+    enter for itself and answers with RowSelected.
+    """
+    from textual.widgets import DataTable, TabbedContent
+
+    from yaybo.app import YayboApp
+    from yaybo.screens.andel import AndelScreen
+    from yaybo.screens.andele import AndeleScreen
+
+    async def walk() -> None:
+        app = YayboApp(database=database)
+        async with app.run_test(size=(180, 50)) as pilot:
+            await pilot.pause()
+            app.action_andele()
+            await pilot.pause(0.5)
+            assert isinstance(app.screen, AndeleScreen)
+
+            await pilot.press("enter")
+            await pilot.pause(0.8)
+            assert isinstance(app.screen, AndelScreen), "enter did nothing"
+
+            screen = app.screen
+            charges = screen.query_one("#table-andel-haeftelser", DataTable)
+            notices = screen.query_one("#table-andel-meddelelser", DataTable)
+            assert charges.row_count == 1
+            assert notices.row_count == 1
+            # The names are the point of the screen.
+            assert screen.tables["andel_haeftelser"][0]["kreditorer"]
+            assert screen.tables["andel_meddelelser"][0]["debitorer"]
+
+            # An empty tab has to be empty on purpose rather than broken.
+            tabs = screen.query_one("#andel-tabs", TabbedContent)
+            assert "1" in str(tabs.get_tab("tab-andel-haeftelser").label)
+
+            await pilot.press("escape")
+            await pilot.pause(0.5)
+            assert isinstance(app.screen, AndeleScreen)
+
+    asyncio.run(walk())
+
+
+def test_g_from_an_andel_goes_to_its_building(database):
+    """b is the queue everywhere else, so the building is on g - which is
+    Bygninger globally, narrowed here to this share's own."""
+    from yaybo.app import YayboApp
+    from yaybo.screens.andele import AndeleScreen
+    from yaybo.screens.library import LibraryScreen
+
+    async def walk() -> None:
+        app = YayboApp(database=database)
+        async with app.run_test(size=(180, 50)) as pilot:
+            await pilot.pause()
+            app.action_andele()
+            await pilot.pause(0.5)
+            assert isinstance(app.screen, AndeleScreen)
+            await pilot.press("g")
+            await pilot.pause(0.8)
+            # The association's property, on the properties tab, narrowed to it.
+            assert isinstance(app.screen, LibraryScreen)
+            assert len(app.screen.shown) == 1
+            assert app.screen.shown[0]["uuid"] == "u1"
+
+    asyncio.run(walk())
+
+
+def test_re_fetching_an_andel_asks_for_two_properties_not_one(database):
+    """An andel's address resolves to the share and to the association's
+    building, so a cap of one would drop the property row it joins to.
+
+    Auto-fetch is turned off first, so the queue parks the job instead of
+    running it - the assertion is about what was queued, not about fetching.
+    """
+    from yaybo.app import YayboApp
+    from yaybo.screens.andele import AndeleScreen
+
+    async def walk() -> None:
+        app = YayboApp(database=database)
+        async with app.run_test(size=(180, 50)) as pilot:
+            await pilot.pause()
+            app.fetching.auto = False
+            app.action_andele()
+            await pilot.pause(0.5)
+            assert isinstance(app.screen, AndeleScreen)
+
+            await pilot.press("f")
+            await pilot.pause(0.3)
+            assert len(app.fetching.jobs) == 1
+            job = app.fetching.jobs[0]
+            assert job.limit == 2, "a share and its building, not just the first"
+            assert "ST. TH" in job.query
+
+    asyncio.run(walk())
+
+
+def test_the_andele_filter_box_takes_and_gives_back_focus(database):
+    from textual.widgets import DataTable, Input
+
+    from yaybo.app import YayboApp
+    from yaybo.screens.andele import AndeleScreen
+
+    async def walk() -> None:
+        app = YayboApp(database=database)
+        async with app.run_test(size=(180, 50)) as pilot:
+            await pilot.pause()
+            app.action_andele()
+            await pilot.pause(0.5)
+            screen = app.screen
+            assert isinstance(screen, AndeleScreen)
+
+            await pilot.press("ctrl+f")
+            await pilot.pause(0.2)
+            box = screen.query_one("#andele-filter", Input)
+            assert box.has_focus
+
+            box.value = "ST. TH"
+            await pilot.pause(0.2)
+            assert len(screen.shown) == 1
+
+            # Escape clears first, and only then hands focus back.
+            await pilot.press("escape")
+            await pilot.pause(0.2)
+            assert box.value == ""
+            await pilot.press("escape")
+            await pilot.pause(0.2)
+            assert screen.query_one("#andele-table", DataTable).has_focus
+
+    asyncio.run(walk())
+
+
+def test_a_database_without_the_second_book_still_opens_the_tab(library):
+    """Every database written before this existed, and any fetched with
+    --no-andele, has no andele table at all."""
+    from yaybo.app import YayboApp
+    from yaybo.screens.andele import AndeleScreen
+
+    assert store.andele(library) == []
+
+    async def walk() -> None:
+        app = YayboApp(database=library)
+        async with app.run_test(size=(160, 48)) as pilot:
+            # Let the app finish mounting its first screen before navigating.
+            # Switching screens mid-mount races the widgets the Library is
+            # still composing, and the failure surfaces somewhere else
+            # entirely - in Header, or in Tabs - which is a hard bug to read.
+            await pilot.pause()
+            app.action_andele()
+            await pilot.pause(0.5)
+            assert isinstance(app.screen, AndeleScreen)
+            assert app.screen.shown == []
+
+    asyncio.run(walk())
+
+
+def test_the_andele_tab_opens_on_a_database_from_before_a_column_existed(tmp_path,
+                                                                         monkeypatch):
+    """The reported failure went through the screen, so the walk does too.
+
+    A table only gains a column when something is next saved into it, so an
+    andel fetched before the column existed leaves the screen reading a table
+    that is a version behind.
+    """
+    import duckdb
+    from textual.widgets import DataTable
+
+    from yaybo.app import YayboApp
+    from yaybo.screens.andele import AndeleScreen
+
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
+    path = tmp_path / "older.duckdb"
+    with duckdb.connect(str(path)) as db:
+        db.execute(
+            'CREATE TABLE "andele" ("uuid" VARCHAR, "adresse" VARCHAR, '
+            '"lejlighed" VARCHAR, "antal_haeftelser" BIGINT, '
+            '"samlet_gaeld_dkk" BIGINT, "hentet" TIMESTAMP)'
+        )
+        db.execute(
+            "INSERT INTO andele VALUES ('a1', 'Prøvegade 1, ST. TH, 9999 Prøveby',"
+            " 'ST. TH', 1, 1500000, now())"
+        )
+
+    async def walk() -> None:
+        app = YayboApp(database=path)
+        async with app.run_test(size=(160, 48)) as pilot:
+            await pilot.pause()          # mount first, then navigate
+            app.action_andele()
+            await pilot.pause(0.5)
+            assert isinstance(app.screen, AndeleScreen)
+            # The row draws, with the columns it has and dashes for the rest.
+            assert len(app.screen.shown) == 1
+            table = app.screen.query_one("#andele-table", DataTable)
+            assert table.row_count == 1
+
+    asyncio.run(walk())
+
+
 def test_every_tab_names_a_place_that_exists(library):
     """The nav bar is only useful if each tab actually goes somewhere."""
     from yaybo.app import YayboApp
@@ -745,6 +1041,37 @@ def test_every_tab_names_a_place_that_exists(library):
                 await pilot.pause(0.5)
                 tabs = app.screen.query_one(NavTabs)
                 assert tabs.active == key, f"{action} should sit on the {key} tab"
+
+    asyncio.run(walk())
+
+
+def test_activating_another_tab_navigates(library):
+    """The other half of the tab bar: it marks where you are, and going
+    somewhere else takes you there.
+
+    test_every_tab_names_a_place_that_exists covers the marking. This covers
+    the handler, which is guarded against the activation a Tabs raises for its
+    own tab on mount and could swallow a real one by mistake.
+    """
+    from yaybo.app import YayboApp
+    from yaybo.screens.andele import AndeleScreen
+    from yaybo.screens.queue import QueueScreen
+    from yaybo.widgets.nav import NavTabs
+
+    async def walk() -> None:
+        app = YayboApp(database=library)
+        async with app.run_test(size=(160, 48)) as pilot:
+            await pilot.pause(0.3)
+            app.action_andele()
+            await pilot.pause(0.5)
+            assert isinstance(app.screen, AndeleScreen)
+
+            tabs = app.screen.query_one(NavTabs)
+            assert tabs.active == "andele"
+
+            tabs.active = "koe"
+            await pilot.pause(0.5)
+            assert isinstance(app.screen, QueueScreen)
 
     asyncio.run(walk())
 

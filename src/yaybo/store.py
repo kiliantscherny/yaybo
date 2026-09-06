@@ -232,6 +232,116 @@ TABLES: dict[str, TableSpec] = {
             ("panthavere", TEXT),
         ],
     },
+    # The second book. An andel is not real property, so it is not an
+    # ejendom: the association owns the building - one row in `ejendomme`
+    # however many doors it has - and an andelshaver owns a share in the
+    # association carrying the right to one flat. Every column an ejendom has
+    # because it is real property - the valuation, the matrikel, the BFE
+    # number, the tinglyste areal - has no counterpart here at all, which is
+    # why these are their own tables rather than rows in those.
+    #
+    # There is no `beriget` here as there is on `ejendomme`. Only the public
+    # book is read, and it answers a logged-in session exactly as it answers
+    # nobody, so an andel row is never the thinner of two possible readings.
+    "andele": {
+        "key": "uuid",
+        "pk": ["uuid"],
+        "columns": [
+            # The andelsboligbog's own uuid, from a different register than
+            # ejendomme.uuid. The two namespaces never mix.
+            ("uuid", TEXT),
+            ("adresse", TEXT),
+            ("lejlighed", TEXT),
+            # How the book addresses a flat, and the only key its own search
+            # by municipality accepts.
+            ("kommunekode", TEXT),
+            ("vejkode", TEXT),
+            # The association's property in the tingbog, when the same lookup
+            # found it. This is what joins an andel to the building it is in,
+            # and through it to the association's own mortgages and easements.
+            ("ejendom_uuid", TEXT),
+            ("bygning_adresse", TEXT),
+            ("antal_haeftelser", INTEGER),
+            ("antal_meddelelser", INTEGER),
+            # What is charged against this share alone. Not what the flat
+            # owes: an andelshaver also owes a share of the association's own
+            # mortgage, which is registered against the building in the
+            # tingbog and is nowhere in this table.
+            ("samlet_gaeld_dkk", INTEGER),
+            # Boligsiden, keyed on DAWA's address uuid. The book says nothing
+            # whatever about the flat itself, so without this an andel is an
+            # address and a debt and no more. Its boligtype reads
+            # "cooperative", which is a second opinion on what this is.
+            ("adresse_uuid", TEXT),
+            ("boligtype", TEXT),
+            ("boligareal_m2", INTEGER),
+            ("boligsiden_vurdering_dkk", INTEGER),
+            ("til_salg", BOOLEAN),
+            ("boligsiden_url", TEXT),
+            ("breddegrad", DECIMAL),
+            ("laengdegrad", DECIMAL),
+            # No seneste_salg_* here, though Boligsiden offers one. A share is
+            # not sold as real property, so the only transfer ever recorded at
+            # a co-op address is the building's own sale to the association -
+            # the same date and amount on every door in the block, divided by
+            # each flat's area into a price per square metre that means
+            # nothing. That sale is a fact about the building, and is already
+            # stored as one on the ejendomme row this andel joins to.
+        ],
+    },
+    # Notices noted on a share, which is the only place this book names anyone
+    # other than a creditor. They are the register recording that something has
+    # happened to the andelshaver rather than to the andel: a death, a
+    # bankruptcy, a gældssanering, a court removing their power to dispose of
+    # it. Hence the two lists of names - the debtor the notice concerns, and
+    # whoever may act for them.
+    #
+    # Read from the labels and bindings of the register's own public view of a
+    # share rather than from an observed payload: none of the andele sampled
+    # while writing this had a notice on them, which is what one would hope.
+    # Every field is therefore optional and absent means absent.
+    "andel_meddelelser": {
+        "key": "andel_uuid",
+        # No document uuid to key on the way a charge has: the view reads only
+        # the date and serial, which identifies one registration.
+        "pk": ["andel_uuid", "dato_loebenummer"],
+        "columns": [
+            ("andel_uuid", TEXT),
+            ("dato_loebenummer", TEXT),
+            ("adresse", TEXT),
+            ("prioritet", INTEGER),
+            ("dokumenttype", TEXT),
+            ("afgoerelsesdato", DATE),
+            ("debitorer", TEXT),
+            ("disponenter", TEXT),
+            ("tillaegstekst", TEXT),
+            ("dokument_uuid", TEXT),
+            ("dokument_version", TEXT),
+        ],
+    },
+    # Charges registered against one share. The book states these in exactly
+    # the fields the tingbog uses for a property's mortgages, so these columns
+    # are the public half of `haeftelser` under a different key - and only
+    # that half, because there is no andel counterpart to the attest the
+    # logged-in columns are read out of.
+    "andel_haeftelser": {
+        "key": "andel_uuid",
+        "pk": ["andel_uuid", "dokument_uuid", "dokument_version"],
+        "columns": [
+            ("andel_uuid", TEXT),
+            ("dokument_uuid", TEXT),
+            ("dokument_version", TEXT),
+            ("adresse", TEXT),
+            ("dato_loebenummer", TEXT),
+            ("prioritet", INTEGER),
+            ("dokumenttype", TEXT),
+            ("hovedstol", TEXT),
+            ("hovedstol_dkk", INTEGER),
+            ("rentetype", TEXT),
+            ("rentesats_pct", DECIMAL),
+            ("kreditorer", TEXT),
+        ],
+    },
     # Every recorded sale of the address, from Boligsiden. This overlaps
     # adkomsthistorik and does not replace it: the register knows transfers
     # that were never a sale, and Boligsiden knows the area and the price per
@@ -663,6 +773,68 @@ def library(path: str | Path) -> list[dict]:
         )
 
 
+def andele(path: str | Path) -> list[dict]:
+    """One row per co-op share held, with enough on it to choose from a list.
+
+    Joined out to the association's property wherever one was found, because
+    nearly everything a share does not have is on that row: the block's public
+    valuation, the association's own mortgages, its easements. On its own a
+    share is an address, an area and a debt, and the join is what makes the
+    first of those mean anything.
+    """
+    with _reading(path) as db:
+        if db is None:
+            return []
+        held = {row[0] for row in db.execute("SHOW TABLES").fetchall()}
+        if "andele" not in held:
+            return []
+        # Named columns rather than a star, so every column a database is
+        # missing is asked for by name and answered with NULL. A table only
+        # gains a column when something is next saved into it, and reading is
+        # not writing - opening a screen must not depend on having fetched
+        # since the column was added. This is a young table and will gain more,
+        # so the whole list is checked rather than the newest of them.
+        present = {row[0] for row in db.execute("DESCRIBE andele").fetchall()}
+
+        def column(name: str) -> str:
+            return f'a."{name}"' if name in present else f'NULL AS "{name}"'
+
+        # A database fetched with --no-andele, or written before either table
+        # existed, still has to open.
+        building = "LEFT JOIN ejendomme e ON e.uuid = a.ejendom_uuid"
+        columns = (
+            "e.adresse AS bygning, e.ejendomsvurdering_dkk AS bygning_vurdering_dkk,"
+            " e.samlet_gaeld_dkk AS bygning_gaeld_dkk,"
+        )
+        if "ejendomme" not in held:
+            building = ""
+            fallback = (
+                'a."bygning_adresse"' if "bygning_adresse" in present else "NULL"
+            )
+            columns = (
+                f"{fallback} AS bygning, NULL AS bygning_vurdering_dkk,"
+                " NULL AS bygning_gaeld_dkk,"
+            )
+        wanted = (
+            "uuid", "adresse", "lejlighed", "boligtype", "boligareal_m2",
+            "samlet_gaeld_dkk", "antal_haeftelser", "antal_meddelelser",
+            "til_salg", "boligsiden_url", "ejendom_uuid", "bygning_adresse",
+            "kommunekode", "vejkode", "breddegrad", "laengdegrad",
+        )
+        picked = ", ".join(column(name) for name in wanted)
+        return _rows(
+            db,
+            f"""
+            SELECT {picked},
+                   {columns}
+                   a."{FETCHED}" AS hentet
+            FROM andele a
+            {building}
+            ORDER BY a."{FETCHED}" DESC NULLS LAST, a.adresse
+            """,
+        )
+
+
 def property_tables(path: str | Path, uuid: str) -> dict[str, list[dict]]:
     """Every row in the database belonging to one property.
 
@@ -679,6 +851,29 @@ def property_tables(path: str | Path, uuid: str) -> dict[str, list[dict]]:
             if name not in held or spec["key"] not in ("uuid", "ejendom_uuid"):
                 continue
             rows = _rows(db, f'SELECT * FROM "{name}" WHERE "{spec["key"]}" = ?', uuid)
+            if rows:
+                found[name] = rows
+    return found
+
+
+def andel_tables(path: str | Path, uuid: str) -> dict[str, list[dict]]:
+    """Every row in the database belonging to one co-op share.
+
+    property_tables' counterpart for the other book, and a separate function
+    because the keys are different: `andele` is keyed on its own uuid and
+    everything hanging off it on andel_uuid, and neither is the ejendom_uuid
+    the property tables all join on.
+    """
+    found: dict[str, list[dict]] = {}
+    with _reading(path) as db:
+        if db is None:
+            return {}
+        held = {row[0] for row in db.execute("SHOW TABLES").fetchall()}
+        for name in ("andele", "andel_haeftelser", "andel_meddelelser"):
+            if name not in held:
+                continue
+            key = TABLES[name]["key"]
+            rows = _rows(db, f'SELECT * FROM "{name}" WHERE "{key}" = ?', uuid)
             if rows:
                 found[name] = rows
     return found

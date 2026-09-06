@@ -41,6 +41,7 @@ Takes one or more addresses, pauses between them, and writes into
 | `--out PATH` | — | explicit output path; only valid with **one** address |
 | `--anonymous` | — | ignore any cached session, public lookup only |
 | `--login` | — | log in with MitID first (interactive — avoid) |
+| `--no-andele` | — | skip the andelsboligbog; co-op blocks then give only the association's property |
 | `--no-boligsiden` | — | skip sale prices, BBR data and the equity columns |
 | `--no-laantype` | — | skip estimating loan types from DST rates |
 | `--no-dawa` | — | skip DAWA address cleaning |
@@ -149,6 +150,10 @@ the people named on them, previous owners — with **no login and no requests to
 the register**. Run it after upgrading yaybo, when a parser has improved.
 
 `--skip-boligsiden --skip-laantype` makes it fully offline.
+
+It does **not** rebuild `andele` or `andel_haeftelser`, and does not touch
+them. The andelsboligbog stores no signed document for a share, so there is
+nothing to re-derive them from — re-fetching the address is the only way.
 
 It also gives older databases their primary keys, which is why it is the fix
 when a table reports as unkeyed.

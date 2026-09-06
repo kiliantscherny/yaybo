@@ -14,6 +14,7 @@ duckdb -readonly out/tinglysning.duckdb -c "SELECT ..."
 - Mortgages and loan types
 - People (needs a login)
 - Buildings
+- Andelsboliger
 - Inside the signed document
 - Exporting a result
 
@@ -27,7 +28,17 @@ UNION ALL SELECT 'servitutter', count(*) FROM servitutter
 UNION ALL SELECT 'dokument_parter', count(*) FROM dokument_parter
 UNION ALL SELECT 'handelshistorik', count(*) FROM handelshistorik
 UNION ALL SELECT 'bygninger', count(*) FROM bygninger
-UNION ALL SELECT 'adkomsthistorik', count(*) FROM adkomsthistorik;
+UNION ALL SELECT 'adkomsthistorik', count(*) FROM adkomsthistorik
+UNION ALL SELECT 'andele', count(*) FROM andele
+UNION ALL SELECT 'andel_haeftelser', count(*) FROM andel_haeftelser
+UNION ALL SELECT 'andel_meddelelser', count(*) FROM andel_meddelelser;
+```
+
+`andele` and `andel_haeftelser` may not exist at all in a database written
+before they did, or fetched with `--no-andele`. Check before querying them:
+
+```sql
+SELECT table_name FROM duckdb_tables() WHERE table_name LIKE 'andel%';
 ```
 
 How much was fetched with a login, and how stale it is:
@@ -236,6 +247,92 @@ SELECT e.adresse, e.boligareal_m2 AS bbr_m2, e.areal_m2 AS tinglyst_m2,
 FROM ejendomme e
 LEFT JOIN bygninger b ON b.ejendom_uuid = e.uuid
 ORDER BY b.opfoerelsesaar NULLS LAST;
+```
+
+## Andelsboliger
+
+A co-op share and the building its association owns are rows in two different
+registers. This is the join, and the honest version of "what does this flat
+owe":
+
+```sql
+SELECT a.adresse,
+       a.boligareal_m2,
+       a.antal_haeftelser,
+       a.samlet_gaeld_dkk        AS paa_andelen,
+       e.adresse                 AS foreningens_ejendom,
+       e.samlet_gaeld_dkk        AS paa_bygningen,
+       e.ejendomsvurdering_dkk   AS bygningens_vurdering
+FROM andele a
+LEFT JOIN ejendomme e ON e.uuid = a.ejendom_uuid
+ORDER BY a.adresse;
+```
+
+`paa_andelen` is what is charged against that one share. `paa_bygningen` is the
+association's own mortgage, which every andelshaver owes a portion of — the
+portion is set by the association's accounts and is in no register, so the two
+columns must not be added together.
+
+What is charged against each share:
+
+```sql
+SELECT a.adresse, h.prioritet, h.dokumenttype, h.hovedstol_dkk,
+       h.rentetype, h.rentesats_pct, h.kreditorer
+FROM andel_haeftelser h
+JOIN andele a ON a.uuid = h.andel_uuid
+ORDER BY a.adresse, h.prioritet;
+```
+
+Debt per square metre across a co-op block — one of the few comparisons this
+data supports, since there are no sale prices to compare:
+
+```sql
+SELECT a.bygning_adresse,
+       count(*)                                        AS andele,
+       round(median(a.boligareal_m2))                  AS median_m2,
+       round(median(a.samlet_gaeld_dkk))               AS median_gaeld,
+       round(median(a.samlet_gaeld_dkk / nullif(a.boligareal_m2, 0))) AS gaeld_pr_m2
+FROM andele a
+WHERE a.boligareal_m2 IS NOT NULL
+GROUP BY 1 HAVING count(*) > 2
+ORDER BY gaeld_pr_m2 DESC;
+```
+
+Shares with nothing registered against them — in the book, but unencumbered.
+Note this is not every unencumbered flat: one that has never had a charge is
+absent from the book entirely rather than present with zero.
+
+```sql
+SELECT adresse, boligareal_m2, hentet
+FROM andele WHERE antal_haeftelser = 0 ORDER BY adresse;
+```
+
+Who the book names. There is no owner of record, so this is as close as it
+gets — and the two halves mean different things:
+
+```sql
+-- The creditor on an ejerpantebrev is the owner issuing to themselves, so
+-- this usually names the andelshaver. It is an inference from dokumenttype,
+-- not the register naming an owner.
+SELECT a.adresse, h.dokumenttype, h.kreditorer
+FROM andel_haeftelser h
+JOIN andele a ON a.uuid = h.andel_uuid
+WHERE h.dokumenttype = 'Ejerpantebrev'
+ORDER BY a.adresse;
+
+-- A notice names them outright, but only exists when something has happened
+-- to them: a death, a bankruptcy, a court removing their power to dispose.
+SELECT a.adresse, m.dokumenttype, m.afgoerelsesdato, m.debitorer, m.disponenter
+FROM andel_meddelelser m
+JOIN andele a ON a.uuid = m.andel_uuid
+ORDER BY m.afgoerelsesdato DESC;
+```
+
+Which co-op buildings are held, and how much of each:
+
+```sql
+SELECT bygning_adresse, count(*) AS andele, max(hentet) AS senest
+FROM andele GROUP BY 1 ORDER BY andele DESC;
 ```
 
 ## Inside the signed document

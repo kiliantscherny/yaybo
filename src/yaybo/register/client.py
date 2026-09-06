@@ -7,9 +7,21 @@ so the whole public half of it works from plain Python.
 It shows more of itself to someone who has proved who they are. A logged-in
 session (see yaybo.auth) reaches a second, richer copy of the same register:
 
-    unsecrest/ejendomsoeg/soeg          rest/ejendom/adresse
-    unsecrest/ejendomsoeg/henttingbog   rest/ejdsummarisk
-    (nothing public)                    rest/ejdhistoriskadkomst
+    unsecrest/ejendomsoeg/soeg              rest/ejendom/adresse
+    unsecrest/ejendomsoeg/henttingbog       rest/ejdsummarisk
+    (nothing public)                        rest/ejdhistoriskadkomst
+
+The register is four books, not one, and the second of them is here too. The
+andelsboligbog holds co-op shares, and answers the same shapes on its own pair
+of endpoints:
+
+    unsecrest/andelsoeg/soeg                rest/andelsbolig/postnummervej
+    unsecrest/andelsoeg/hentandelsboligbog  rest/andelsbolig/andelsbolig
+
+Only the public pair is used. The secured one is reached by the site's own
+front end and takes the same address, so it is presumably the richer copy
+again - most likely naming the debtor on a charge, as the tingbog's attest
+does - but that is untested and nothing here depends on it.
 
 Note this says who *owns* a property, not who lives there. Resident data
 (CPR/folkeregisteret) is not public in Denmark, with or without a login.
@@ -30,6 +42,12 @@ from yaybo.register.fields import normalise
 BASE = "https://www.tinglysning.dk"
 UNSEC = f"{BASE}/tinglysning/unsecrest"
 SEC = f"{BASE}/tinglysning/rest"
+
+# What the register calls each of its books. Every search result carries one
+# of these in its `bog` field, which is the only thing distinguishing an
+# answer about a property from an answer about a co-op share.
+TINGBOG = "Tingbog"
+ANDELSBOG = "Andelsboligbog"
 
 # These endpoints answer with `content-type: application/javascript`, so an
 # exact `Accept: application/json` is refused with 406. Ask for anything.
@@ -228,6 +246,51 @@ class Tinglysning:
             if found:
                 return found
         return (self._get("ejendomsoeg/soeg", query) or {}).get("items") or []
+
+    def find_andele(self, address: dict) -> list[dict]:
+        """List every co-op share the andelsboligbog holds in a building.
+
+        The same question as find_units, asked of the other book, and the two
+        answers are not alternatives. The tingbog registers real property, so a
+        co-op block is one property there - the association's - however many
+        doors it has. This book registers the shares, so the same block is one
+        entry per flat. Answers arrive in the same {uuid, adresse, bog} shape,
+        and `bog` is what tells the two apart afterwards.
+
+        Searched at building level like find_units, though for the opposite
+        reason. There, floor and door are useless because the register holds
+        nothing below the building; here they would narrow correctly, and are
+        still left off because one request then answers for every flat in the
+        block. select_units does the narrowing against what came back.
+
+        A share only enters this book once something has been registered
+        against it, so a flat missing from the answer is not evidence that it
+        is not an andel - only that nobody has borrowed against it.
+        """
+        query = {
+            "postnummer": address["postnummer"],
+            "vejnavn": address["vejnavn"],
+            "husnummer": address.get("husnummer", ""),
+        }
+        return (self._get("andelsoeg/soeg", query) or {}).get("items") or []
+
+    def fetch_andel(self, uuid: str) -> dict:
+        """One share's page of the andelsboligbog.
+
+        Much less than a tingbog record, and the shortfall belongs to the
+        register rather than to this route: a share has no valuation, no
+        matrikel, no registered area and no easements, because a share is not
+        land and none of those are things it can have. What it does have is an
+        address, whatever is charged against it and any notices - and the
+        charges arrive in exactly the fields a property's do, which is why
+        they can be read by the same code.
+        """
+        record = self._get(f"andelsoeg/hentandelsboligbog/{uuid}") or {}
+        if record.get("statuskode"):  # 0 means OK
+            raise RuntimeError(
+                f"{uuid}: {record.get('statustekst') or record['statuskode']}"
+            )
+        return record
 
     def fetch_record(self, uuid: str) -> dict:
         record = self._get(f"ejendomsoeg/henttingbog/{uuid}") or {}

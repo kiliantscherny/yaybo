@@ -183,7 +183,9 @@ requests to the register. Run it after upgrading, when a reader has improved.
 
 ## The data
 
-One DuckDB file, twelve tables, keyed on the property.
+One DuckDB file, fourteen tables. Twelve of them are keyed on the property;
+the other two are the andelsboligbog, which is a different register about a
+different thing – see [Andelsboliger](#andelsboliger) below.
 
 ```mermaid
 erDiagram
@@ -199,6 +201,9 @@ erDiagram
     haeftelser ||--o{ dokument_parter : names
     servitutter ||--o{ dokument_parter : names
     adkomsthistorik ||--o{ adkomsthistorik_ejere : names
+    ejendomme ||--o{ andele : "shares in"
+    andele ||--o{ andel_haeftelser : "charged with"
+    andele ||--o{ andel_meddelelser : "noted on"
 
     ejendomme {
         varchar uuid PK
@@ -284,6 +289,27 @@ erDiagram
         varchar laantype
         double effektiv_rente_pct
     }
+    andele {
+        varchar uuid PK "andelsboligbogen"
+        varchar adresse
+        varchar ejendom_uuid FK "the association's building"
+        bigint boligareal_m2 "Boligsiden; the book records none"
+        bigint samlet_gaeld_dkk "derived: this share only"
+    }
+    andel_haeftelser {
+        varchar andel_uuid PK, FK
+        varchar dokument_uuid PK
+        varchar dokument_version PK
+        varchar dokumenttype
+        bigint hovedstol_dkk
+    }
+    andel_meddelelser {
+        varchar andel_uuid PK, FK
+        varchar dato_loebenummer PK
+        varchar dokumenttype
+        varchar debitorer "the andelshaver"
+        varchar disponenter "who may act for them"
+    }
 ```
 
 | table | one row per | needs login |
@@ -300,6 +326,9 @@ erDiagram
 | `adkomsthistorik_ejere` | person named in one of those transfers | **yes** |
 | `attester` | the property's whole register document, signed and as JSON | **yes** |
 | `rentestatistik` | month of DST realkredit rates | no |
+| `andele` | co-op share, from the andelsboligbog | no |
+| `andel_haeftelser` | charge registered against one share | no |
+| `andel_meddelelser` | notice noted on a share: death, bankruptcy, seizure | no |
 
 `rentestatistik` is not about any one property. It is the rate series
 `laantype_estimat` was matched against, kept so an estimate can be checked.
@@ -307,6 +336,72 @@ erDiagram
 The full column-level schema is in [schema.dbml](schema.dbml), generated from
 the code so it cannot fall behind it. Paste it into
 [dbdiagram.io](https://dbdiagram.io) for a browsable diagram.
+
+### Andelsboliger
+
+Tinglysning is four registers, not one, and two of them matter here. The
+**tingbog** records real property. The **andelsboligbog** records shares in
+housing associations, and they disagree about what a co-op building is —
+correctly, in both cases:
+
+- To the tingbog, a co-op block is **one property**, owned by the association,
+  however many doors it has. That is the row in `ejendomme`.
+- To the andelsboligbog, the same block is **one entry per flat**. Those are
+  the rows in `andele`.
+
+Both are fetched, and `andele.ejendom_uuid` joins the second to the first. A
+lookup that finds shares says so: *found 1 property and 10 co-op shares*.
+
+What the second book actually holds is much less than the first. A share is not
+land, so it has **no valuation, no matrikel, no registered area and no
+easements** — only its address, whatever is charged against it, and any
+notices. The area and the coordinates on an `andele` row come from Boligsiden
+rather than the register.
+
+**There is no owner of record.** The andelsboligbog registers rights *over* a
+share, not title *to* one; who holds an andel is the association's record, not
+the register's. Two places name people anyway:
+
+- `andel_haeftelser.kreditorer`. Most charges on a share are an
+  **ejerpantebrev** — a deed the owner issues to *themselves* and then pledges
+  to a bank — so its creditor is in practice the andelshaver. That is an
+  inference from the instrument, not something the register states.
+- `andel_meddelelser.debitorer` and `.disponenter`. A notice is the register
+  recording that something has happened to the andelshaver rather than to the
+  flat: a death, a bankruptcy, a court removing their power to dispose of it.
+  It names them, and whoever may now act for them.
+
+Neither carries a date of birth. Those come from the CPR numbers printed on a
+signed attest, and no attest for a share has been read here — see below.
+
+Three things worth knowing before querying it:
+
+- **A flat missing from `andele` is not evidence it is not an andel.** A share
+  only enters the book once something is registered against it.
+- **`andele.samlet_gaeld_dkk` is not what living there owes.** It totals what
+  is charged against that share alone. An andelshaver also owes their portion
+  of the association's own mortgage, which is registered against the *building*
+  in the tingbog and is nowhere in this table.
+- **There is no sale price for a share, and this deliberately stores none.**
+  Boligsiden reports the building's own sale against every door in the block —
+  the same date and amount on all of them — and divides it by each flat's area
+  into a price per m² that describes nothing. That sale is a fact about the
+  building, and is stored as one, on the `ejendomme` row.
+
+One thing is known to exist and is **not** read here: a logged-in session can
+fetch a signed andelsboligbogsattest (`rest/andelsbolig/...`) and search the
+book by person name and date of birth. By analogy with the tingbog that attest
+would carry parties' CPR-derived birth dates. It is unverified and nothing here
+depends on it.
+
+In the TUI, **Andele** lists the shares held; enter opens one - its charges,
+everyone named on them, and its notices - and `g` opens the association's
+property.
+
+`yaybo fetch --no-andele` skips the second book and behaves as earlier versions
+did. `yaybo backfill` cannot rebuild these two tables — the register stores no
+signed document for a share, so there is nothing to re-derive them from — and
+leaves them untouched.
 
 Every table has a primary key, so a row is identifiable and a re-run replaces
 rather than duplicates. Relationships are drawn above but not enforced: DuckDB

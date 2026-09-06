@@ -181,6 +181,68 @@ Table underpant {
   Note: 'A mortgage deed pledged on in its own right - a charge on a charge.'
 }
 
+Table andele {
+  uuid varchar [pk, note: 'the andelsboligbog\'s own uuid - a different register from ejendomme.uuid, and the two namespaces never mix']
+  adresse varchar
+  lejlighed varchar
+  kommunekode varchar
+  vejkode varchar
+  ejendom_uuid varchar [note: 'the association\'s building in the tingbog, when the same lookup found exactly one. Empty otherwise']
+  bygning_adresse varchar
+  antal_haeftelser bigint
+  antal_meddelelser bigint
+  samlet_gaeld_dkk bigint [note: 'DERIVED: sum of what is charged against this share alone. NOT what living there owes - an andelshaver also owes a share of the association\'s own mortgage, which is against the building in the tingbog and is nowhere in this table']
+  adresse_uuid varchar
+  boligtype varchar [note: 'Boligsiden\'s word for it; reads \'cooperative\' for a share']
+  boligareal_m2 bigint [note: 'BBR living area, from Boligsiden. The book records no area at all']
+  boligsiden_vurdering_dkk bigint
+  til_salg boolean
+  boligsiden_url varchar
+  breddegrad double
+  laengdegrad double
+  hentet timestamp [note: 'when this row was written']
+  Note: 'One row per co-op share, from the andelsboligbog - a different book about a different thing. An andel is not real property, so it has no valuation, no matrikel and no area of its own; ejendom_uuid points at the association\'s building in the tingbog, which is where all of that is.'
+}
+
+Table andel_meddelelser {
+  andel_uuid varchar
+  dato_loebenummer varchar
+  adresse varchar
+  prioritet bigint
+  dokumenttype varchar
+  afgoerelsesdato date
+  debitorer varchar [note: 'the andelshaver the notice concerns. The andelsboligbog has no owner register, so this is the nearest it comes to naming who lives there']
+  disponenter varchar [note: 'whoever may act for them - an executor, a trustee']
+  tillaegstekst varchar
+  dokument_uuid varchar
+  dokument_version varchar
+  hentet timestamp [note: 'when this row was written']
+  indexes {
+    (andel_uuid, dato_loebenummer) [pk]
+  }
+  Note: 'Notices noted on a share - a death, a bankruptcy, a court removing the andelshaver\'s power to dispose of it. The only place this book names anyone other than a creditor.'
+}
+
+Table andel_haeftelser {
+  andel_uuid varchar
+  dokument_uuid varchar
+  dokument_version varchar
+  adresse varchar
+  dato_loebenummer varchar
+  prioritet bigint
+  dokumenttype varchar
+  hovedstol varchar
+  hovedstol_dkk bigint
+  rentetype varchar
+  rentesats_pct double
+  kreditorer varchar
+  hentet timestamp [note: 'when this row was written']
+  indexes {
+    (andel_uuid, dokument_uuid, dokument_version) [pk]
+  }
+  Note: 'Charges registered against one share. The same fields the tingbog uses for a property\'s mortgages, under a different key.'
+}
+
 Table handelshistorik {
   ejendom_uuid varchar
   adresse varchar
@@ -295,6 +357,9 @@ Ref: dokument_parter.ejendom_uuid > ejendomme.uuid
 Ref: underpant.ejendom_uuid > ejendomme.uuid
 Ref: attester.ejendom_uuid - ejendomme.uuid
 Ref: underpant.haeftelse_uuid > haeftelser.dokument_uuid
+Ref: andele.ejendom_uuid > ejendomme.uuid
+Ref: andel_haeftelser.andel_uuid > andele.uuid
+Ref: andel_meddelelser.andel_uuid > andele.uuid
 
 // dokument_parter.dokument_uuid points at haeftelser.dokument_uuid OR
 // servitutter.dokument_uuid, and dokument_parter.dokumentart says which
