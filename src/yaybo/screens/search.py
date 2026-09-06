@@ -48,9 +48,9 @@ from yaybo.register.address import (
     address_parts,
     autocomplete,
     drop_unit,
-    select_units,
     street_buildings,
 )
+from yaybo.register.client import ANDELSBOG
 from yaybo.register.fields import normalise
 from yaybo.screens.base import YayboScreen
 from yaybo.widgets.nav import NavTabs
@@ -331,25 +331,31 @@ class SearchScreen(YayboScreen):
         count, newest = held
         return f"{count} i basen · {display.ago(newest)}"
 
-    def _cost(self, match: dict) -> tuple[int, bool] | None:
-        """What choosing this row would fetch: how many, and whether that is
-        the whole building rather than the flat that was asked for.
+    def _cost(self, match: dict) -> tuple[int, int, bool] | None:
+        """What choosing this row would fetch: how many properties, how many
+        co-op shares, and whether that is the whole building rather than the
+        flat that was asked for.
 
         None while the register has not been asked. The building row and its
-        flats share one answer from the register and read entirely different
+        flats share one answer from the registers and read entirely different
         numbers off it - four properties for the building, one for the flat -
         which is the whole reason this is computed per row rather than cached
         as a count.
+
+        Narrowed the way `pipeline.fetch` will narrow it, not with
+        `select_units` directly. For a co-op flat those differ: the share is
+        picked out of the andelsboligbog and the association's building comes
+        along with it, so a row that promised one would fetch two.
         """
         units = self.held.get(_building_key(match))
         if units is None:
             return None
         if not units:
-            return (0, False)
+            return (0, 0, False)
         if not match["etage"] and not match["doer"]:
-            return (len(units), False)
-        picked, warning = select_units(units, match["etage"], match["doer"])
-        return (len(picked), bool(warning))
+            return (*_split_books(units), False)
+        picked, warning = pipeline.narrow(units, match["etage"], match["doer"])
+        return (*_split_books(picked), bool(warning))
 
     def _describe_matches(self) -> None:
         """The line above the address list, re-stated as answers come back.
@@ -483,8 +489,8 @@ class SearchScreen(YayboScreen):
     ) -> None:
         """Ask the register what sits at an address, then show it to choose from."""
         if whole_building:
-            # The register searches at building level anyway; dropping the floor
-            # is what stops select_units narrowing straight back to one flat.
+            # The registers search at building level anyway; dropping the
+            # floor is what stops the narrowing going straight back to one flat.
             address = {
                 **address,
                 "etage": "",
@@ -552,14 +558,14 @@ class SearchScreen(YayboScreen):
         listing.display = True
         self.query_one("#search-matches").display = False
         self._name_building(
-            self.address["tekst"] if self.address else "", len(units)
+            self.address["tekst"] if self.address else "", _tally(*_split_books(units))
         )
         self._show_actions(True)
         self._steps(2)
         self._describe_selection(warning)
         listing.focus()
 
-    def _name_building(self, where: str, held: int) -> None:
+    def _name_building(self, where: str, held: str) -> None:
         """Say whose properties these are, above the list of them.
 
         Not `_context`: MessagePump has one of those and drives its whole
@@ -568,10 +574,7 @@ class SearchScreen(YayboScreen):
         """
         line = Text("Inside  ", style="dim")
         line.append(where, style="bold")
-        line.append(
-            f"   ·   {held} registered propert{'y' if held == 1 else 'ies'}",
-            style="dim",
-        )
+        line.append(f"   ·   {held}", style="dim")
         panel = self.query_one("#search-context", Static)
         panel.update(line)
         panel.display = bool(where)
@@ -787,6 +790,27 @@ def _building_key(match: dict) -> tuple[str, str, str]:
 # a ranking: the first fetches every property at an address, the second fetches
 # one flat. Keeping them apart is what stops a flat's row being read as though
 # its number belonged to the building.
+def _split_books(units: list[dict]) -> tuple[int, int]:
+    """How many of these are properties and how many are co-op shares."""
+    shares = sum(1 for unit in units if unit.get("bog") == ANDELSBOG)
+    return len(units) - shares, shares
+
+
+def _tally(properties: int, shares: int) -> str:
+    """"1 ejendom + 10 andele", in the register's own words.
+
+    Never one total. A property and a share are different things in different
+    books, and a co-op block is one of the first and a dozen of the second -
+    adding them up would say thirteen of something that does not exist.
+    """
+    parts = []
+    if properties or not shares:
+        parts.append(f"{properties} ejendom{'' if properties == 1 else 'me'}")
+    if shares:
+        parts.append(f"{shares} andel{'' if shares == 1 else 'e'}")
+    return " + ".join(parts)
+
+
 BUILDINGS = "HELE BYGNINGER   ·   every property registered at the address"
 UNITS = "ENKELTE BOLIGER   ·   only the one flat"
 
@@ -807,7 +831,7 @@ def _in_sections(matches: list[dict]) -> list[dict | str]:
 
 def _match_label(
     match: dict,
-    cost: tuple[int, bool] | None,
+    cost: tuple[int, int, bool] | None,
     palette: tuple[str, str, str],
     mine: str = "",
 ) -> Text:
@@ -823,22 +847,21 @@ def _match_label(
         label.append(f"   ● {mine}", style=f"bold {palette[2]}")
     if cost is None:
         return label
-    count, fell_back = cost
+    properties, shares, fell_back = cost
     empty, some, _ = palette
-    if count == 0:
+    if not properties and not shares:
         label.stylize("strike")
         label.append("   intet tinglyst her", style=f"bold {empty}")
-    elif fell_back:
+    elif fell_back and not shares:
         # The register has no separate entry for this flat, so picking it gets
         # the building. Saying so here is the difference between an honest row
         # and one that promises a flat and delivers ninety.
         label.append(
-            f"   ingen egen ejendom · hele bygningen: {count}", style=f"bold {empty}"
+            f"   ingen egen ejendom · hele bygningen: {properties}",
+            style=f"bold {empty}",
         )
     else:
-        label.append(
-            f"   {count} ejendom{'' if count == 1 else 'me'}", style=f"bold {some}"
-        )
+        label.append(f"   {_tally(properties, shares)}", style=f"bold {some}")
     return label
 
 
@@ -852,6 +875,11 @@ def _unit_label(unit: dict, number: int) -> Text:
     """
     label = Text(f"{number:>3}  ", style="dim")
     label.append(unit.get("adresse", ""))
+    # Which book answered, whenever it is not the tingbog. A share carries no
+    # valuation, no area and no easements, so a row that does not say it is a
+    # share reads as a property with most of its columns mysteriously empty.
+    if unit.get("bog") == ANDELSBOG:
+        label.append("   andel", style="bold")
     detail = "  ·  ".join(
         str(unit[key])
         for key in ("ejendomstype", "ejerlejlighedsnr", "bfe_nr", "matrikel")
