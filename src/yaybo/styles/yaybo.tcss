@@ -545,6 +545,47 @@ NavTabs Underline > .underline--bar {
     border-bottom: solid $primary 20%;
 }
 
+/* ── the language picker ─────────────────────────────────────────────── */
+
+LanguageDialog {
+    align: center middle;
+}
+
+#language-box {
+    width: 56;
+    height: auto;
+    padding: 1 2;
+    border: thick $primary 60%;
+    background: $surface;
+}
+
+#language-title {
+    width: 100%;
+    text-align: center;
+    text-style: bold;
+    color: $primary;
+}
+
+#language-note {
+    width: 100%;
+    height: auto;
+    padding: 1 0;
+    color: $text-muted;
+}
+
+#language-buttons {
+    width: 100%;
+    height: auto;
+    align-horizontal: right;
+    padding-top: 1;
+}
+
+#language-buttons Button {
+    width: auto;
+    min-width: 12;
+    margin-left: 1;
+}
+
 /* ── the session bar, which every screen carries ─────────────────────── */
 
 /* Loud on purpose. Which half of the register is answering decides what every

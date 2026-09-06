@@ -1,9 +1,9 @@
-"""The yaybo TUI: one application, one database, six ways into it.
+"""The yaybo TUI: one application, one database, several ways into it.
 
     Library   everything already fetched, browsable offline
     Search    an address, resolved as you type, then fetched
     Queue     a whole street at a time, with a progress bar
-    Nøgletal  figures across a set of properties rather than about one
+    Figures   across a set of properties rather than about one
     SQL       the accumulated database, queried directly
     Property  one property in full, tab by tab
 
@@ -25,7 +25,7 @@ from textual.binding import Binding
 from textual.theme import Theme
 from textual.widgets import Footer, Header
 
-from yaybo import auth, store
+from yaybo import auth, i18n, store
 from yaybo.fetching import FetchQueue
 from yaybo.register.client import Tinglysning
 
@@ -69,12 +69,13 @@ class YayboApp(App[None]):
     BINDINGS = [
         Binding("q", "quit", "Quit"),
         Binding("slash", "search", "Find new"),
-        Binding("l", "library", "Library"),
+        Binding("l", "library", "Properties"),
         Binding("b", "queue", "Queue"),
         Binding("s", "sql", "SQL"),
-        Binding("g", "buildings", "Bygninger"),
-        Binding("k", "stats", "Nøgletal"),
+        Binding("g", "buildings", "Buildings"),
+        Binding("k", "stats", "Figures"),
         Binding("ctrl+l", "login", "Log in", show=False),
+        Binding("ctrl+g", "language", "Language", show=False),
         # The queue bar carries a Stop button, which is where anyone will
         # actually reach for this - so it stays out of an already busy footer.
         Binding("ctrl+x", "stop_fetching", "Stop fetching", show=False),
@@ -83,6 +84,10 @@ class YayboApp(App[None]):
 
     def __init__(self, *, database: str | Path | None = None) -> None:
         super().__init__()
+        # Before anything builds a screen: the language decides what every
+        # label on every one of them says.
+        i18n.load()
+        i18n.translate_bindings(self)
         self.register_theme(YAYBO_THEME)
         self.theme = "yaybo"
         self.database = Path(database) if database else store.default_path()
@@ -148,15 +153,22 @@ class YayboApp(App[None]):
         a colour rather than a word buried in a subtitle.
         """
         if self.session is None or self.who is None:
-            return ("Not logged in - public register only, ctrl+L to log in", "out")
+            return (
+                i18n.t("Not logged in - public register only, ctrl+L to log in"),
+                "out",
+            )
         left = self.session_expires_in()
         if left is None:
-            return (f"MitID: {self.who}", "in")
+            return (i18n.t("MitID: {who}", who=self.who), "in")
         minutes = int(left.total_seconds() // 60)
         if minutes <= 0:
-            return (f"MitID: {self.who} - session lapsing now", "soon")
+            return (
+                i18n.t("MitID: {who} - session lapsing now", who=self.who), "soon"
+            )
         tone = "soon" if minutes <= 5 else "in"
-        return (f"MitID: {self.who} - {minutes} min left", tone)
+        return (
+            i18n.t("MitID: {who} - {n} min left", who=self.who, n=minutes), tone
+        )
 
     def session_expires_in(self) -> timedelta | None:
         """How long the register will keep answering if nothing else is asked."""
@@ -228,7 +240,8 @@ class YayboApp(App[None]):
         self.api = Tinglysning(None)
         self._describe_session()
         self.notify(
-            "The register ended the session - press ctrl+L to log in again.",
+            i18n.t("The register ended the session - press ctrl+L to log in "
+                   "again."),
             severity="warning",
         )
 
@@ -250,8 +263,10 @@ class YayboApp(App[None]):
             self.api = Tinglysning(None)
             self._describe_session()
             self.notify(
-                "Logged out. The public lookup still works, and ctrl+L will "
-                "ask for your MitID user ID again."
+                i18n.t(
+                    "Logged out. The public lookup still works, and ctrl+L "
+                    "will ask for your MitID user ID again."
+                )
             )
             return
 
@@ -262,7 +277,7 @@ class YayboApp(App[None]):
                 auth.log_in,
                 user_id=user_id,
                 service="tinglysning.dk, via NemLog-in",
-                title="Log in to the land register",
+                title=i18n.t("Log in to the land register"),
             )
         )
         if not result:
@@ -270,7 +285,9 @@ class YayboApp(App[None]):
         session, who = result
         self._adopt(session, who, user_id)
         self.refresh_session_views()
-        self.notify(f"Logged in as {who}. The register will show more now.")
+        self.notify(
+            i18n.t("Logged in as {who}. The register will show more now.", who=who)
+        )
         # Only the screens that read the database have one, and logging in
         # changes what the database is allowed to say.
         refresh = getattr(self.screen, "action_refresh", None)
@@ -317,10 +334,12 @@ class YayboApp(App[None]):
         the queue is parked is simply lying about it.
         """
         return (
-            "It fetches in the background."
+            i18n.t("It fetches in the background.")
             if self.fetching.auto
-            else "Auto-fetch is off, so it waits in the queue - press b, then "
-            "f to start it."
+            else i18n.t(
+                "Auto-fetch is off, so it waits in the queue - press b, then "
+                "f to start it."
+            )
         )
 
     def _after_enqueue(self) -> None:
@@ -481,6 +500,64 @@ class YayboApp(App[None]):
         from yaybo import stats
 
         return store.stats_tables(self.database, stats.TABLES)
+
+    def action_language(self) -> None:
+        from yaybo.widgets.language_dialog import LanguageDialog
+
+        self.push_screen(LanguageDialog(), self._chose_language)
+
+    def _chose_language(self, code: str | None) -> None:
+        if not code or code == i18n.current():
+            return
+        i18n.use(code)
+        i18n.save(code)
+        self.relaunch()
+
+    # Which screens can be reopened after a rebuild, and how. Those taking a
+    # uuid are handled separately; the rest are reached by their own action.
+    RESUMABLE = {
+        "AndeleScreen": "andele",
+        "BuildingsScreen": "buildings",
+        "StatsScreen": "stats",
+        "QueueScreen": "queue",
+        "SearchScreen": "search",
+        "SqlScreen": "sql",
+    }
+
+    def relaunch(self) -> None:
+        """Rebuild every screen, so a new language reaches all of it.
+
+        Screens read their labels when they are built - column headers are
+        added once, on mount - so there is nothing to re-render in place.
+        Throwing them away and building them again is both the simplest way to
+        change language and the only one that cannot leave half a screen in
+        the old one.
+
+        It tries to put you back where you were. A screen that is one property
+        or one share is reopened on the same one; anything needing more than a
+        uuid to rebuild lands on the Library, which is where everything is
+        reachable from anyway.
+        """
+        from yaybo.screens.library import LibraryScreen
+
+        was = type(self.screen).__name__
+        uuid = getattr(self.screen, "uuid", "")
+
+        while len(self.screen_stack) > 1:
+            self.pop_screen()
+        i18n.translate_bindings(self)
+        self.push_screen(LibraryScreen())
+
+        if was == "PropertyScreen" and uuid:
+            from yaybo.screens.property import PropertyScreen
+
+            self.push_screen(PropertyScreen(uuid))
+        elif was == "AndelScreen" and uuid:
+            from yaybo.screens.andel import AndelScreen
+
+            self.push_screen(AndelScreen(uuid))
+        elif was in self.RESUMABLE:
+            getattr(self, f"action_{self.RESUMABLE[was]}")()
 
     def _show(self, screen_type, **kwargs) -> None:
         """Switch to a screen, or do nothing if it is already the one on top.
