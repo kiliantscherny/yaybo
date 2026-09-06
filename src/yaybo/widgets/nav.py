@@ -2,12 +2,12 @@
 
 The screens were always peers - the Library, the Search, the Queue - but the
 only way to learn that was to read the footer and find the letter that went
-there. Tabs say it outright: here are the five things, this is the one you are
+there. Tabs say it outright: here are the six things, this is the one you are
 on, and clicking another goes to it.
 
 They are a navigation bar rather than a TabbedContent: each place is still its
-own Screen, with its own bindings and its own worker, and putting five of them
-inside one screen would mean five screens' worth of widgets mounted at once for
+own Screen, with its own bindings and its own worker, and putting six of them
+inside one screen would mean six screens' worth of widgets mounted at once for
 the sake of a border.
 """
 
@@ -24,6 +24,7 @@ if TYPE_CHECKING:
 # tab id, what it is called, the application action that goes there.
 PLACES = (
     ("ejendomme", "Ejendomme", "library"),
+    ("andele", "Andele", "andele"),
     ("bygninger", "Bygninger", "buildings"),
     ("noegletal", "Nøgletal", "stats"),
     ("koe", "Kø", "queue"),

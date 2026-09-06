@@ -290,16 +290,21 @@ class YayboApp(App[None]):
         self._after_enqueue()
         return added
 
-    def enqueue_refetch(self, addresses: list[str]) -> int:
+    def enqueue_refetch(self, addresses: list[str], limit: int = 1) -> int:
         """Queue stored addresses to be fetched again, one property each.
 
         Capped at one property per address on purpose: the address a flat was
         stored under resolves to its whole building when the register has no
         separate entry for the flat, and re-fetching one row of the library
         must not turn into fetching a hundred.
+
+        The cap is raised to two for a co-op share, whose address resolves to
+        the share and to the association's building - two rows in two books,
+        and dropping either of them makes the re-fetch a worse reading than
+        the one it replaced.
         """
         added = sum(
-            1 for address in addresses if self.fetching.add_query(address, limit=1)
+            1 for address in addresses if self.fetching.add_query(address, limit=limit)
         )
         self._after_enqueue()
         return added
@@ -438,6 +443,11 @@ class YayboApp(App[None]):
         from yaybo.screens.buildings import BuildingsScreen
 
         self._show(BuildingsScreen)
+
+    def action_andele(self) -> None:
+        from yaybo.screens.andele import AndeleScreen
+
+        self._show(AndeleScreen)
 
     def library_for(self, building: str) -> None:
         """Show one building's properties, on the properties tab.
