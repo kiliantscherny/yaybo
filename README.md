@@ -85,16 +85,16 @@ Run `yaybo` with no arguments. Eight screens, all reading the same database:
 
 | screen | key | what it is for |
 | --- | --- | --- |
-| **Library** | `l` | everything you have fetched, searchable offline |
-| **Andele** | tab | the co-op shares you have fetched, from the other register |
-| **Bygninger** | `g` | the library grouped one building to a row |
+| **Properties** | `l` | everything you have fetched, searchable offline |
+| **Co-op shares** | tab | what you have fetched from the other register |
+| **Buildings** | `g` | the properties grouped one building to a row |
 | **Search** | `/` | find an address, see what the registers hold at it |
 | **Queue** | `b` | fetch many properties in the background |
-| **Nøgletal** | `k` | figures across a set of properties |
+| **Figures** | `k` | across a set of properties rather than about one |
 | **SQL** | `s` | query the database directly |
 | **Property** | `enter` | one property in full |
 
-**Library** is where it opens. Each row shows how stale it is, its valuation,
+**Properties** is where it opens. Each row shows how stale it is, its valuation,
 debt and loan-to-value, and whether it was fetched while logged in. Sort by any
 column with `o`, filter with `name:value`, tick rows with `space` and act on the
 lot. `enter` opens a property, `f` re-fetches, `e` exports.
@@ -116,14 +116,14 @@ it is instant and works offline:
 - **Bygning** – the BBR record
 - **Dokument** – the signed attest itself
 
-**Andele** is the same idea for the andelsboligbog, which is a different
+**Co-op shares** is the same idea for the andelsboligbog, which is a different
 register about a different thing – see [Andelsboliger](#andelsboliger). Each row
 is one co-op share: its area, what is charged against it, and the association's
 building. `enter` opens a share, with its charges and everyone named on them and
 any notices; `g` opens the building, which is where a share's valuation and the
 association's own mortgages live.
 
-**Bygninger** groups the library one building to a row: how many of its
+**Buildings** groups the properties one building to a row: how many of its
 properties you hold, how many were fetched while logged in, and the medians
 across them. `enter` goes to that building's properties.
 
@@ -131,7 +131,7 @@ across them. `enter` goes to that building's properties.
 progress bar and per-row status. Pause with `space`. Anything already fetched is
 already saved, so a lapsed login partway through costs you nothing.
 
-**Nøgletal** answers questions about a set of properties rather than one:
+**Figures** answers questions about a set of properties rather than one:
 median price per m² by floor, valuations by building, owners by postcode.
 Narrow the set with dropdowns filled from the database, then pick a figure.
 Nothing is fetched – it describes only the properties you already hold.
@@ -139,7 +139,24 @@ Nothing is fetched – it describes only the properties you already hold.
 **SQL** runs read-only queries against the whole database, with eight examples
 ready to load and edit. `ctrl+R` runs, `ctrl+E` exports the result.
 
-Press `ctrl+L` anywhere to log in with MitID, or to log out.
+Press `ctrl+L` anywhere to log in with MitID, or to log out, and `ctrl+G` to
+switch language.
+
+### English or Danish
+
+The interface comes in both and opens in English. `ctrl+G` switches at any
+point and rebuilds every screen in the chosen language, putting you back where
+you were; the choice is remembered for next time.
+
+**The data is never translated.** A register record is Danish — `Ejerpantebrev`,
+`Almindeligt salg`, the wording of an easement — and reading one is a
+Danish-language job however the buttons around it are labelled. Anglicising a
+value would also make the database disagree with the register it came from, so
+only the chrome moves: headings, column labels, tabs, footer keys and the
+sentences a screen writes about what it is showing.
+
+The command line and the exports are English throughout and are not affected by
+the setting.
 
 ## On the command line
 
@@ -408,7 +425,7 @@ book by person name and date of birth. By analogy with the tingbog that attest
 would carry parties' CPR-derived birth dates. It is unverified and nothing here
 depends on it.
 
-In the TUI, **Andele** lists the shares held; enter opens one - its charges,
+In the TUI, **Co-op shares** lists the shares held; enter opens one - its charges,
 everyone named on them, and its notices - and `g` opens the association's
 property.
 

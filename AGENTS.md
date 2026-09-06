@@ -30,7 +30,15 @@ production deployment to protect.
 4. **Do not run `yaybo fetch` against real addresses** to test something. Use
    the fixtures, or `App.run_test()` with the network stubbed, as the existing
    tests do.
-5. **Anything to do with MitID login belongs in
+5. **The interface is translated; the data is not.** `i18n.py` holds the
+   catalogue and English is the source language, so the string in the code is
+   the English one. Never translate a value out of a register, and never
+   anglicise a column or table name - `store.TABLES` keeps the register's own
+   vocabulary deliberately. Nothing may be translated at import time either:
+   screens declare their labels as module constants, which are built before a
+   language has been chosen, so `i18n.t()` goes where the string is *used*.
+   A new footer binding needs a Danish entry, and a test fails without one.
+6. **Anything to do with MitID login belongs in
    [mitid-client](https://github.com/kiliantscherny/mitid-client)**, not here.
    `auth.py` holds only the tinglysning-shaped part.
 

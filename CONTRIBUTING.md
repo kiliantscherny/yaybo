@@ -62,6 +62,8 @@ src/yaybo/
 ├── backfill.py        re-derive stored tables without fetching anything
 ├── auth.py            the MitID login, as tinglysning.dk wants it
 ├── display.py         formatting numbers, dates and Danish text for a screen
+├── i18n.py            what the interface says, in English or Danish. The
+│                      data is never translated
 ├── stats.py           figures over a set of properties - rows in, numbers out,
 │                      so what it computes can be checked without a terminal
 ├── register/          tinglysning.dk itself
