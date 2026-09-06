@@ -12,6 +12,8 @@ from typing import TYPE_CHECKING
 
 from textual.screen import Screen
 
+from yaybo import i18n
+
 if TYPE_CHECKING:
     from yaybo.app import YayboApp
 
@@ -23,6 +25,15 @@ class YayboScreen(Screen[None]):
 
         @property
         def app(self) -> YayboApp: ...  # type: ignore[override]
+
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        # Every screen's footer, in one place. BINDINGS is read off the class
+        # on import, which is before anyone has chosen a language, so the
+        # descriptions have to be restated once the instance exists - and a
+        # screen is only ever built after the language is known, because
+        # changing it rebuilds them.
+        i18n.translate_bindings(self)
 
     def on_screen_resume(self) -> None:
         """Catch up with the fetch queue on the way in.

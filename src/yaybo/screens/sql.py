@@ -25,7 +25,7 @@ from textual.widgets import (
     TextArea,
 )
 
-from yaybo import display, store
+from yaybo import display, i18n, store
 from yaybo.screens.base import YayboScreen
 from yaybo.widgets.nav import NavTabs
 from yaybo.widgets.queue_bar import QueueBar
@@ -131,7 +131,7 @@ class SqlScreen(YayboScreen):
                 prompt="Load a saved query…",
                 id="sql-snippets",
             )
-            yield Static("ctrl+R runs · ctrl+E exports the result", id="sql-hint")
+            yield Static(i18n.t("ctrl+R runs · ctrl+E exports the result"), id="sql-hint")
         yield TextArea(next(iter(SNIPPETS.values())), id="sql-query")
         yield Static("", id="sql-status")
         yield DataTable(id="sql-results", cursor_type="row", zebra_stripes=True)
@@ -201,7 +201,7 @@ class SqlScreen(YayboScreen):
         from yaybo.widgets.export_dialog import ExportDialog
 
         if not self.rows:
-            self.notify("Run a query first.")
+            self.notify(i18n.t("Run a query first."))
             return
         # The exporters take rows as dicts, keyed by column, the same as
         # everything else they are handed.

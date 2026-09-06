@@ -156,8 +156,8 @@ def test_rows_that_are_not_properties_are_grouped_by_their_property(tables):
 def test_a_company_is_not_given_an_age(tables):
     scope = stats.scope_of(tables, "")
     figures = dict((label, value) for label, _, value in stats.owner_figures(scope))
-    assert figures["Heraf selskaber"] == 1
-    assert figures["Ejere i alt"] == 3
+    assert figures["Of those, companies"] == 1
+    assert figures["Owners in total"] == 3
 
 
 def test_the_tenth_floor_is_dearer_per_square_metre_than_the_third(tables):
@@ -221,11 +221,11 @@ def test_counting_sales_is_a_measure_of_its_own(tables):
 def test_the_overview_names_every_section(tables):
     scope = stats.scope_of(tables, "")
     sections = [name for name, _ in stats.overview(scope)]
-    assert sections == ["Ejendomme", "Ejere", "Hæftelser", "Bygninger"]
+    assert sections == ["Properties", "Owners", "Charges", "Buildings"]
     figures = dict((label, value) for label, _, value in stats.summary(scope))
-    assert figures["Ejendomme"] == 5
-    assert figures["Bygninger"] == 3
-    assert figures["Uden MitID-data"] == 1
+    assert figures["Properties"] == 5
+    assert figures["Buildings"] == 3
+    assert figures["Without MitID data"] == 1
 
 
 def test_every_analysis_names_measures_that_exist():

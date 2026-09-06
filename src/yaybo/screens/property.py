@@ -4,7 +4,8 @@ Everything here comes from the stored rows rather than from the register, so
 opening a property costs nothing and works on a train. It is also why the
 screen and the exports can never disagree: they are reading the same tables.
 
-The two tabs worth explaining are Forløb and Kurve. Forløb is the one view the
+The two tabs worth explaining are the timeline and the chart. The timeline is
+the one view the
 register itself does not offer - sales, transfers, mortgages and easements are
 four separate lists there, and putting them on one timeline is what makes a
 property's story legible. Kurve plots what the place has sold for per square
@@ -30,7 +31,7 @@ from textual.widgets import (
 )
 from textual_plotext import PlotextPlot
 
-from yaybo import display, pipeline, store
+from yaybo import display, i18n, pipeline, store
 from yaybo.screens.base import YayboScreen
 from yaybo.widgets.nav import NavTabs
 from yaybo.widgets.queue_bar import QueueBar
@@ -39,59 +40,59 @@ from yaybo.widgets.session_bar import SessionBar
 # label, column, how to write it, how wide
 EJERE = (
     ("#", "nummer", display.number, 4),
-    ("Navn", "navn", display.text, 34),
-    ("Født", "foedselsdato", display.when, 12),
+    ("Name", "navn", display.text, 34),
+    ("Born", "foedselsdato", display.when, 12),
     ("CVR", "cvr", display.text, 10),
-    ("Andel", "andel", display.text, 10),
+    ("Share", "andel", display.text, 10),
 )
 HAEFTELSER = (
     ("Pri.", "prioritet", display.number, 5),
-    ("Dato/løbenr.", "dato_loebenummer", display.text, 18),
+    ("Date/serial", "dato_loebenummer", display.text, 18),
     ("Type", "dokumenttype", display.text, 22),
-    ("Hovedstol", "hovedstol_dkk", display.kr, 14),
-    ("Rente", "rentesats_pct", display.pct, 9),
-    ("Låntype", "laantype_estimat", display.text, 14),
-    ("Kreditor", "kreditorer", display.text, 28),
-    ("Tinglyst", "tinglysningsdato", display.when, 12),
+    ("Principal", "hovedstol_dkk", display.kr, 14),
+    ("Rate", "rentesats_pct", display.pct, 9),
+    ("Loan type", "laantype_estimat", display.text, 14),
+    ("Creditor", "kreditorer", display.text, 28),
+    ("Registered", "tinglysningsdato", display.when, 12),
 )
 SERVITUTTER = (
     ("Pri.", "prioritet", display.number, 5),
-    ("Dato/løbenr.", "dato_loebenummer", display.text, 18),
+    ("Date/serial", "dato_loebenummer", display.text, 18),
     ("Type", "dokumenttype", display.text, 26),
-    ("Om", "tekst", display.text, 46),
-    ("Påtaleberettiget", "paataleberettigede", display.text, 26),
-    ("Tinglyst", "tinglysningsdato", display.when, 12),
+    ("About", "tekst", display.text, 46),
+    ("Enforceable by", "paataleberettigede", display.text, 26),
+    ("Registered", "tinglysningsdato", display.when, 12),
 )
 PARTER = (
-    ("Dokument", "dokumentart", display.text, 12),
-    ("Rolle", "rolle", display.text, 16),
-    ("Navn", "navn", display.text, 34),
-    ("Født", "foedselsdato", display.when, 12),
+    ("Document", "dokumentart", display.text, 12),
+    ("Role", "rolle", display.text, 16),
+    ("Name", "navn", display.text, 34),
+    ("Born", "foedselsdato", display.when, 12),
     ("CVR", "cvr", display.text, 10),
-    ("Andel", "andel", display.text, 10),
+    ("Share", "andel", display.text, 10),
 )
 UNDERPANT = (
     ("Pri.", "prioritet", display.number, 5),
-    ("Dato/løbenr.", "dato_loebenummer", display.text, 18),
-    ("Beløb", "beloeb_dkk", display.kr, 14),
-    ("Panthaver", "panthavere", display.text, 40),
+    ("Date/serial", "dato_loebenummer", display.text, 18),
+    ("Amount", "beloeb_dkk", display.kr, 14),
+    ("Pledgee", "panthavere", display.text, 40),
 )
 HANDLER = (
-    ("Dato", "dato", display.when, 12),
-    ("Beløb", "beloeb_dkk", display.kr, 14),
-    ("Areal", "areal_m2", display.area, 9),
+    ("Date", "dato", display.when, 12),
+    ("Amount", "beloeb_dkk", display.kr, 14),
+    ("Area", "areal_m2", display.area, 9),
     ("Pr. m²", "pris_pr_m2", display.kr, 11),
-    ("Handelstype", "handelstype", display.text, 20),
+    ("Sale type", "handelstype", display.text, 20),
 )
 
 # Which tabs carry a row count, and which table they are counting.
 COUNTED_TABS = {
-    "tab-ejere": ("Ejere", "ejere"),
-    "tab-haeftelser": ("Hæftelser", "haeftelser"),
-    "tab-servitutter": ("Servitutter", "servitutter"),
-    "tab-parter": ("Parter", "dokument_parter"),
-    "tab-handler": ("Handler", "handelshistorik"),
-    "tab-bygning": ("Bygning", "bygninger"),
+    "tab-ejere": ("Owners", "ejere"),
+    "tab-haeftelser": ("Charges", "haeftelser"),
+    "tab-servitutter": ("Easements", "servitutter"),
+    "tab-parter": ("Parties", "dokument_parter"),
+    "tab-handler": ("Sales", "handelshistorik"),
+    "tab-bygning": ("Building", "bygninger"),
 }
 
 # Fallbacks only. The live theme's colours are read at draw time; these are
@@ -100,10 +101,10 @@ LINE = (94, 176, 234)
 POINT = (232, 185, 106)
 
 TIMELINE = (
-    ("Dato", 12),
-    ("Hvad", 26),
-    ("Beløb", 14),
-    ("Detalje", 60),
+    ("Date", 12),
+    ("What", 26),
+    ("Amount", 14),
+    ("Detail", 60),
 )
 
 
@@ -114,7 +115,7 @@ class PropertyScreen(YayboScreen):
         Binding("escape", "back", "Back"),
         Binding("e", "export", "Export"),
         Binding("f", "refetch", "Re-fetch"),
-        Binding("k", "building_stats", "Nøgletal"),
+        Binding("k", "building_stats", "Figures"),
     ]
 
     def __init__(self, uuid: str) -> None:
@@ -131,13 +132,13 @@ class PropertyScreen(YayboScreen):
         yield Header()
         yield SessionBar()
         yield NavTabs("ejendomme")
-        yield Static("Loading…", id="property-title")
+        yield Static(i18n.t("Loading…"), id="property-title")
         with TabbedContent(id="property-tabs"):
-            with TabPane("Oversigt", id="tab-overview"):
+            with TabPane(i18n.t("Overview"), id="tab-overview"):
                 yield VerticalScroll(id="overview")
-            with TabPane("Ejere", id="tab-ejere"):
+            with TabPane(i18n.t("Owners"), id="tab-ejere"):
                 yield DataTable(id="table-ejere", cursor_type="row", zebra_stripes=True)
-            with TabPane("Hæftelser", id="tab-haeftelser"):
+            with TabPane(i18n.t("Charges"), id="tab-haeftelser"):
                 with VerticalScroll():
                     yield DataTable(
                         id="table-haeftelser", cursor_type="row", zebra_stripes=True
@@ -149,24 +150,24 @@ class PropertyScreen(YayboScreen):
                     yield DataTable(
                         id="table-underpant", cursor_type="row", zebra_stripes=True
                     )
-            with TabPane("Servitutter", id="tab-servitutter"):
+            with TabPane(i18n.t("Easements"), id="tab-servitutter"):
                 yield DataTable(
                     id="table-servitutter", cursor_type="row", zebra_stripes=True
                 )
-            with TabPane("Parter", id="tab-parter"):
+            with TabPane(i18n.t("Parties"), id="tab-parter"):
                 yield DataTable(id="table-parter", cursor_type="row", zebra_stripes=True)
-            with TabPane("Handler", id="tab-handler"):
+            with TabPane(i18n.t("Sales"), id="tab-handler"):
                 yield DataTable(id="table-handler", cursor_type="row", zebra_stripes=True)
-            with TabPane("Forløb", id="tab-timeline"):
+            with TabPane(i18n.t("Timeline"), id="tab-timeline"):
                 yield DataTable(
                     id="table-timeline", cursor_type="row", zebra_stripes=True
                 )
-            with TabPane("Kurve", id="tab-chart"):
+            with TabPane(i18n.t("Chart"), id="tab-chart"):
                 yield PlotextPlot(id="chart")
                 yield Static("", id="chart-note", classes="hint-text")
-            with TabPane("Bygning", id="tab-bygning"):
+            with TabPane(i18n.t("Building"), id="tab-bygning"):
                 yield VerticalScroll(id="bygning")
-            with TabPane("Dokument", id="tab-dokument"):
+            with TabPane(i18n.t("Document"), id="tab-dokument"):
                 yield TextArea("", read_only=True, id="dokument")
         yield QueueBar()
         yield Footer()
@@ -259,7 +260,8 @@ class PropertyScreen(YayboScreen):
                 tab = tabs.get_tab(identifier)
             except Exception:
                 continue
-            tab.label = f"{label} {count}" if count else label
+            shown = i18n.t(label)
+            tab.label = f"{shown} {count}" if count else shown
 
     # ── the tabs that are not just a table ──────────────────────────────
 
@@ -288,58 +290,66 @@ class PropertyScreen(YayboScreen):
 
         sections = [
             (
-                "Ejendommen",
+                i18n.t("The property"),
                 [
-                    ("Adresse", display.text(row.get("adresse"))),
-                    ("Type", display.boligtype(row.get("boligtype"))
+                    (i18n.t("Address"), display.text(row.get("adresse"))),
+                    (i18n.t("Type"), display.boligtype(row.get("boligtype"))
                      or display.text(row.get("ejendomstype"))),
-                    ("Boligareal", display.area(row.get("boligareal_m2"))),
-                    ("Tinglyst areal", display.area(row.get("areal_m2"))),
-                    ("BFE-nummer", display.text(row.get("bfe_nr"))),
-                    ("Ejerlejlighedsnr.", display.text(row.get("ejerlejlighedsnr"))),
-                    ("Fordelingstal", display.text(row.get("fordelingstal"))),
-                    ("Matrikel", display.text(row.get("matrikel"))),
-                    ("Landsejerlav", display.text(row.get("landsejerlav"))),
-                    ("Kommune", display.text(row.get("kommune"))),
+                    (i18n.t("Living area"), display.area(row.get("boligareal_m2"))),
+                    (i18n.t("Registered area"), display.area(row.get("areal_m2"))),
+                    (i18n.t("BFE number"), display.text(row.get("bfe_nr"))),
+                    (i18n.t("Flat number"),
+                     display.text(row.get("ejerlejlighedsnr"))),
+                    (i18n.t("Share of the block"),
+                     display.text(row.get("fordelingstal"))),
+                    (i18n.t("Cadastral number"), display.text(row.get("matrikel"))),
+                    (i18n.t("Cadastral district"),
+                     display.text(row.get("landsejerlav"))),
+                    (i18n.t("Municipality"), display.text(row.get("kommune"))),
                 ],
             ),
             (
-                "Ejere",
+                i18n.t("Owners"),
                 [(f"{n}.", owner) for n, owner in enumerate(owned, start=1)]
-                or [("", "Ingen ejere registreret")],
+                or [("", i18n.t("No owners recorded"))],
             ),
             (
-                "Værdi og gæld",
+                i18n.t("Value and debt"),
                 [
                     (
-                        "Ejendomsvurdering",
+                        i18n.t("Public valuation"),
                         display.kr(row.get("ejendomsvurdering_dkk"), unit="kr."),
                     ),
-                    ("Grundværdi", display.kr(row.get("grundvaerdi_dkk"), unit="kr.")),
-                    ("Vurderingsdato", display.when(row.get("vurderingsdato"))),
+                    (i18n.t("Land value"),
+                     display.kr(row.get("grundvaerdi_dkk"), unit="kr.")),
+                    (i18n.t("Valued on"), display.when(row.get("vurderingsdato"))),
                     (
-                        "Boligsiden vurderer",
+                        i18n.t("Boligsiden estimate"),
                         display.kr(row.get("boligsiden_vurdering_dkk"), unit="kr."),
                     ),
-                    ("Samlet gæld", display.kr(row.get("samlet_gaeld_dkk"), unit="kr.")),
-                    ("Friværdi (mindst)", equity),
-                    ("Belåningsgrad (højst)", loaded),
-                    ("Hæftelser", display.number(row.get("antal_haeftelser"))),
-                    ("Servitutter", display.number(row.get("antal_servitutter"))),
+                    (i18n.t("Total debt"),
+                     display.kr(row.get("samlet_gaeld_dkk"), unit="kr.")),
+                    (i18n.t("Equity (at least)"), equity),
+                    (i18n.t("Loan-to-value (at most)"), loaded),
+                    (i18n.t("Charges"), display.number(row.get("antal_haeftelser"))),
+                    (i18n.t("Easements"),
+                     display.number(row.get("antal_servitutter"))),
                 ],
             ),
             (
-                "Seneste handel",
+                i18n.t("Latest sale"),
                 [
-                    ("Dato", display.when(row.get("seneste_salg_dato"))),
-                    ("Beløb", display.kr(row.get("seneste_salg_dkk"), unit="kr.")),
+                    (i18n.t("Date"), display.when(row.get("seneste_salg_dato"))),
+                    (i18n.t("Amount"),
+                     display.kr(row.get("seneste_salg_dkk"), unit="kr.")),
                     (
-                        "Pris pr. m²",
+                        i18n.t("Price per m²"),
                         display.kr(row.get("seneste_salg_pris_m2"), unit="kr."),
                     ),
-                    ("Købesum (skøde)", display.kr(row.get("koebesum_dkk"), unit="kr.")),
-                    ("Overtagelse", display.when(row.get("overtagelsesdato"))),
-                    ("Til salg nu", display.yes_no(row.get("til_salg"))),
+                    (i18n.t("Purchase sum (deed)"),
+                     display.kr(row.get("koebesum_dkk"), unit="kr.")),
+                    (i18n.t("Handover"), display.when(row.get("overtagelsesdato"))),
+                    (i18n.t("On the market"), display.yes_no(row.get("til_salg"))),
                     ("Boligsiden", display.text(row.get("boligsiden_url"))),
                 ],
             ),
@@ -349,9 +359,11 @@ class PropertyScreen(YayboScreen):
             panel.mount(Static(_facts(pairs), classes="facts"))
         panel.mount(
             Static(
-                "Friværdi and belåningsgrad are worked out against the public "
-                "valuation, which runs below market. Treat the first as a floor "
-                "and the second as a ceiling.",
+                i18n.t(
+                    "Equity and loan-to-value are worked out against the "
+                    "public valuation, which runs below market. Treat the "
+                    "first as a floor and the second as a ceiling."
+                ),
                 classes="hint-text",
             )
         )
@@ -372,8 +384,8 @@ class PropertyScreen(YayboScreen):
         for building in buildings:
             panel.mount(
                 Static(
-                    display.text(building.get("bygningstype"), "Bygning")
-                    + f"  (nr. {display.text(building.get('bygning_nr'))})",
+                    display.text(building.get("bygningstype"), i18n.t("Building"))
+                    + i18n.t("  (no. {n})", n=display.text(building.get("bygning_nr"))),
                     classes="section-heading",
                 )
             )
@@ -381,32 +393,42 @@ class PropertyScreen(YayboScreen):
                 Static(
                     _facts(
                         [
-                            ("Opført", display.number(building.get("opfoerelsesaar"))),
-                            ("Ombygget", display.number(building.get("ombygningsaar"))),
-                            ("Etager", display.number(building.get("etager"))),
-                            ("Værelser", display.number(building.get("vaerelser"))),
+                            (i18n.t("Built"),
+                             display.number(building.get("opfoerelsesaar"))),
+                            (i18n.t("Rebuilt"),
+                             display.number(building.get("ombygningsaar"))),
+                            (i18n.t("Floors"), display.number(building.get("etager"))),
+                            (i18n.t("Rooms"), display.number(building.get("vaerelser"))),
                             (
-                                "Badeværelser",
+                                i18n.t("Bathrooms"),
                                 display.number(building.get("badevaerelser")),
                             ),
-                            ("Toiletter", display.number(building.get("toiletter"))),
-                            ("Boligareal", display.area(building.get("boligareal_m2"))),
-                            ("Kælder", display.area(building.get("kaelderareal_m2"))),
-                            ("Erhverv", display.area(building.get("erhvervsareal_m2"))),
+                            (i18n.t("Toilets"),
+                             display.number(building.get("toiletter"))),
+                            (i18n.t("Living area"),
+                             display.area(building.get("boligareal_m2"))),
+                            (i18n.t("Basement"),
+                             display.area(building.get("kaelderareal_m2"))),
+                            (i18n.t("Commercial"),
+                             display.area(building.get("erhvervsareal_m2"))),
                             (
-                                "Samlet areal",
+                                i18n.t("Total area"),
                                 display.area(building.get("samlet_areal_m2")),
                             ),
-                            ("Ydervæg", display.text(building.get("ydervaeg"))),
-                            ("Tag", display.text(building.get("tagdaekning"))),
-                            ("Varme", display.text(building.get("varmeinstallation"))),
+                            (i18n.t("External wall"),
+                             display.text(building.get("ydervaeg"))),
+                            (i18n.t("Roof"), display.text(building.get("tagdaekning"))),
+                            (i18n.t("Heating"),
+                             display.text(building.get("varmeinstallation"))),
                             (
-                                "Supplerende varme",
+                                i18n.t("Additional heating"),
                                 display.text(building.get("supplerende_varme")),
                             ),
-                            ("Køkken", display.text(building.get("koekken"))),
-                            ("Bad", display.text(building.get("badeforhold"))),
-                            ("Toilet", display.text(building.get("toiletforhold"))),
+                            (i18n.t("Kitchen"), display.text(building.get("koekken"))),
+                            (i18n.t("Bathing"),
+                             display.text(building.get("badeforhold"))),
+                            (i18n.t("Toilet"),
+                             display.text(building.get("toiletforhold"))),
                         ]
                     ),
                     classes="facts",
@@ -464,7 +486,7 @@ class PropertyScreen(YayboScreen):
             events.append(
                 (
                     charge.get("tinglysningsdato"),
-                    f"Hæftelse · {art}".strip(" ·"),
+                    f'{i18n.t("Charge")} · {art}'.strip(" ·"),
                     display.kr(charge.get("hovedstol_dkk")),
                     " · ".join(
                         part
@@ -492,9 +514,10 @@ class PropertyScreen(YayboScreen):
             events.append(
                 (
                     row.get("vurderingsdato"),
-                    "Offentlig vurdering",
+                    i18n.t("Public valuation"),
                     display.kr(row.get("ejendomsvurdering_dkk")),
-                    f"grundværdi {display.kr(row.get('grundvaerdi_dkk'))}",
+                    i18n.t("land value {amount}",
+                           amount=display.kr(row.get("grundvaerdi_dkk"))),
                 )
             )
         # Newest first, and anything undated last rather than first: an en dash

@@ -7,7 +7,8 @@ does record is what is charged against the share, which is the one figure here
 that comes from the register at all - the area beside it is Boligsiden's, and
 the valuation is the association's building rather than the flat.
 
-Hence the two columns on the right. `Gæld` is what this share owes; `Bygning`
+Hence the two columns on the right. `Debt` is what this share owes;
+`Building`
 is the property the association owns, which is where a co-op flat's other
 liability lives - a share of the association's own mortgage, which is nowhere
 in this book and is not added in here.
@@ -28,7 +29,7 @@ from textual.binding import Binding
 from textual.containers import Horizontal
 from textual.widgets import DataTable, Footer, Header, Input, Static
 
-from yaybo import display, store
+from yaybo import display, i18n, store
 from yaybo.register.fields import normalise
 from yaybo.screens.base import YayboScreen
 from yaybo.widgets.nav import NavTabs
@@ -36,16 +37,17 @@ from yaybo.widgets.queue_bar import QueueBar
 from yaybo.widgets.session_bar import SessionBar
 
 COLUMNS = (
-    ("Andel", 38),
-    ("Etage", 7),
-    ("Areal", 6),
-    ("Hæft.", 6),
-    ("Medd.", 6),
-    ("Gæld", 10),
-    ("Gæld/m²", 9),
-    ("Til salg", 8),
-    ("Bygning", 28),
-    ("Hentet", 9),
+    ("Address", 38),
+    ("Floor", 7),
+    ("Area", 6),
+    # Wide enough for "Meddelelser", which is what these say in Danish.
+    ("Charges", 10),
+    ("Notices", 12),
+    ("Debt", 10),
+    ("Debt/m²", 9),
+    ("For sale", 8),
+    ("Building", 28),
+    ("Fetched", 9),
 )
 
 
@@ -77,8 +79,8 @@ class AndeleScreen(YayboScreen):
         yield SessionBar()
         yield NavTabs("andele")
         with Horizontal(id="andele-bar"):
-            yield Static("Søg", id="andele-filter-label")
-            yield Input(placeholder="address", id="andele-filter")
+            yield Static(i18n.t("Filter"), id="andele-filter-label")
+            yield Input(placeholder=i18n.t("address"), id="andele-filter")
             yield Static("", id="andele-count")
         yield Static("", id="andele-scope")
         yield DataTable(id="andele-table", cursor_type="row", zebra_stripes=True)
@@ -89,7 +91,7 @@ class AndeleScreen(YayboScreen):
     def on_mount(self) -> None:
         table = self.query_one("#andele-table", DataTable)
         for label, width in COLUMNS:
-            table.add_column(label, width=width)
+            table.add_column(i18n.t(label), width=width)
         self.action_refresh()
 
     # ── loading ─────────────────────────────────────────────────────────
@@ -167,30 +169,40 @@ class AndeleScreen(YayboScreen):
             return Text("—", style="dim")
         theme = self.app.current_theme
         if listed:
-            return Text("ja", style=f"bold {theme.success or 'green'}")
-        return Text("nej", style="dim")
+            return Text(i18n.t("yes"), style=f"bold {theme.success or 'green'}")
+        return Text(i18n.t("no"), style="dim")
 
     def _describe(self) -> None:
         held, shown = len(self.held), len(self.shown)
         self.query_one("#andele-count", Static).update(
-            f"{shown} of {held}" if shown != held else f"{held} andel(e)"
+            i18n.t("{shown} of {held}", shown=shown, held=held)
+            if shown != held
+            else (i18n.t("{n} share", n=held) if held == 1
+                  else i18n.t("{n} shares", n=held))
         )
         owed = sum(row.get("samlet_gaeld_dkk") or 0 for row in self.shown)
         self.query_one("#andele-scope", Static).update(
-            f"{shown} andel(e) · {display.compact_kr(owed)} charged against them. "
-            "Not what they owe: a share of the association's own mortgage sits "
-            "against the building in the tingbog. enter opens the andel and "
-            "everyone named on its charges, g opens the building."
+            i18n.t(
+                "{shares} · {owed} charged against them. Not what they owe: a "
+                "share of the association's own mortgage sits against the "
+                "building in the tingbog. enter opens the share and everyone "
+                "named on its charges, g opens the building.",
+                shares=(i18n.t("{n} share", n=shown) if shown == 1
+                        else i18n.t("{n} shares", n=shown)),
+                owed=display.compact_kr(owed),
+            )
         )
         empty = self.query_one("#andele-empty", Static)
         empty.display = not self.shown
         if not self.shown:
             empty.update(
-                "Nothing from the andelsboligbog yet.\n\n"
-                "Look an address up on Søg - a co-op building answers with its "
-                "shares as well as the association's property."
+                i18n.t(
+                    "Nothing from the andelsboligbog yet.\n\n"
+                    "Look an address up on Search - a co-op building answers "
+                    "with its shares as well as the association's property."
+                )
                 if not self.held
-                else "No andel matches that."
+                else i18n.t("No share matches that.")
             )
 
     # ── acting on one ───────────────────────────────────────────────────
@@ -239,7 +251,7 @@ class AndeleScreen(YayboScreen):
             return
         building = str(row.get("bygning") or row.get("bygning_adresse") or "")
         if not building:
-            self.notify("No building found for this andel.", severity="warning")
+            self.notify(i18n.t("No building found for this share."), severity="warning")
             return
         self.app.library_for(building)
 
@@ -252,7 +264,8 @@ class AndeleScreen(YayboScreen):
         # drop the only property row it joins to.
         added = self.app.enqueue_refetch([str(row.get("adresse") or "")], limit=2)
         if added:
-            self.notify(f"Queued 1 andel. {self.app.queued_note()}")
+            self.notify(i18n.t("Queued 1 share. {note}",
+                                note=self.app.queued_note()))
 
     def action_focus_filter(self) -> None:
         self.query_one("#andele-filter", Input).focus()

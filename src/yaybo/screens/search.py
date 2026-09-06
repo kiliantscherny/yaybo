@@ -42,7 +42,7 @@ from textual.widgets import (
 from textual.widgets.option_list import Option
 from textual.widgets.selection_list import Selection
 
-from yaybo import display, pipeline, store
+from yaybo import display, i18n, pipeline, store
 from yaybo.register.address import (
     AddressError,
     address_parts,
@@ -129,11 +129,11 @@ class SearchScreen(YayboScreen):
         # This screen is the only one that reaches the register, and the only
         # one that adds to the library. Saying so at the top is what separates
         # it from the library's filter box, which looks the same and is not.
-        yield Static("＋  Find a new property", id="search-heading")
+        yield Static(i18n.t("＋  Find a new property"), id="search-heading")
         yield Static("", id="search-steps")
         yield Input(
             value=self.typed,
-            placeholder="Prøvegade 1, 9999 Prøveby",
+            placeholder=i18n.t("Prøvegade 1, 9999 Prøveby"),
             id="search-input",
         )
         yield Static("", id="search-status")
@@ -147,10 +147,10 @@ class SearchScreen(YayboScreen):
         # Everything the keys do, as buttons, for anyone not driving this from
         # the keyboard. Shown only while there is a list to act on.
         with Horizontal(id="search-actions"):
-            yield Button("◀  Addresses", id="search-back-btn")
-            yield Button("Select all", id="search-all")
-            yield Button("Select none", id="search-none")
-            yield Button("＋  Add to queue", id="search-queue", variant="primary")
+            yield Button(i18n.t("◀  Addresses"), id="search-back-btn")
+            yield Button(i18n.t("Select all"), id="search-all")
+            yield Button(i18n.t("Select none"), id="search-none")
+            yield Button(i18n.t("＋  Add to queue"), id="search-queue", variant="primary")
         yield QueueBar()
         yield Footer()
 
@@ -160,9 +160,11 @@ class SearchScreen(YayboScreen):
             self.query_one(hidden).display = False
         self._steps(1)
         self._say(
-            "Type an address to look it up in the land register. DAWA will "
-            "clean up the spelling, the spacing and the floor, so a rough one "
-            "is fine."
+            i18n.t(
+                "Type an address to look it up in the land register. DAWA will "
+                "clean up the spelling, the spacing and the floor, so a rough "
+                "one is fine."
+            )
         )
         self.query_one("#search-input", Input).focus()
         self._load_mine()
@@ -207,7 +209,7 @@ class SearchScreen(YayboScreen):
             if number > 1:
                 line.append("  →  ", style="dim")
             line.append(
-                label, style="bold" if number == active else "dim"
+                i18n.t(label), style="bold" if number == active else "dim"
             )
         self.query_one("#search-steps", Static).update(line)
 
@@ -279,7 +281,8 @@ class SearchScreen(YayboScreen):
 
         if not self.matches:
             if len(query.strip()) >= 3:
-                self._say(f"DAWA knows no address like {query.strip()!r}.")
+                self._say(i18n.t("DAWA knows no address like {query!r}.",
+                                 query=query.strip()))
             return
 
         self._capped = not whole_street and len(found) >= MATCHES
@@ -369,11 +372,13 @@ class SearchScreen(YayboScreen):
         dead = self._dead_ends()
         # Only ever counts what the register has actually answered for, so this
         # says "2 of these are empty", never "2 might be".
-        empty = f" · {dead} with nothing tinglyst" if dead else ""
+        empty = i18n.t(" · {n} with nothing registered", n=dead) if dead else ""
         self._say(
-            f"{len(self.matches)} address(es){capped}{whole}{empty}.\n"
-            "↓ or enter moves to the list · then enter opens one, "
-            "or a takes its whole building"
+            i18n.t(
+                "{n} address(es){capped}{whole}{empty}.\n↓ or enter moves to "
+                "the list · then enter opens one, or a takes its whole building",
+                n=len(self.matches), capped=capped, whole=whole, empty=empty,
+            )
         )
 
     @on(Input.Submitted, "#search-input")
@@ -502,13 +507,17 @@ class SearchScreen(YayboScreen):
         self._stop_probing()
         if self.held.get(_building_key(address)) == []:
             self._say(
-                f"{address['tekst']} holds nothing in the land register - "
-                "already checked, so there is nothing to fetch. Pick another "
-                "of the addresses below."
+                i18n.t(
+                    "{where} holds nothing in the land register - already "
+                    "checked, so there is nothing to fetch. Pick another of "
+                    "the addresses below.",
+                    where=address["tekst"],
+                )
             )
             return
         self.address = address
-        self._say(f"Asking the register what is registered at {address['tekst']}…")
+        self._say(i18n.t("Asking the register what is registered at {where}…",
+                         where=address["tekst"]))
         self._find_units(address, take_all)
 
     # ── step two: which properties ──────────────────────────────────────
@@ -603,14 +612,21 @@ class SearchScreen(YayboScreen):
         self._steps(1)
         left = len(self.matches) - self._dead_ends()
         nothing = (
-            "Nothing on this list has anything registered - try another address."
+            i18n.t(
+                "Nothing on this list has anything registered - try another "
+                "address."
+            )
             if self.matches and left <= 0
-            else "Struck-through rows are the ones already known to be empty."
+            else i18n.t(
+                "Struck-through rows are the ones already known to be empty."
+            )
         )
         self._say(
-            f"Nothing is tinglyst at {where}.\n"
-            f"The address is real, but the land register holds no property "
-            f"there. {nothing}"
+            i18n.t(
+                "Nothing is registered at {where}.\nThe address is real, but "
+                "the land register holds no property there. {nothing}",
+                where=where, nothing=nothing,
+            )
         )
         if self.matches:
             matches.focus()
@@ -626,12 +642,16 @@ class SearchScreen(YayboScreen):
     def _describe_selection(self, warning: str = "") -> None:
         listing = self.query_one("#search-units", SelectionList)
         chosen, total = len(listing.selected), len(self.units)
-        held = "property" if total == 1 else "properties"
         note = f"{warning}\n" if warning else ""
         self._say(
-            f"{note}{total} {held} registered here · {chosen} ticked\n"
-            "space ticks one · a ticks all · n clears · "
-            "f queues them · ← back to the addresses"
+            note + i18n.t(
+                "{properties} registered here · {chosen} ticked\nspace ticks "
+                "one · a ticks all · n clears · f queues them · ← back to the "
+                "addresses",
+                properties=(i18n.t("{n} property", n=total) if total == 1
+                            else i18n.t("{n} properties", n=total)),
+                chosen=chosen,
+            )
         )
 
     # ── the keys that mean different things at each step ────────────────
@@ -652,7 +672,7 @@ class SearchScreen(YayboScreen):
         # address - so take the building, and arrive with the lot ticked.
         match = self._highlighted_match()
         if match is None:
-            self._say("Type an address first. a then takes its whole building.")
+            self._say(i18n.t("Type an address first. a then takes its whole building."))
             return
         self._open(match, whole_building=True, take_all=True)
 
@@ -664,14 +684,20 @@ class SearchScreen(YayboScreen):
         """Put the ticked properties in the queue and carry on."""
         if not self._picking_units:
             self._say(
-                "Pick an address first - enter on one, or a for its whole building."
+                i18n.t(
+                    "Pick an address first - enter on one, or a for its whole "
+                    "building."
+                )
             )
             return
         listing = self.query_one("#search-units", SelectionList)
         chosen = sorted(listing.selected)
         if not chosen:
             self._say(
-                "Nothing ticked. space ticks the one under the cursor; a ticks all."
+                i18n.t(
+                    "Nothing ticked. space ticks the one under the cursor; a "
+                    "ticks all."
+                )
             )
             return
         if self.address is None:
@@ -681,8 +707,10 @@ class SearchScreen(YayboScreen):
         self.app.enqueue_units(self.address["tekst"], self.address, units)
         if not self.app.logged_in:
             self.notify(
-                "Queued against the public register. ctrl+L logs in, for owners' "
-                "dates of birth and the chain of previous owners."
+                i18n.t(
+                    "Queued against the public register. ctrl+L logs in, for "
+                    "owners' dates of birth and the chain of previous owners."
+                )
             )
         # Unticked on the way out, so the same rows cannot be queued twice by
         # pressing f again without meaning to. That posts SelectedChanged,
@@ -692,14 +720,19 @@ class SearchScreen(YayboScreen):
         # ours to predict once anything else on the screen also reacts.
         listing.deselect_all()
         self._just_announced = True
-        held = "property" if len(units) == 1 else "properties"
+        held = (
+            i18n.t("{n} property", n=len(units)) if len(units) == 1
+            else i18n.t("{n} properties", n=len(units))
+        )
         note = self.app.queued_note()
         self._say(
-            f"Queued {len(units)} {held} from {self.address['tekst']}.\n"
-            f"{note}  ← goes back to the addresses to queue more, "
-            "b shows the queue, l the library."
+            i18n.t(
+                "Queued {held} from {where}.\n{note}  ← goes back to the "
+                "addresses to queue more, b shows the queue, l the library.",
+                held=held, where=self.address["tekst"], note=note,
+            )
         )
-        self.notify(f"Queued {len(units)} {held}. {note}")
+        self.notify(i18n.t("Queued {held}. {note}", held=held, note=note))
 
     # ── the buttons, which do exactly what the keys do ──────────────────
 
@@ -754,7 +787,7 @@ class SearchScreen(YayboScreen):
         field.value = ""
         field.focus()
         self._steps(1)
-        self._say("Type an address to look it up in the land register.")
+        self._say(i18n.t("Type an address to look it up in the land register."))
 
     def action_back(self) -> None:
         # Leaving no longer stops anything: the queue belongs to the
@@ -811,8 +844,8 @@ def _tally(properties: int, shares: int) -> str:
     return " + ".join(parts)
 
 
-BUILDINGS = "HELE BYGNINGER   ·   every property registered at the address"
-UNITS = "ENKELTE BOLIGER   ·   only the one flat"
+BUILDINGS = "WHOLE BUILDINGS   ·   every property registered at the address"
+UNITS = "SINGLE HOMES   ·   only the one flat"
 
 
 def _in_sections(matches: list[dict]) -> list[dict | str]:
@@ -851,13 +884,14 @@ def _match_label(
     empty, some, _ = palette
     if not properties and not shares:
         label.stylize("strike")
-        label.append("   intet tinglyst her", style=f"bold {empty}")
+        label.append("   " + i18n.t("nothing registered here"), style=f"bold {empty}")
     elif fell_back and not shares:
         # The register has no separate entry for this flat, so picking it gets
         # the building. Saying so here is the difference between an honest row
         # and one that promises a flat and delivers ninety.
         label.append(
-            f"   ingen egen ejendom · hele bygningen: {properties}",
+            "   " + i18n.t("no property of its own · whole building: {n}",
+                           n=properties),
             style=f"bold {empty}",
         )
     else:
@@ -879,7 +913,7 @@ def _unit_label(unit: dict, number: int) -> Text:
     # valuation, no area and no easements, so a row that does not say it is a
     # share reads as a property with most of its columns mysteriously empty.
     if unit.get("bog") == ANDELSBOG:
-        label.append("   andel", style="bold")
+        label.append("   " + i18n.t("share"), style="bold")
     detail = "  ·  ".join(
         str(unit[key])
         for key in ("ejendomstype", "ejerlejlighedsnr", "bfe_nr", "matrikel")

@@ -27,6 +27,7 @@ from textual.binding import Binding
 from textual.containers import Horizontal
 from textual.widgets import Button, DataTable, Footer, Header, Static
 
+from yaybo import i18n
 from yaybo.fetching import DONE
 from yaybo.screens.base import YayboScreen
 from yaybo.widgets.nav import NavTabs
@@ -36,9 +37,9 @@ from yaybo.widgets.session_bar import SessionBar
 COLUMNS = (
     ("", 3),
     ("", 3),
-    ("Adresse", 46),
-    ("Ejendomme", 11),
-    ("Rækker", 9),
+    ("Address", 46),
+    ("Properties", 11),
+    ("Rows", 9),
     ("Note", 40),
 )
 
@@ -73,10 +74,10 @@ class QueueScreen(YayboScreen):
         yield NavTabs("koe")
         yield Static("", id="queue-status")
         with Horizontal(id="queue-actions"):
-            yield Button("▶  Start", id="queue-run", variant="primary")
-            yield Button("Retry", id="queue-retry")
-            yield Button("Remove", id="queue-remove")
-            yield Button("Export", id="queue-export")
+            yield Button(i18n.t("▶  Start"), id="queue-run", variant="primary")
+            yield Button(i18n.t("Retry"), id="queue-retry")
+            yield Button(i18n.t("Remove"), id="queue-remove")
+            yield Button(i18n.t("Export"), id="queue-export")
             yield Button("", id="queue-auto")
         yield DataTable(id="queue-table", cursor_type="row", zebra_stripes=True)
         yield Static("", id="queue-empty", classes="empty-state")
@@ -86,7 +87,7 @@ class QueueScreen(YayboScreen):
     def on_mount(self) -> None:
         table = self.query_one("#queue-table", DataTable)
         for label, width in COLUMNS:
-            table.add_column(label, width=width)
+            table.add_column(i18n.t(label), width=width)
         self.queue_changed()
 
     def _say(self, message: str) -> None:
@@ -171,18 +172,21 @@ class QueueScreen(YayboScreen):
 
         uuids = self.app.fetching.uuids_for(self._chosen)
         if not uuids:
-            self.notify("Those have not fetched anything yet.")
+            self.notify(i18n.t("Those have not fetched anything yet."))
             return
         tables = await asyncio.to_thread(store.tables_for, self.app.database, uuids)
         if not tables:
-            self.notify("Nothing in the database for those yet.")
+            self.notify(i18n.t("Nothing in the database for those yet."))
             return
-        held = "property" if len(uuids) == 1 else "properties"
         await self.app.push_screen_wait(
             ExportDialog(
                 tables,
                 "yaybo-queue",
-                title=f"Export {len(uuids)} {held} from the queue",
+                title=i18n.t(
+                    "Export {n} from the queue",
+                    n=(i18n.t("{n} property", n=len(uuids)) if len(uuids) == 1
+                       else i18n.t("{n} properties", n=len(uuids))),
+                ),
             )
         )
 
@@ -221,49 +225,58 @@ class QueueScreen(YayboScreen):
             )
 
         self.query_one("#queue-run", Button).label = (
-            "■  Stop" if queue.running else "▶  Start"
+            i18n.t("■  Stop") if queue.running else i18n.t("▶  Start")
         )
         self.query_one("#queue-auto", Button).label = (
-            "Auto-fetch: on" if queue.auto else "Auto-fetch: off"
+            i18n.t("Auto-fetch: on") if queue.auto else i18n.t("Auto-fetch: off")
         )
         table.display = bool(self.shown)
         empty = self.query_one("#queue-empty", Static)
         empty.display = not self.shown
         empty.update(
-            "Nothing queued.\n\nPress / to find a property, tick what you want\n"
-            "and press f to send it here."
+            i18n.t(
+                "Nothing queued.\n\nPress / to find a property, tick what you "
+                "want\nand press f to send it here."
+            )
         )
         self._describe(queue)
 
     def _describe(self, queue) -> None:
         if not queue.jobs:
             self._say(
-                "Auto-fetch is "
-                + (
-                    "on - queued properties start straight away."
-                    if queue.auto
-                    else "off - queued properties wait here to be started."
+                i18n.t("Auto-fetch is on - queued properties start straight away.")
+                if queue.auto
+                else i18n.t(
+                    "Auto-fetch is off - queued properties wait here to be started."
                 )
             )
             return
-        chosen = f"{len(self.ticked)} ticked · " if self.ticked else ""
-        state = (
-            f"fetching {queue.current}"
-            if queue.running and queue.current
-            else "running"
-            if queue.running
-            else f"{queue.held} held"
-            if queue.held
-            else f"{queue.waiting} waiting"
-            if queue.waiting
-            else "idle"
+        chosen = (
+            i18n.t("{n} ticked · ", n=len(self.ticked)) if self.ticked else ""
         )
-        failed = f" · {queue.failed} failed, r retries" if queue.failed else ""
+        state = (
+            i18n.t("fetching {what}", what=queue.current)
+            if queue.running and queue.current
+            else i18n.t("running")
+            if queue.running
+            else i18n.t("{n} held", n=queue.held)
+            if queue.held
+            else i18n.t("{n} waiting", n=queue.waiting)
+            if queue.waiting
+            else i18n.t("idle")
+        )
+        failed = (
+            i18n.t(" · {n} failed, r retries", n=queue.failed) if queue.failed else ""
+        )
         done = sum(1 for job in queue.jobs if job.state == DONE)
         self._say(
-            f"{chosen}{len(queue.jobs)} jobs, {done} done · "
-            f"{queue.done} of {queue.total} properties · {queue.rows} rows · "
-            f"{state}{failed}"
+            i18n.t(
+                "{chosen}{jobs} jobs, {done} done · {fetched} of {total} "
+                "properties · {rows} rows · {state}{failed}",
+                chosen=chosen, jobs=len(queue.jobs), done=done,
+                fetched=queue.done, total=queue.total, rows=queue.rows,
+                state=state, failed=failed,
+            )
         )
 
     def action_back(self) -> None:

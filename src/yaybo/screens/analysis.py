@@ -21,7 +21,7 @@ from textual.screen import ModalScreen
 from textual.widgets import Button, DataTable, Select, Static
 from textual_plotext import PlotextPlot
 
-from yaybo import display, stats
+from yaybo import display, i18n, stats
 
 if TYPE_CHECKING:
     from yaybo.app import YayboApp
@@ -29,10 +29,10 @@ if TYPE_CHECKING:
 # How far back a series may reach. Sales data goes back decades, and most
 # questions are about the recent part of it.
 PERIODS = (
-    ("Hele perioden", 0),
-    ("Sidste 5 år", 5),
-    ("Sidste 10 år", 10),
-    ("Sidste 20 år", 20),
+    ("All years", 0),
+    ("Last 5 years", 5),
+    ("Last 10 years", 10),
+    ("Last 20 years", 20),
 )
 
 
@@ -61,7 +61,7 @@ class AnalysisScreen(ModalScreen[None]):
 
     def compose(self) -> ComposeResult:
         with Vertical(id="analysis-box"):
-            yield Static(self.analysis.name, id="analysis-title")
+            yield Static(i18n.t(self.analysis.name), id="analysis-title")
             yield Static(self.where, id="analysis-where")
             # One `with` block, and no early return: compose is a generator,
             # so returning out of it here would drop the chart, the table and
@@ -69,13 +69,16 @@ class AnalysisScreen(ModalScreen[None]):
             with Horizontal(id="analysis-controls"):
                 if self.analysis.kind == "summary":
                     yield Static(
-                        "Every figure below is over the selection named above.",
+                        i18n.t(
+                            "Every figure below is over the selection named "
+                            "above."
+                        ),
                         id="analysis-blurb",
                     )
                 else:
                     yield Select(
                         [
-                            (stats.BY_KEY[key].label, key)
+                            (i18n.t(stats.BY_KEY[key].label), key)
                             for key in self.analysis.measures
                         ],
                         value=self.measure,
@@ -96,7 +99,7 @@ class AnalysisScreen(ModalScreen[None]):
                             list(PERIODS), value=self.since, allow_blank=False,
                             id="analysis-period",
                         )
-                yield Button("Luk", id="analysis-close")
+                yield Button(i18n.t("Close"), id="analysis-close")
             yield PlotextPlot(id="analysis-chart")
             yield DataTable(id="analysis-table", cursor_type="row",
                             zebra_stripes=True)
@@ -160,7 +163,10 @@ class AnalysisScreen(ModalScreen[None]):
 
         since = date.today().year - self.since if self.since else 0
         rows = stats.over_time(self.scope, self.measure, self.how, since)
-        table = self._table(("År", 8), ("Handler", 9), (self._spec().label, 18))
+        table = self._table(
+            (i18n.t("Year"), 8), (i18n.t("Sales"), 9),
+            (i18n.t(self._spec().label), 18),
+        )
         for year, count, value in rows:
             table.add_row(str(year), display.number(count), self._write(value))
 
@@ -170,9 +176,12 @@ class AnalysisScreen(ModalScreen[None]):
         if len(points) < 2:
             plot.display = False
             self._note(
-                "Not enough recorded sales in this selection to plot. Sale "
-                "history comes from Boligsiden, which knows the sales an agent "
-                "handled; a flat sold privately, or held for decades, has none."
+                i18n.t(
+                    "Not enough recorded sales in this selection to plot. Sale "
+                    "history comes from Boligsiden, which knows the sales an "
+                    "agent handled; a flat sold privately, or held for "
+                    "decades, has none."
+                )
             )
             return
         plot.display = True
@@ -184,8 +193,8 @@ class AnalysisScreen(ModalScreen[None]):
         plot.plt.scatter(xs, ys, marker="●",
                          color=display.rgb(theme.warning, (232, 185, 106)))
         _year_ticks(plot, [int(year) for year, _ in points])
-        plot.plt.title(f"{self._spec().label} · {_how_label(self.how)}")
-        plot.plt.xlabel("År")
+        plot.plt.title(f"{i18n.t(self._spec().label)} · {_how_label(self.how)}")
+        plot.plt.xlabel(i18n.t("Year"))
         sales = sum(count for _, count, _ in rows)
         self._note(
             f"{sales} recorded sale(s) across {len(self.scope)} propert"
@@ -195,8 +204,8 @@ class AnalysisScreen(ModalScreen[None]):
     def _draw_group(self) -> None:
         rows = stats.aggregate(self.scope, self.by, self.measure, self.how)
         label = dict((value, name) for name, value in stats.GROUPS)[self.by]
-        table = self._table((label, 30), ("Ejendomme", 11),
-                            (self._spec().label, 18))
+        table = self._table((i18n.t(label), 30), (i18n.t("Properties"), 11),
+                            (i18n.t(self._spec().label), 18))
         for name, count, value in rows:
             table.add_row(
                 display.shorten(name, 30), display.number(count), self._write(value)
@@ -207,7 +216,7 @@ class AnalysisScreen(ModalScreen[None]):
         plot.plt.clear_figure()
         if not bars:
             plot.display = False
-            self._note("Nothing in this selection has that figure recorded.")
+            self._note(i18n.t("Nothing in this selection has that figure recorded."))
             return
         plot.display = True
         theme = self.app.current_theme
@@ -217,27 +226,43 @@ class AnalysisScreen(ModalScreen[None]):
             color=display.rgb(theme.primary, (94, 176, 234)),
             orientation="horizontal" if len(bars) > 8 else "vertical",
         )
-        plot.plt.title(f"{self._spec().label} · {_how_label(self.how)} · pr. {label}")
+        plot.plt.title(
+            f"{i18n.t(self._spec().label)} · {_how_label(self.how)}"
+            f" · {i18n.t('per')} {i18n.t(label)}"
+        )
         self._note(
-            f"{len(rows)} group(s) over {len(self.scope)} propert"
-            f"{'y' if len(self.scope) == 1 else 'ies'}. "
-            "Groups with nothing recorded are listed but not plotted."
+            i18n.t(
+                "{groups} over {properties}. Groups with nothing recorded are "
+                "listed but not plotted.",
+                groups=(i18n.t("{n} group", n=len(rows)) if len(rows) == 1
+                        else i18n.t("{n} groups", n=len(rows))),
+                properties=(i18n.t("{n} property", n=len(self.scope))
+                            if len(self.scope) == 1
+                            else i18n.t("{n} properties", n=len(self.scope))),
+            )
         )
 
     def _draw_summary(self) -> None:
         self.query_one("#analysis-chart", PlotextPlot).display = False
-        table = self._table(("Gruppe", 16), ("Tal", 30), ("Værdi", 20))
+        table = self._table((i18n.t("Group"), 16), (i18n.t("Figure"), 30),
+                            (i18n.t("Value"), 20))
         for heading, figures in stats.overview(self.scope):
             first = True
             for label, unit, value in figures:
                 table.add_row(
-                    heading if first else "", label, _format(value, unit)
+                    i18n.t(heading) if first else "",
+                    i18n.t(label),
+                    _format(value, unit),
                 )
                 first = False
         self._note(
-            f"{len(self.scope)} propert"
-            f"{'y' if len(self.scope) == 1 else 'ies'} in this selection. "
-            "A figure reading – is one nothing in the selection records."
+            i18n.t(
+                "{properties} in this selection. A figure reading – is one "
+                "nothing in the selection records.",
+                properties=(i18n.t("{n} property", n=len(self.scope))
+                            if len(self.scope) == 1
+                            else i18n.t("{n} properties", n=len(self.scope))),
+            )
         )
 
     def _table(self, *columns: tuple[str, int]) -> DataTable:
@@ -274,7 +299,7 @@ def _format(value, unit: str) -> str:
 
 
 def _how_label(how: str) -> str:
-    return dict((value, name) for name, value in stats.HOWS).get(how, how)
+    return i18n.t(dict((value, name) for name, value in stats.HOWS).get(how, how))
 
 
 def _year_ticks(plot: PlotextPlot, years: list[int]) -> None:

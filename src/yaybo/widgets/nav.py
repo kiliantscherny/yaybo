@@ -18,17 +18,21 @@ from typing import TYPE_CHECKING
 from textual import on
 from textual.widgets import Tab, Tabs
 
+from yaybo import i18n
+
 if TYPE_CHECKING:
     from yaybo.app import YayboApp
 
 # tab id, what it is called, the application action that goes there.
+# The labels are English here and translated where they are used, because
+# this is built on import - before anyone has chosen a language.
 PLACES = (
-    ("ejendomme", "Ejendomme", "library"),
-    ("andele", "Andele", "andele"),
-    ("bygninger", "Bygninger", "buildings"),
-    ("noegletal", "Nøgletal", "stats"),
-    ("koe", "Kø", "queue"),
-    ("soeg", "Søg", "search"),
+    ("ejendomme", "Properties", "library"),
+    ("andele", "Co-op shares", "andele"),
+    ("bygninger", "Buildings", "buildings"),
+    ("noegletal", "Figures", "stats"),
+    ("koe", "Queue", "queue"),
+    ("soeg", "Search", "search"),
 )
 ACTIONS = {key: action for key, _, action in PLACES}
 
@@ -43,7 +47,7 @@ class NavTabs(Tabs):
 
     def __init__(self, here: str) -> None:
         super().__init__(
-            *[Tab(label, id=key) for key, label, _ in PLACES], active=here
+            *[Tab(i18n.t(label), id=key) for key, label, _ in PLACES], active=here
         )
         self.here = here
 

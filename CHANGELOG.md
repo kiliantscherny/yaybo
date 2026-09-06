@@ -7,6 +7,16 @@ versions follow [semantic versioning](https://semver.org/).
 
 ### Added
 
+- **The interface is in English or Danish, and switches at any point.**
+  `ctrl+G` offers both, rebuilds every screen in the chosen one and puts you
+  back where you were, including on the same property or the same share. The
+  choice is remembered. English is the default; it used to be neither, with a
+  footer offering "Quit" beside "Nøgletal" and a column headed "Gæld" next to
+  one headed "Fetched".
+- `i18n.py`, holding the catalogue. English is the source language, so the
+  string in the code is the English one and a translation nobody has written
+  yet degrades into readable English rather than into a key.
+
 - **Andelsboliger.** The register is four books and yaybo read one of them.
   It now also reads the andelsboligbog, which holds co-op shares. The two
   disagree about what a co-op building is, and both are right: to the tingbog
@@ -31,6 +41,11 @@ versions follow [semantic versioning](https://semver.org/).
 
 ### Notes
 
+- **The data is never translated.** A register record is Danish -
+  `Ejerpantebrev`, the wording of an easement - and reading one is a
+  Danish-language job however the buttons around it are labelled. Only the
+  chrome moves. The command line and the exports are English throughout and
+  are not affected by the setting.
 - **The andelsboligbog has no owner of record.** It registers rights over a
   share, not title to one; who holds an andel is the association's record.
   Names appear in two places and neither is the register stating ownership:

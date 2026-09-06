@@ -10,7 +10,7 @@ from textual.containers import Horizontal, Vertical
 from textual.screen import ModalScreen
 from textual.widgets import Button, Label, RadioButton, RadioSet, Static
 
-from yaybo import export
+from yaybo import export, i18n
 
 
 class ExportDialog(ModalScreen):
@@ -45,18 +45,23 @@ class ExportDialog(ModalScreen):
                 yield RadioButton("CSV")
             yield Static("", id="export-note")
             with Horizontal(id="export-buttons"):
-                yield Button("Cancel", id="export-cancel")
-                yield Button("Export", variant="primary", id="export-go")
+                yield Button(i18n.t("Cancel"), id="export-cancel")
+                yield Button(i18n.t("Export"), variant="primary", id="export-go")
 
     def _summary(self) -> str:
         if not self.tables:
-            return "Nothing to export."
+            return i18n.t("Nothing to export.")
         total = sum(len(rows) for rows in self.tables.values())
         parts = ", ".join(
             f"{len(rows)} {name}" for name, rows in list(self.tables.items())[:6]
         )
-        more = "" if len(self.tables) <= 6 else f", and {len(self.tables) - 6} more"
-        return f"{total} rows across {len(self.tables)} tables\n{parts}{more}"
+        more = (
+            "" if len(self.tables) <= 6
+            else i18n.t(", and {n} more", n=len(self.tables) - 6)
+        )
+        return i18n.t(
+            "{rows} rows across {tables} tables", rows=total, tables=len(self.tables)
+        ) + f"\n{parts}{more}"
 
     @on(RadioSet.Changed, "#export-format")
     def _chose(self, event: RadioSet.Changed) -> None:
@@ -75,7 +80,7 @@ class ExportDialog(ModalScreen):
             self.dismiss(None)
             return
         self.query_one("#export-go", Button).disabled = True
-        self.query_one("#export-note", Static).update("Writing…")
+        self.query_one("#export-note", Static).update(i18n.t("Writing…"))
         self._write()
 
     @work(thread=True)
@@ -86,7 +91,8 @@ class ExportDialog(ModalScreen):
             )
         except Exception as error:  # noqa: BLE001 - shown to the user verbatim
             self.app.call_from_thread(
-                self.query_one("#export-note", Static).update, f"Failed: {error}"
+                self.query_one("#export-note", Static).update,
+                i18n.t("Failed: {error}", error=error),
             )
             self.app.call_from_thread(
                 setattr, self.query_one("#export-go", Button), "disabled", False
@@ -95,9 +101,10 @@ class ExportDialog(ModalScreen):
 
         paths = written if isinstance(written, list) else [written] if written else []
         message = (
-            f"Wrote {paths[0]}" if len(paths) == 1
-            else f"Wrote {len(paths)} files to {paths[0].parent}" if paths
-            else "Nothing to write."
+            i18n.t("Wrote {path}", path=paths[0]) if len(paths) == 1
+            else i18n.t("Wrote {n} files to {where}",
+                        n=len(paths), where=paths[0].parent) if paths
+            else i18n.t("Nothing to write.")
         )
         self.app.call_from_thread(self.app.notify, message)
         self.app.call_from_thread(self.dismiss, paths[0] if paths else None)
