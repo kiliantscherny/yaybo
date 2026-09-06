@@ -232,6 +232,85 @@ TABLES: dict[str, TableSpec] = {
             ("panthavere", TEXT),
         ],
     },
+    # The second book. An andel is not real property, so it is not an
+    # ejendom: the association owns the building - one row in `ejendomme`
+    # however many doors it has - and an andelshaver owns a share in the
+    # association carrying the right to one flat. Every column an ejendom has
+    # because it is real property - the valuation, the matrikel, the BFE
+    # number, the tinglyste areal - has no counterpart here at all, which is
+    # why these are their own tables rather than rows in those.
+    #
+    # There is no `beriget` here as there is on `ejendomme`. Only the public
+    # book is read, and it answers a logged-in session exactly as it answers
+    # nobody, so an andel row is never the thinner of two possible readings.
+    "andele": {
+        "key": "uuid",
+        "pk": ["uuid"],
+        "columns": [
+            # The andelsboligbog's own uuid, from a different register than
+            # ejendomme.uuid. The two namespaces never mix.
+            ("uuid", TEXT),
+            ("adresse", TEXT),
+            ("lejlighed", TEXT),
+            # How the book addresses a flat, and the only key its own search
+            # by municipality accepts.
+            ("kommunekode", TEXT),
+            ("vejkode", TEXT),
+            # The association's property in the tingbog, when the same lookup
+            # found it. This is what joins an andel to the building it is in,
+            # and through it to the association's own mortgages and easements.
+            ("ejendom_uuid", TEXT),
+            ("bygning_adresse", TEXT),
+            ("antal_haeftelser", INTEGER),
+            # What is charged against this share alone. Not what the flat
+            # owes: an andelshaver also owes a share of the association's own
+            # mortgage, which is registered against the building in the
+            # tingbog and is nowhere in this table.
+            ("samlet_gaeld_dkk", INTEGER),
+            # Boligsiden, keyed on DAWA's address uuid. The book says nothing
+            # whatever about the flat itself, so without this an andel is an
+            # address and a debt and no more. Its boligtype reads
+            # "cooperative", which is a second opinion on what this is.
+            ("adresse_uuid", TEXT),
+            ("boligtype", TEXT),
+            ("boligareal_m2", INTEGER),
+            ("boligsiden_vurdering_dkk", INTEGER),
+            ("til_salg", BOOLEAN),
+            ("boligsiden_url", TEXT),
+            ("breddegrad", DECIMAL),
+            ("laengdegrad", DECIMAL),
+            # No seneste_salg_* here, though Boligsiden offers one. A share is
+            # not sold as real property, so the only transfer ever recorded at
+            # a co-op address is the building's own sale to the association -
+            # the same date and amount on every door in the block, divided by
+            # each flat's area into a price per square metre that means
+            # nothing. That sale is a fact about the building, and is already
+            # stored as one on the ejendomme row this andel joins to.
+        ],
+    },
+    # Charges registered against one share. The book states these in exactly
+    # the fields the tingbog uses for a property's mortgages, so these columns
+    # are the public half of `haeftelser` under a different key - and only
+    # that half, because there is no andel counterpart to the attest the
+    # logged-in columns are read out of.
+    "andel_haeftelser": {
+        "key": "andel_uuid",
+        "pk": ["andel_uuid", "dokument_uuid", "dokument_version"],
+        "columns": [
+            ("andel_uuid", TEXT),
+            ("dokument_uuid", TEXT),
+            ("dokument_version", TEXT),
+            ("adresse", TEXT),
+            ("dato_loebenummer", TEXT),
+            ("prioritet", INTEGER),
+            ("dokumenttype", TEXT),
+            ("hovedstol", TEXT),
+            ("hovedstol_dkk", INTEGER),
+            ("rentetype", TEXT),
+            ("rentesats_pct", DECIMAL),
+            ("kreditorer", TEXT),
+        ],
+    },
     # Every recorded sale of the address, from Boligsiden. This overlaps
     # adkomsthistorik and does not replace it: the register knows transfers
     # that were never a sale, and Boligsiden knows the area and the price per
@@ -659,6 +738,50 @@ def library(path: str | Path) -> list[dict]:
             FROM ejendomme e
             {owners}
             ORDER BY e."{FETCHED}" DESC NULLS LAST, e.adresse
+            """,
+        )
+
+
+def andele(path: str | Path) -> list[dict]:
+    """One row per co-op share held, with enough on it to choose from a list.
+
+    Joined out to the association's property wherever one was found, because
+    nearly everything a share does not have is on that row: the block's public
+    valuation, the association's own mortgages, its easements. On its own a
+    share is an address, an area and a debt, and the join is what makes the
+    first of those mean anything.
+    """
+    with _reading(path) as db:
+        if db is None:
+            return []
+        held = {row[0] for row in db.execute("SHOW TABLES").fetchall()}
+        if "andele" not in held:
+            return []
+        # A database fetched with --no-andele, or written before either table
+        # existed, still has to open.
+        building = "LEFT JOIN ejendomme e ON e.uuid = a.ejendom_uuid"
+        columns = (
+            "e.adresse AS bygning, e.ejendomsvurdering_dkk AS bygning_vurdering_dkk,"
+            " e.samlet_gaeld_dkk AS bygning_gaeld_dkk,"
+        )
+        if "ejendomme" not in held:
+            building = ""
+            columns = (
+                "a.bygning_adresse AS bygning, NULL AS bygning_vurdering_dkk,"
+                " NULL AS bygning_gaeld_dkk,"
+            )
+        return _rows(
+            db,
+            f"""
+            SELECT a.uuid, a.adresse, a.lejlighed, a.boligtype, a.boligareal_m2,
+                   a.samlet_gaeld_dkk, a.antal_haeftelser, a.til_salg,
+                   a.boligsiden_url, a.ejendom_uuid, a.bygning_adresse,
+                   a.kommunekode, a.vejkode, a.breddegrad, a.laengdegrad,
+                   {columns}
+                   a."{FETCHED}" AS hentet
+            FROM andele a
+            {building}
+            ORDER BY a."{FETCHED}" DESC NULLS LAST, a.adresse
             """,
         )
 

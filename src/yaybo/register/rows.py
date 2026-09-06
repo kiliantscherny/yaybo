@@ -479,6 +479,104 @@ def underpant_rows(document: dict | None, uuid: str) -> list[dict]:
     ]
 
 
+# The andelsboligbog, which is a different book about a different thing. A
+# share is not land: it has no valuation, no matrikel and no easements, so it
+# gets two tables rather than the twelve a property fills, and both are thin
+# on purpose rather than for want of reading.
+
+
+def andel_row(
+    record: dict,
+    uuid: str,
+    ejendom_uuid: str = "",
+    bygning_adresse: str = "",
+) -> dict:
+    """One co-op share, as a row.
+
+    `ejendom_uuid` is the association's property in the tingbog, when the same
+    address lookup found it. It is the whole reason the two books are worth
+    fetching together: on its own a share is an address and a debt, but joined
+    to the building it carries the association's own mortgages, its easements
+    and the public valuation of the block those are charged against.
+    """
+    adresse = record.get("adresse", "")
+    kommune_vej = record.get("kommuneVej") or {}
+    return {
+        "uuid": uuid,
+        "adresse": adresse,
+        "lejlighed": unit_label(adresse),
+        "kommunekode": kommune_vej.get("kommuneKode", ""),
+        "vejkode": kommune_vej.get("vejKode", ""),
+        "ejendom_uuid": ejendom_uuid,
+        "bygning_adresse": bygning_adresse,
+        "antal_haeftelser": len(record.get("haeftelser") or []),
+    }
+
+
+# What Boligsiden says that is genuinely about the flat. Its sale
+# registrations are not: see the note on `andele` in store.TABLES.
+ANDEL_BOLIG_FIELDS = (
+    "adresse_uuid", "boligtype", "boligareal_m2", "boligsiden_vurdering_dkk",
+    "til_salg", "boligsiden_url", "breddegrad", "laengdegrad",
+)
+
+
+def andel_bolig_row(bolig: dict) -> dict:
+    """The Boligsiden fields that describe the flat rather than the block."""
+    return {k: v for k, v in bolig_row(bolig).items() if k in ANDEL_BOLIG_FIELDS}
+
+
+def andel_haeftelse_rows(record: dict, uuid: str) -> list[dict]:
+    """Charges registered against one share, one row each.
+
+    The same reading as the public half of `haeftelse_rows`, because the book
+    states these in exactly the same fields. There is no logged-in half to
+    fall back from: the tingbog's separated rates and counted sub-pledges are
+    read out of the attest XML, and a share has no attest.
+    """
+    adresse = record.get("adresse", "")
+    return [
+        {
+            "andel_uuid": uuid,
+            "adresse": adresse,
+            "dato_loebenummer": h.get("alias", ""),
+            "prioritet": h.get("prioritet", ""),
+            "dokumenttype": h.get("haeftelsestype", ""),
+            "hovedstol": h.get("hovedstol", ""),
+            "hovedstol_dkk": h.get("hovedstol", ""),
+            "rentesats_pct": h.get("rente", ""),
+            "rentetype": h.get("fastvariabel", ""),
+            "kreditorer": "; ".join(h.get("kreditorer") or []),
+            "dokument_version": h.get("version", ""),
+            "dokument_uuid": h.get("uuid", ""),
+        }
+        for h in record.get("haeftelser") or []
+    ]
+
+
+def add_andel_debt(andele: list[dict], charges: list[dict]) -> None:
+    """Total what is charged against each share.
+
+    Only the total, where a property also gets equity and a loan-to-value.
+    Both of those divide by the public valuation and a share has none: what an
+    andel may be sold for is set by the association's own accounts under
+    andelsboligloven, which is not a register and not something this reads.
+
+    Nor is this what living there owes. An andelshaver also owes their share
+    of the association's own mortgage, which is registered against the
+    building in the tingbog and never appears in this book at all.
+    """
+    debt: dict[str, int] = {}
+    for charge in charges:
+        amount = _amount(charge.get("hovedstol_dkk"))
+        if amount is not None:
+            key = charge["andel_uuid"]
+            debt[key] = debt.get(key, 0) + amount
+
+    for row in andele:
+        row["samlet_gaeld_dkk"] = debt.get(row.get("uuid", ""), 0)
+
+
 def _amount(value) -> int | None:
     """A figure as a number, however the register happened to write it.
 
