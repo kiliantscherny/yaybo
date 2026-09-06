@@ -610,7 +610,7 @@ def test_the_library_says_which_rows_were_fetched_with_a_login(library):
             # it, where a narrow terminal cannot cut it off.
             assert COLUMNS[MITID].label == "MitID" and MITID == 0
             said = {str(table.get_row_at(i)[1]) for i in range(4)}
-            assert said == {"✓ ja", "✗ nej"}, "a plain yes or no, not fuld/delvis"
+            assert said == {"✓ yes", "✗ no"}, "a plain yes or no, not fuld/delvis"
 
     asyncio.run(walk())
 
@@ -1074,6 +1074,174 @@ def test_activating_another_tab_navigates(library):
             assert isinstance(app.screen, QueueScreen)
 
     asyncio.run(walk())
+
+
+def test_switching_language_rebuilds_the_whole_interface(database):
+    """Screens read their labels when they are built, so changing language
+    throws them away and builds them again. Checked on the tabs and on the
+    footer, which come from different places and could each be missed."""
+    from textual.widgets import Tab
+
+    from yaybo import i18n
+    from yaybo.app import YayboApp
+    from yaybo.widgets.nav import NavTabs
+
+    def tabs_of(app):
+        return [str(tab.label) for tab in app.screen.query_one(NavTabs).query(Tab)]
+
+    def footer_of(app):
+        return {
+            b.binding.description
+            for b in app.screen.active_bindings.values()
+            if b.binding.show and b.binding.description
+        }
+
+    async def walk() -> None:
+        app = YayboApp(database=database)
+        async with app.run_test(size=(160, 48)) as pilot:
+            await pilot.pause(0.4)
+            assert i18n.current() == "en", "English until somebody says otherwise"
+            assert "Properties" in tabs_of(app)
+            assert "Quit" in footer_of(app)
+
+            app._chose_language("da")
+            await pilot.pause(0.8)
+            assert tabs_of(app) == ["Ejendomme", "Andele", "Bygninger",
+                                    "Nøgletal", "Kø", "Søg"]
+            assert "Afslut" in footer_of(app)
+            assert "Quit" not in footer_of(app)
+
+            app._chose_language("en")
+            await pilot.pause(0.8)
+            assert "Properties" in tabs_of(app)
+            assert "Quit" in footer_of(app)
+
+    asyncio.run(walk())
+    i18n.use("en")
+
+
+def test_the_language_picker_opens_and_switches(database):
+    """Driven by the key and the button rather than by calling the action, so
+    the dialog is covered too and not only what it dismisses with."""
+    from textual.widgets import RadioButton, Tab
+
+    from yaybo import i18n
+    from yaybo.app import YayboApp
+    from yaybo.widgets.language_dialog import LanguageDialog
+    from yaybo.widgets.nav import NavTabs
+
+    async def walk() -> None:
+        app = YayboApp(database=database)
+        async with app.run_test(size=(160, 48)) as pilot:
+            await pilot.pause(0.4)
+            await pilot.press("ctrl+g")
+            await pilot.pause(0.5)
+            assert isinstance(app.screen, LanguageDialog)
+            # Each language in its own name, so somebody who has landed in the
+            # wrong one still recognises the word they are looking for.
+            offered = [
+                str(button.label)
+                for button in app.screen.query(RadioButton)
+            ]
+            assert offered == ["English", "Dansk"]
+
+            app.screen.query_one("#lang-da", RadioButton).value = True
+            await pilot.pause(0.2)
+            await pilot.click("#language-go")
+            await pilot.pause(0.9)
+            assert i18n.current() == "da"
+            labels = [str(t.label)
+                      for t in app.screen.query_one(NavTabs).query(Tab)]
+            assert labels[0] == "Ejendomme"
+
+    asyncio.run(walk())
+    i18n.use("en")
+
+
+def test_cancelling_the_language_picker_changes_nothing(database):
+    from yaybo import i18n
+    from yaybo.app import YayboApp
+    from yaybo.widgets.language_dialog import LanguageDialog
+
+    async def walk() -> None:
+        app = YayboApp(database=database)
+        async with app.run_test(size=(160, 48)) as pilot:
+            await pilot.pause(0.4)
+            await pilot.press("ctrl+g")
+            await pilot.pause(0.5)
+            assert isinstance(app.screen, LanguageDialog)
+            await pilot.press("escape")
+            await pilot.pause(0.5)
+            assert i18n.current() == "en"
+
+    asyncio.run(walk())
+    i18n.use("en")
+
+
+def test_switching_language_puts_you_back_where_you_were(database):
+    """A rebuild that always landed on the Library would lose your place."""
+    from yaybo import i18n
+    from yaybo.app import YayboApp
+    from yaybo.screens.andele import AndeleScreen
+    from yaybo.screens.property import PropertyScreen
+
+    async def walk() -> None:
+        app = YayboApp(database=database)
+        async with app.run_test(size=(160, 48)) as pilot:
+            await pilot.pause(0.4)
+            app.action_andele()
+            await pilot.pause(0.5)
+            assert isinstance(app.screen, AndeleScreen)
+
+            app._chose_language("da")
+            await pilot.pause(0.8)
+            assert isinstance(app.screen, AndeleScreen), "left the Andele tab"
+            from textual.widgets import DataTable as _DataTable
+
+            assert app.screen.query_one("#andele-table", _DataTable).columns
+
+            # A screen that is one property is reopened on the same one.
+            app.push_screen(PropertyScreen("u1"))
+            await pilot.pause(0.6)
+            app._chose_language("en")
+            await pilot.pause(0.8)
+            assert isinstance(app.screen, PropertyScreen)
+            assert app.screen.uuid == "u1"
+
+    asyncio.run(walk())
+    i18n.use("en")
+
+
+def test_the_language_is_remembered_between_runs(database, tmp_path):
+    """The dialog writes it; the next application reads it before building
+    anything, because the language decides what every label says."""
+    from yaybo import i18n
+    from yaybo.app import YayboApp
+
+    async def choose() -> None:
+        app = YayboApp(database=database)
+        async with app.run_test(size=(160, 48)) as pilot:
+            await pilot.pause(0.4)
+            app._chose_language("da")
+            await pilot.pause(0.6)
+
+    async def come_back() -> None:
+        app = YayboApp(database=database)
+        async with app.run_test(size=(160, 48)) as pilot:
+            await pilot.pause(0.4)
+            assert i18n.current() == "da"
+            from textual.widgets import Tab
+
+            from yaybo.widgets.nav import NavTabs
+
+            labels = [str(t.label)
+                      for t in app.screen.query_one(NavTabs).query(Tab)]
+            assert "Ejendomme" in labels
+
+    asyncio.run(choose())
+    i18n.use("en")          # as if the process had ended
+    asyncio.run(come_back())
+    i18n.use("en")
 
 
 def test_the_queue_screen_acts_on_what_is_ticked(library, monkeypatch):
