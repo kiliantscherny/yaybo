@@ -5,6 +5,12 @@ versions follow [semantic versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-09-06
+
+Two features, neither of which changes a column name or a command line
+argument: a 1.0.0 database opens unchanged, and `yaybo fetch` takes
+everything it took before.
+
 ### Added
 
 - **The interface is in English or Danish, and switches at any point.**
@@ -16,7 +22,6 @@ versions follow [semantic versioning](https://semver.org/).
 - `i18n.py`, holding the catalogue. English is the source language, so the
   string in the code is the English one and a translation nobody has written
   yet degrades into readable English rather than into a key.
-
 - **Andelsboliger.** The register is four books and yaybo read one of them.
   It now also reads the andelsboligbog, which holds co-op shares. The two
   disagree about what a co-op building is, and both are right: to the tingbog
@@ -29,7 +34,7 @@ versions follow [semantic versioning](https://semver.org/).
   because a share is not real property: it has no valuation, no matrikel, no
   registered area, no easements and no owner of record, so the derived columns
   a property carries have nothing to divide by.
-- **Andele**, a tab for them beside Ejendomme, and a screen for one share:
+- **Co-op shares**, a tab for them beside Properties, and a screen for one:
   its address and municipality codes, its charges with everyone named on each,
   and its notices. Enter opens a share, g opens the association's building -
   which is where everything a share does not have is.
@@ -38,6 +43,15 @@ versions follow [semantic versioning](https://semver.org/).
   place this book names anybody other than a creditor, and the Andele screen
   counts them in a column of their own because a notice is worth noticing.
 - `yaybo fetch --no-andele` skips the second book and behaves as before.
+
+### Fixed
+
+- Boligsiden's own API keys were reaching the screen as if they were words.
+  `condo` - their key for an ejerlejlighed - was showing in the Type dropdown
+  on the properties list, in the same grouping on the figures screen, and as
+  the property type on a share's overview. In Danish it now reads
+  `Ejerlejlighed`, which is what it has always meant, and merges with the
+  register's own value for the same thing.
 
 ### Notes
 

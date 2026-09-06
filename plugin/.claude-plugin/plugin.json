@@ -1,7 +1,7 @@
 {
   "name": "yaybo",
   "description": "Look up Danish property and co-op (andelsbolig) records - owners, mortgages, easements, sale prices and BBR data - from tinglysning.dk (Tingbogen and Andelsboligbogen), Boligsiden and Danmarks Statistik, then query or export them.",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "author": {
     "name": "Kilian Tscherny"
   },
