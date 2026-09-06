@@ -12,6 +12,11 @@ date rather than missing.
 
 This costs no MitID login and no request to tinglysning. Rows for properties
 whose document is not stored are left exactly as they are.
+
+`andele` and `andel_haeftelser` are not rebuilt and not touched. The
+andelsboligbog stores no signed document for a share, so there is nothing here
+to re-derive them from - re-fetching the address is the only way to update
+them.
 """
 
 from __future__ import annotations

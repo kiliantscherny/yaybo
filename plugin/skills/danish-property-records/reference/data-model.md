@@ -8,6 +8,7 @@ the tables mean and where they mislead.
 ## Contents
 
 - Grain and keys
+- Two registers, not one
 - Joins
 - Which tables need a login
 - Columns that are computed, not recorded
@@ -30,11 +31,47 @@ the tables mean and where they mislead.
 | `adkomsthistorik_ejere` | person in a past transfer | `ejendom_uuid, post_nummer, nummer` |
 | `attester` | the property's register document | `ejendom_uuid` |
 | `rentestatistik` | month × loan type of DST rates | `maaned, rentfix_kode` |
+| `andele` | co-op share | `uuid` |
+| `andel_haeftelser` | charge against a share, at a document version | `andel_uuid, dokument_uuid, dokument_version` |
 
 `haeftelser` is keyed on the document **version** because one document can
 secure more than one charge — an ejerpantebrev raised twice appears as two rows
 with the same `dokument_uuid`, different amounts and different priorities.
 Counting distinct `dokument_uuid` undercounts charges; counting rows does not.
+
+## Two registers, not one
+
+Tinglysning is four books. Two are here, and they disagree about what a co-op
+building is — correctly, in both cases.
+
+- The **tingbog** records real property. A co-op block is **one** property,
+  owned by the association, however many doors it has. That is `ejendomme`.
+- The **andelsboligbog** records shares. The same block is **one entry per
+  flat**. That is `andele`, joined back by `andele.ejendom_uuid`.
+
+A share is not land, so `andele` has **no valuation, no matrikel, no registered
+area, no easements and no owner** — only an address, its charges and any
+notices. `boligareal_m2`, the coordinates and `til_salg` come from Boligsiden,
+not from the register.
+
+Three traps, all of which produce plausible-looking wrong answers:
+
+- **Absence proves nothing.** A share only enters the book once something is
+  registered against it. A flat with no row in `andele` may simply have no
+  loan against it.
+- **`andele.samlet_gaeld_dkk` is not what living there owes.** It totals what
+  is charged against that share alone. An andelshaver also owes their portion
+  of the association's own mortgage, which sits against the *building* in
+  `ejendomme`/`haeftelser`. Adding the two needs the association's accounts,
+  which are not in any register.
+- **There is no sale price for a share, and none is stored.** Do not reach for
+  `ejendomme.seneste_salg_*` through the join and call it the flat's price: it
+  is the building's own sale, the same figure for every flat in the block. What
+  an andel may be sold for is set by the association's accounts under
+  andelsboligloven.
+
+Never `UNION` `ejendomme` and `andele` into one list of homes without saying
+which is which — the columns line up and the meanings do not.
 
 ## Joins
 
@@ -49,6 +86,11 @@ Counting distinct `dokument_uuid` undercounts charges; counting rows does not.
   `post_nummer`
 - `rentestatistik` joins to nothing. It is the rate series `laantype_estimat`
   was matched against, kept so an estimate can be checked
+- `andel_haeftelser.andel_uuid` → `andele.uuid`. Note it is **not**
+  `ejendom_uuid`: a share's uuid comes from a different register and never
+  matches `ejendomme.uuid`
+- `andele.ejendom_uuid` → `ejendomme.uuid`, and is empty when the lookup found
+  no single building to attribute the share to
 
 `rolle` in `dokument_parter` is one of `kreditor`, `debitor`, `meddelelseshaver`,
 `fuldmagtshaver`, `adkomsthaver`, `underpanthaver`, `paataleberettiget`.
@@ -100,6 +142,9 @@ rate and never the product. `laantype_alternativ` holds the runner-up and
 | `koebesum_dkk` vs `seneste_salg_dkk` | the register's recorded transfer sum vs Boligsiden's last sale |
 | `handelshistorik` vs `adkomsthistorik` | Boligsiden's sales vs the register's transfers. They overlap and neither is a superset: the register knows transfers that were never sales, Boligsiden knows the price per m² |
 | `hovedstol_dkk` vs `beloeb_dkk` | a charge's principal vs a sub-pledge's amount |
+| `andele.uuid` vs `ejendomme.uuid` | different registers. They never match, and joining them returns nothing rather than erroring |
+| `andele.samlet_gaeld_dkk` vs `ejendomme.samlet_gaeld_dkk` | one share's charges vs the whole association building's. Not parts of one total |
+| `haeftelser` vs `andel_haeftelser` | charges on the building vs charges on one share. Same column names, different subjects |
 
 Dates are `DATE`. Money is `BIGINT` kroner. Percentages are `DOUBLE`. Anything
 the register wrote in a form that could not be parsed is `NULL` rather than
