@@ -31,7 +31,7 @@ from yaybo.widgets.session_bar import SessionBar
 COLUMNS = (
     ("MitID", 9),
     ("Building", 40),
-    ("Postcode", 6),
+    ("Postcode", 8),
     ("Properties", 10),
     ("Area", 6),
     ("Val./m²", 9),

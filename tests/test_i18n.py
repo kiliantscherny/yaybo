@@ -170,6 +170,43 @@ def test_every_footer_key_has_a_danish_word():
     assert not missing, f"no Danish for: {missing}"
 
 
+def test_every_column_header_fits_its_column_in_both_languages():
+    """Danish is usually the shorter of the two - "Belånt" against
+    "Loan-to-value" - but not always: "Meddelelser" is four characters longer
+    than "Notices". A header wider than its column is silently truncated, so
+    the widths have to suit whichever language is longer, not the one the
+    label happens to be written in.
+    """
+    from yaybo.screens import andel, andele, buildings, queue
+    from yaybo.screens import property as prop
+    from yaybo.screens.library import COLUMNS as LIBRARY
+
+    headers = []
+    for where, columns in (
+        ("andele", andele.COLUMNS), ("buildings", buildings.COLUMNS),
+        ("queue", queue.COLUMNS), ("property/timeline", prop.TIMELINE),
+    ):
+        headers += [(where, label, width) for label, width in columns]
+    for where, spec in (
+        ("andel/charges", andel.HAEFTELSER), ("andel/notices", andel.MEDDELELSER),
+        ("property/owners", prop.EJERE), ("property/charges", prop.HAEFTELSER),
+        ("property/easements", prop.SERVITUTTER), ("property/parties", prop.PARTER),
+        ("property/underpant", prop.UNDERPANT), ("property/sales", prop.HANDLER),
+    ):
+        headers += [(where, row[0], row[3]) for row in spec]
+    headers += [("library", column.label, column.width) for column in LIBRARY]
+
+    too_wide = []
+    for language in ("en", "da"):
+        i18n.use(language)
+        for where, label, width in headers:
+            shown = i18n.t(label)
+            if len(shown) > width:
+                too_wide.append(f"[{language}] {where}: {shown!r} > {width}")
+    i18n.use("en")
+    assert not too_wide, too_wide
+
+
 def test_the_register_is_never_translated():
     """The point of the whole module. A value out of the register is Danish
     and stays Danish, however the buttons around it are labelled."""

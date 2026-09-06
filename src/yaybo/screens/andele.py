@@ -40,8 +40,9 @@ COLUMNS = (
     ("Address", 38),
     ("Floor", 7),
     ("Area", 6),
-    ("Charges", 7),
-    ("Notices", 7),
+    # Wide enough for "Meddelelser", which is what these say in Danish.
+    ("Charges", 10),
+    ("Notices", 12),
     ("Debt", 10),
     ("Debt/m²", 9),
     ("For sale", 8),

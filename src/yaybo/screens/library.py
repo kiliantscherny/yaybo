@@ -114,7 +114,7 @@ COLUMNS: tuple[Column, ...] = (
     Column("MitID", 7, "mitid", lambda r: r.get("beriget"), field="beriget"),
     Column("Address", 34, "adresse", lambda r: display.shorten(r.get("adresse"), 34),
            field="adresse"),
-    Column("Postcode", 6, "postnr", _postcode),
+    Column("Postcode", 8, "postnr", _postcode),
     Column("Type", 12, "type", lambda r: display.shorten(_kind(r), 12),
            text=_kind),
     Column("Area", 6, "areal",
