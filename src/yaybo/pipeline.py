@@ -27,7 +27,7 @@ from yaybo.register.address import (
     resolve_address,
     select_units,
 )
-from yaybo.register.client import SessionExpired
+from yaybo.register.client import ANDELSBOG, SessionExpired
 
 # The tables a lookup fills, in the order store.TABLES declares them.
 TABLE_NAMES = (
@@ -43,6 +43,8 @@ TABLE_NAMES = (
     "dokument_parter",
     "underpant",
     "attester",
+    "andele",
+    "andel_haeftelser",
 )
 
 
@@ -68,16 +70,78 @@ class Bundle:
     def properties(self) -> list[dict]:
         return self.tables.get("ejendomme") or []
 
+    @property
+    def andele(self) -> list[dict]:
+        return self.tables.get("andele") or []
+
     def counts(self) -> dict[str, int]:
         return {name: len(gathered) for name, gathered in self.tables.items() if gathered}
 
 
-def resolve(api, query: str, *, use_dawa: bool = True) -> tuple[dict, list[dict], str]:
-    """Turn a typed address into (address, the register's units, a warning).
+def both_books(api, address: dict, andele_on: bool = True) -> list[dict]:
+    """Everything either book holds at an address, as one list.
+
+    The two searches answer in the same {uuid, adresse, bog} shape, so merging
+    them costs nothing and `bog` is what every later step dispatches on. One
+    list rather than two is what lets a ticked set of rows be fetched, counted
+    and exported without any screen having to know which register a row is
+    from.
+
+    The second search is one extra request per building, and it is the only
+    way to find out: a co-op block looks exactly like a rented one in the
+    tingbog - a single property with somebody else's name on it - right up
+    until the andelsboligbog answers with a flat per door.
+    """
+    units = api.find_units(address)
+    if not andele_on:
+        return units
+    try:
+        return units + api.find_andele(address)
+    except (requests.RequestException, RuntimeError):
+        # The tingbog has already answered. Losing the second book makes the
+        # result thinner, which is worth far more than making it nothing.
+        return units
+
+
+def narrow(units: list[dict], etage: str, doer: str) -> tuple[list[dict], str]:
+    """Cut both books' answers down to the flat that was asked for.
+
+    Each book is narrowed on its own and the two put back together, because
+    they are not competing answers. Dropping the tingbog's building because it
+    does not match a door would throw away the association's own mortgages,
+    its easements and the only valuation anywhere in sight - which is most of
+    what makes a co-op flat worth looking up.
+
+    It also settles what to warn about. "No separately registered unit for
+    'st. th'" is true of the tingbog and misleading on its own: the flat is
+    separately registered, in the other book. So when the andelsboligbog
+    answered with exactly that flat, the complaint is dropped.
+    """
+    if not etage and not doer:
+        return units, ""
+
+    properties = [u for u in units if u.get("bog") != ANDELSBOG]
+    andele = [u for u in units if u.get("bog") == ANDELSBOG]
+
+    kept, warning = select_units(properties, etage, doer) if properties else ([], "")
+    if andele:
+        # select_units hands everything back when it matched nothing, so an
+        # empty warning is what says the share itself was found.
+        andele, missed = select_units(andele, etage, doer)
+        if not missed:
+            warning = ""
+    return kept + andele, warning
+
+
+def resolve(
+    api, query: str, *, use_dawa: bool = True, andele_on: bool = True
+) -> tuple[dict, list[dict], str]:
+    """Turn a typed address into (address, what the registers hold, a warning).
 
     Two lookups, and they are not interchangeable. DAWA cleans the address;
-    the register then says which legally registered properties sit at it,
-    which is anything from one (a rented block) to sixty (a block of flats).
+    the registers then say what sits at it - anything from one property (a
+    rented block) to sixty (a block of flats), plus a co-op share per door
+    where the address is an andelsbolig.
     """
     address = None
     if use_dawa:
@@ -88,19 +152,52 @@ def resolve(api, query: str, *, use_dawa: bool = True) -> tuple[dict, list[dict]
     if address is None:
         address = api.lookup_address(query)
 
-    units = api.find_units(address)
-    units, warning = select_units(units, address["etage"], address["doer"])
+    units = both_books(api, address, andele_on)
+    units, warning = narrow(units, address["etage"], address["doer"])
     return address, units, warning
 
 
-def units_at(api, address: dict) -> tuple[list[dict], str]:
-    """Which legally registered properties sit at an already-resolved address.
+def units_at(
+    api, address: dict, *, andele_on: bool = True
+) -> tuple[list[dict], str]:
+    """What the registers hold at an already-resolved address.
 
-    The half of `resolve` that costs a request to the register, for a caller
-    that got its address from DAWA directly and has nothing left to clean.
+    The half of `resolve` that costs requests, for a caller that got its
+    address from DAWA directly and has nothing left to clean.
     """
-    units = api.find_units(address)
-    return select_units(units, address["etage"], address["doer"])
+    units = both_books(api, address, andele_on)
+    return narrow(units, address["etage"], address["doer"])
+
+
+def _gather_andel(api, uuid: str, gathered: dict, addresses: dict, building: dict):
+    """Fetch one co-op share and add the two tables' worth of rows it fills.
+
+    Returns the record so the caller can hand it to `on_raw`. There is no
+    second payload to go with it the way a property has an attest and a
+    history: this book has one page per share and that page is all of it.
+    """
+    record = api.fetch_andel(uuid)
+    adresse = record.get("adresse", "")
+
+    # Boligsiden is doing more work here than it does for a property. The book
+    # gives no area, no valuation and nothing about the building, so without
+    # this an andel row is an address and a debt.
+    bolig = {}
+    if addresses:
+        found = addresses.get(floor_and_door(adresse))
+        if found:
+            bolig = boligsiden.fetch(found)
+
+    gathered["andele"].append(
+        {
+            **rows.andel_row(
+                record, uuid, building.get("uuid", ""), building.get("adresse", "")
+            ),
+            **rows.andel_bolig_row(bolig),
+        }
+    )
+    gathered["andel_haeftelser"] += rows.andel_haeftelse_rows(record, uuid)
+    return record
 
 
 def fetch(
@@ -141,6 +238,15 @@ def fetch(
     parcels: dict = {}
     fetched = 0
 
+    # The association's property, when this lookup found exactly one. Every
+    # share at the address joins to it, and through it to the block's
+    # valuation and the association's own mortgages, none of which the
+    # andelsboligbog holds. More than one property here means the address is
+    # something other than a plain co-op block, and guessing which of them a
+    # share belongs to would be worse than leaving the join empty.
+    properties = [u for u in units if u.get("bog") != ANDELSBOG]
+    building = properties[0] if len(properties) == 1 else {}
+
     for index, unit in enumerate(units, start=1):
         if should_stop and should_stop():
             break
@@ -150,6 +256,13 @@ def fetch(
             on_unit(index, len(units), unit)
 
         uuid = unit["uuid"]
+        if unit.get("bog") == ANDELSBOG:
+            record = _gather_andel(api, uuid, gathered, addresses, building)
+            if on_raw:
+                on_raw(index, record, None, None)
+            fetched = index
+            continue
+
         record = api.fetch_record(uuid)
 
         details = history = None
@@ -228,6 +341,10 @@ def fetch(
             )
         fetched = index
 
+    # Only the tingbog's charges. What is secured on a share is a bank loan,
+    # and the DST series behind the estimate is realkredit rates, which a bank
+    # loan is not priced against - so a match there would be a coincidence
+    # dressed up as a reading.
     if laantype_on:
         estimated = laantype.annotate(gathered["haeftelser"])
         gathered["rentestatistik"] = laantype.rate_rows(estimated["renter"])
@@ -235,6 +352,7 @@ def fetch(
             say(f"named the loan type on {estimated['named']} realkredit charge(s)")
 
     rows.add_financials(gathered["ejendomme"], gathered["haeftelser"])
+    rows.add_andel_debt(gathered["andele"], gathered["andel_haeftelser"])
 
     return Bundle(
         address=address,
@@ -246,17 +364,42 @@ def fetch(
     )
 
 
+def describe(units: list[dict]) -> str:
+    """"1 property and 10 co-op shares" - what a lookup is about to cost.
+
+    Counted separately because they are not the same thing and the difference
+    is the point: one of those numbers is buildings and flats registered as
+    real property, the other is shares in an association that owns one.
+    """
+    shares = sum(1 for unit in units if unit.get("bog") == ANDELSBOG)
+    properties = len(units) - shares
+    parts = []
+    if properties or not shares:
+        parts.append(f"{properties} propert{'y' if properties == 1 else 'ies'}")
+    if shares:
+        parts.append(f"{shares} co-op share{'' if shares == 1 else 's'}")
+    return " and ".join(parts)
+
+
 def lookup(
-    api, query: str, *, limit: int = 25, use_dawa: bool = True, **options
+    api,
+    query: str,
+    *,
+    limit: int = 25,
+    use_dawa: bool = True,
+    andele_on: bool = True,
+    **options,
 ) -> Bundle:
     """Resolve an address and fetch everything at it, in one call.
 
     `limit` caps how many properties a building is allowed to cost; 0 lifts it.
     """
     say = options.get("on_status") or (lambda message: None)
-    address, units, warning = resolve(api, query, use_dawa=use_dawa)
+    address, units, warning = resolve(
+        api, query, use_dawa=use_dawa, andele_on=andele_on
+    )
     say(f"resolved: {address['tekst']}")
-    say(f"found {len(units)} propert{'y' if len(units) == 1 else 'ies'}")
+    say(f"found {describe(units)}")
     if limit and len(units) > limit:
         say(f"fetching the first {limit} - raise the limit for more")
         units = units[:limit]
