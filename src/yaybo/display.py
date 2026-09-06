@@ -110,17 +110,22 @@ def ago(value) -> str:
 # Boligsiden's own keys, given a name a person would use. English here and
 # translated where drawn, like every other label: these are a fixed set of
 # categories rather than anything the register wrote.
+# Boligsiden's own keys on the left, given a name a person would use on the
+# right. The keys are theirs and stay as they are; the labels are English here
+# and translated where drawn, like every other label. Nobody should ever be
+# shown the key itself - "condo" is American, and more to the point it is an
+# API token rather than a word.
 BOLIGTYPER = {
     "condo": "Owner-occupied flat",
-    "villa": "House",
-    "villa apartment": "Villa flat",
+    "villa": "Detached house",
+    "villa apartment": "Flat in a house",
     "terraced house": "Terraced house",
     "cooperative": "Co-op flat",
-    "holiday house": "Holiday house",
+    "holiday house": "Holiday home",
     "holiday plot": "Holiday plot",
     "full year plot": "Building plot",
     "farm": "Farm",
-    "hobby farm": "Hobby farm",
+    "hobby farm": "Smallholding",
     "houseboat": "Houseboat",
 }
 
@@ -146,7 +151,12 @@ def rgb(colour: str | None, fallback: tuple[int, int, int]) -> tuple[int, int, i
 
 
 def boligtype(value) -> str:
-    """"condo" becomes "Ejerlejlighed"; anything unmapped is left as it is."""
+    """Boligsiden's key becomes something readable in the current language.
+
+    Anything unmapped is left exactly as it is: the register's own
+    ejendomstype arrives through here too, and that is Danish data rather than
+    a label of ours to translate.
+    """
     if value in (None, ""):
         return ""
     return i18n.t(BOLIGTYPER.get(str(value).strip().lower(), str(value)))

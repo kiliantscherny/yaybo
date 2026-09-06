@@ -25,7 +25,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import date
 
-from yaybo.display import parse_date
+from yaybo.display import boligtype, parse_date
 from yaybo.register.address import drop_unit, split_postcode, unit_label
 from yaybo.register.fields import normalise
 
@@ -63,7 +63,13 @@ def annotate(properties: list[dict]) -> list[dict]:
         row["_by"] = _town(address, postcode)
         row["_vej"] = _street(head)
         row["_etage"] = _floor(row)
-        row["_type"] = row.get("boligtype") or row.get("ejendomstype") or ""
+        # Boligsiden's key made readable; the register's own ejendomstype
+        # left exactly as it wrote it. Without the first, a dropdown offers
+        # "condo" - an API token, and an American one - to somebody choosing
+        # what kind of home to look at.
+        row["_type"] = (
+            boligtype(row.get("boligtype")) or row.get("ejendomstype") or ""
+        )
         row["_mitid"] = "ja" if row.get("beriget") else "nej"
         row["_areal"] = row.get("boligareal_m2") or row.get("areal_m2")
     return properties
