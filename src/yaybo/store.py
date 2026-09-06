@@ -856,6 +856,29 @@ def property_tables(path: str | Path, uuid: str) -> dict[str, list[dict]]:
     return found
 
 
+def andel_tables(path: str | Path, uuid: str) -> dict[str, list[dict]]:
+    """Every row in the database belonging to one co-op share.
+
+    property_tables' counterpart for the other book, and a separate function
+    because the keys are different: `andele` is keyed on its own uuid and
+    everything hanging off it on andel_uuid, and neither is the ejendom_uuid
+    the property tables all join on.
+    """
+    found: dict[str, list[dict]] = {}
+    with _reading(path) as db:
+        if db is None:
+            return {}
+        held = {row[0] for row in db.execute("SHOW TABLES").fetchall()}
+        for name in ("andele", "andel_haeftelser", "andel_meddelelser"):
+            if name not in held:
+                continue
+            key = TABLES[name]["key"]
+            rows = _rows(db, f'SELECT * FROM "{name}" WHERE "{key}" = ?', uuid)
+            if rows:
+                found[name] = rows
+    return found
+
+
 def held_addresses(path: str | Path) -> list[tuple[str, datetime | None]]:
     """Every property held, as (address, when it was fetched).
 

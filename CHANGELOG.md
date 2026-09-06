@@ -19,8 +19,10 @@ versions follow [semantic versioning](https://semver.org/).
   not real property: it has no valuation, no matrikel, no registered area, no
   easements and no named owner, so the derived columns a property carries have
   nothing to divide by.
-- **Andele**, a screen for them, beside Ejendomme in the tabs. Enter opens the
-  association's building, which is where everything a share does not have is.
+- **Andele**, a tab for them beside Ejendomme, and a screen for one share:
+  its address and municipality codes, its charges with everyone named on each,
+  and its notices. Enter opens a share, g opens the association's building -
+  which is where everything a share does not have is.
 - `andel_meddelelser`, the notices noted on a share - a death, a bankruptcy, a
   court removing the andelshaver's power to dispose of it. It is the only
   place this book names anybody other than a creditor, and the Andele screen

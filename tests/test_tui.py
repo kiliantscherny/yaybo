@@ -198,6 +198,19 @@ SAMPLE = {
             "til_salg": "false",
         }
     ],
+    "andel_meddelelser": [
+        {
+            "andel_uuid": "a1",
+            "dato_loebenummer": "11.03.2024-1000000009",
+            "adresse": "Prøvegade 1, ST. TH, 9999 Prøveby",
+            "prioritet": 1,
+            "dokumenttype": "Konkursdekret",
+            "afgoerelsesdato": "2024-03-11",
+            "debitorer": "Ida Testesen",
+            "disponenter": "Kurator Prøvesen",
+            "tillaegstekst": "Skifteretten har noteret konkurs.",
+        }
+    ],
     "andel_haeftelser": [
         {
             "andel_uuid": "a1",
@@ -810,6 +823,76 @@ def test_the_andele_screen_shows_the_other_book(database):
             app.screen._apply_filter("nowhere at all")
             await pilot.pause()
             assert app.screen.shown == []
+
+    asyncio.run(walk())
+
+
+def test_enter_on_an_andel_opens_it_and_names_who_is_on_its_charges(database):
+    """The list counts a share's charges without showing them, so everyone
+    named on one was unreachable until enter led somewhere.
+
+    Driven with a keypress rather than by calling the action, because the bug
+    was that the binding existed and did nothing: a focused DataTable takes
+    enter for itself and answers with RowSelected.
+    """
+    from textual.widgets import DataTable, TabbedContent
+
+    from yaybo.app import YayboApp
+    from yaybo.screens.andel import AndelScreen
+    from yaybo.screens.andele import AndeleScreen
+
+    async def walk() -> None:
+        app = YayboApp(database=database)
+        async with app.run_test(size=(180, 50)) as pilot:
+            await pilot.pause()
+            app.action_andele()
+            await pilot.pause(0.5)
+            assert isinstance(app.screen, AndeleScreen)
+
+            await pilot.press("enter")
+            await pilot.pause(0.8)
+            assert isinstance(app.screen, AndelScreen), "enter did nothing"
+
+            screen = app.screen
+            charges = screen.query_one("#table-andel-haeftelser", DataTable)
+            notices = screen.query_one("#table-andel-meddelelser", DataTable)
+            assert charges.row_count == 1
+            assert notices.row_count == 1
+            # The names are the point of the screen.
+            assert screen.tables["andel_haeftelser"][0]["kreditorer"]
+            assert screen.tables["andel_meddelelser"][0]["debitorer"]
+
+            # An empty tab has to be empty on purpose rather than broken.
+            tabs = screen.query_one("#andel-tabs", TabbedContent)
+            assert "1" in str(tabs.get_tab("tab-andel-haeftelser").label)
+
+            await pilot.press("escape")
+            await pilot.pause(0.5)
+            assert isinstance(app.screen, AndeleScreen)
+
+    asyncio.run(walk())
+
+
+def test_g_from_an_andel_goes_to_its_building(database):
+    """b is the queue everywhere else, so the building is on g - which is
+    Bygninger globally, narrowed here to this share's own."""
+    from yaybo.app import YayboApp
+    from yaybo.screens.andele import AndeleScreen
+    from yaybo.screens.library import LibraryScreen
+
+    async def walk() -> None:
+        app = YayboApp(database=database)
+        async with app.run_test(size=(180, 50)) as pilot:
+            await pilot.pause()
+            app.action_andele()
+            await pilot.pause(0.5)
+            assert isinstance(app.screen, AndeleScreen)
+            await pilot.press("g")
+            await pilot.pause(0.8)
+            # The association's property, on the properties tab, narrowed to it.
+            assert isinstance(app.screen, LibraryScreen)
+            assert len(app.screen.shown) == 1
+            assert app.screen.shown[0]["uuid"] == "u1"
 
     asyncio.run(walk())
 

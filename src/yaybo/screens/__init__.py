@@ -2,6 +2,7 @@
 
     library   what the database already holds, and the way in to everything
     andele    what the andelsboligbog holds, which is a different book
+    andel     one co-op share, with everyone named on its charges
     search    an address, resolved as you type, then fetched
     property  one property, tab by tab, read back out of the database
     queue     many addresses at once, with a progress bar

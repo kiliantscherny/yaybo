@@ -394,6 +394,10 @@ book by person name and date of birth. By analogy with the tingbog that attest
 would carry parties' CPR-derived birth dates. It is unverified and nothing here
 depends on it.
 
+In the TUI, **Andele** lists the shares held; enter opens one - its charges,
+everyone named on them, and its notices - and `g` opens the association's
+property.
+
 `yaybo fetch --no-andele` skips the second book and behaves as earlier versions
 did. `yaybo backfill` cannot rebuild these two tables — the register stores no
 signed document for a share, so there is nothing to re-derive them from — and

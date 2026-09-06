@@ -292,7 +292,7 @@ AnalysisScreen {
 
 /* ── property ────────────────────────────────────────────────────────── */
 
-#property-title {
+#property-title, #andel-title {
     width: 100%;
     height: auto;
     padding: 0 2;
@@ -308,7 +308,7 @@ Underline > .underline--bar { color: $primary 40%; }
 Tab.-active { color: $text; text-style: bold; }
 Tab:hover { color: $secondary; }
 
-#overview, #bygning {
+#overview, #bygning, #andel-overview {
     height: 1fr;
     padding: 1 2;
 }

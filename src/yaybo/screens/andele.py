@@ -55,7 +55,12 @@ class AndeleScreen(YayboScreen):
     AUTO_FOCUS = "#andele-table"
 
     BINDINGS = [
-        Binding("enter", "open_building", "Its building"),
+        Binding("enter", "open", "Open"),
+        # g rather than b: b is the queue everywhere else, and shadowing a
+        # global with something unrelated is worse than not binding it. g is
+        # Bygninger globally, and this is that narrowed to one andel - the
+        # same shadowing PropertyScreen does with k.
+        Binding("g", "open_building", "Its building"),
         Binding("f", "refetch", "Re-fetch"),
         Binding("r", "refresh", "Reload"),
         Binding("ctrl+f", "focus_filter", "Filter", show=False),
@@ -174,7 +179,8 @@ class AndeleScreen(YayboScreen):
         self.query_one("#andele-scope", Static).update(
             f"{shown} andel(e) · {display.compact_kr(owed)} charged against them. "
             "Not what they owe: a share of the association's own mortgage sits "
-            "against the building in the tingbog. enter opens that building."
+            "against the building in the tingbog. enter opens the andel and "
+            "everyone named on its charges, g opens the building."
         )
         empty = self.query_one("#andele-empty", Static)
         empty.display = not self.shown
@@ -196,14 +202,38 @@ class AndeleScreen(YayboScreen):
             return None
         return self.shown[row]
 
-    def action_open_building(self) -> None:
-        """Go to the association's property, which is where the rest of it is.
+    @on(DataTable.RowSelected, "#andele-table")
+    def _opened(self, event: DataTable.RowSelected) -> None:
+        """Enter, and a click on a row.
 
-        A share has no screen of its own worth opening - two tables' worth of
-        rows, both already on this one. What is worth opening is the building,
-        which carries the valuation, the easements and the association's own
-        mortgages.
+        The binding above is what puts `enter` in the footer; this is what
+        makes it do anything. A focused DataTable takes the key for itself and
+        answers with RowSelected, so a screen that only declares the binding
+        has a key in its footer that does nothing at all - which is what this
+        tab shipped with.
         """
+        self._open(str(event.row_key.value))
+
+    def _open(self, uuid: str) -> None:
+        from yaybo.screens.andel import AndelScreen
+
+        if uuid:
+            self.app.push_screen(AndelScreen(uuid))
+
+    def action_open(self) -> None:
+        """Open the share itself.
+
+        The list counts a share's charges without showing them, so everyone
+        named on one - which is as close as this book comes to saying who holds
+        the flat - was unreachable until enter led here.
+        """
+        row = self._current()
+        if row is not None:
+            self._open(str(row.get("uuid")))
+
+    def action_open_building(self) -> None:
+        """Go to the association's property, for what a share does not have:
+        the valuation, the easements and the association's own mortgages."""
         row = self._current()
         if row is None:
             return
