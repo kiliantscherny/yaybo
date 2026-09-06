@@ -1,46 +1,23 @@
 # AGENTS.md
 
-Guidance for AI agents working in this repository. Humans want
-[CONTRIBUTING.md](CONTRIBUTING.md), which covers setup, layout and releases in
-more detail; this file is the short orientation plus the things that are easy to
-get wrong.
+Guidance for AI agents working in this repository. Humans want [CONTRIBUTING.md](CONTRIBUTING.md), which covers setup, layout and releases in more detail; this file is the short orientation plus the things that are easy to get wrong.
 
 `CLAUDE.md` is a symlink to this file.
 
 ## What this is
 
-`yaybo` fetches Danish property records from the land register
-(tinglysning.dk), enriches them from Boligsiden and Danmarks Statistik, stores
-them in a local DuckDB database, and presents them in a Textual TUI. It also has
-a CLI for scripted lookups.
+`yaybo` fetches Danish property records from the land register (tinglysning.dk), enriches them from Boligsiden and Danmarks Statistik, stores them in a local DuckDB database, and presents them in a Textual TUI. It also has a CLI for scripted lookups.
 
-It is a hobby project. There is no roadmap, no support commitment, and no
-production deployment to protect.
+It is a hobby project. There is no roadmap, no support commitment, and no production deployment to protect.
 
 ## Rules that are not style preferences
 
-1. **The data is about real, named people.** Never put real register data in a
-   commit, an issue, a test fixture, a screenshot or a log you paste somewhere.
-   Fixtures under `tests/` are real documents with invented people substituted.
-2. **Never commit anything from `out/` or `exports/`.** They are git-ignored,
-   along with every data file in the tree. A committed database is published.
-3. **Do not remove or shorten the delays between requests.** The registers are
-   public services. `--delay`, the queue's pacing and the Boligsiden pause exist
-   deliberately. A change that touches them must say why.
-4. **Do not run `yaybo fetch` against real addresses** to test something. Use
-   the fixtures, or `App.run_test()` with the network stubbed, as the existing
-   tests do.
-5. **The interface is translated; the data is not.** `i18n.py` holds the
-   catalogue and English is the source language, so the string in the code is
-   the English one. Never translate a value out of a register, and never
-   anglicise a column or table name - `store.TABLES` keeps the register's own
-   vocabulary deliberately. Nothing may be translated at import time either:
-   screens declare their labels as module constants, which are built before a
-   language has been chosen, so `i18n.t()` goes where the string is *used*.
-   A new footer binding needs a Danish entry, and a test fails without one.
-6. **Anything to do with MitID login belongs in
-   [mitid-client](https://github.com/kiliantscherny/mitid-client)**, not here.
-   `auth.py` holds only the tinglysning-shaped part.
+1. **The data is about real, named people.** Never put real register data in a commit, an issue, a test fixture, a screenshot or a log you paste somewhere. Fixtures under `tests/` are real documents with invented people substituted.
+2. **Never commit anything from `out/` or `exports/`.** They are git-ignored, along with every data file in the tree. A committed database is published.
+3. **Do not remove or shorten the delays between requests.** The registers are public services. `--delay`, the queue's pacing and the Boligsiden pause exist deliberately. A change that touches them must say why.
+4. **Do not run `yaybo fetch` against real addresses** to test something. Use the fixtures, or `App.run_test()` with the network stubbed, as the existing tests do.
+5. **The interface is translated; the data is not.** `i18n.py` holds the catalogue and English is the source language, so the string in the code is the English one. Never translate a value out of a register, and never anglicise a column or table name - `store.TABLES` keeps the register's own vocabulary deliberately. Nothing may be translated at import time either: screens declare their labels as module constants, which are built before a language has been chosen, so `i18n.t()` goes where the string is *used*. A new footer binding needs a Danish entry, and a test fails without one.
+6. **Anything to do with MitID login belongs in [mitid-client](https://github.com/kiliantscherny/mitid-client)**, not here. `auth.py` holds only the tinglysning-shaped part.
 
 ## Commands
 
@@ -63,117 +40,54 @@ yaybo export --format xlsx              # what is stored -> a spreadsheet
 yaybo status                            # is a MitID session live
 ```
 
-`yaybo login` is interactive - it waits for a MitID app approval or a QR scan -
-so ask the user to run it rather than running it yourself.
+`yaybo login` is interactive - it waits for a MitID app approval or a QR scan - so ask the user to run it rather than running it yourself.
 
-`.python-version` pins local development to **3.10**, the oldest supported
-version. Do not use syntax or stdlib calls newer than that.
+`.python-version` pins local development to **3.10**, the oldest supported version. Do not use syntax or stdlib calls newer than that.
 
 ## Where things live
 
-`pipeline.py` is the spine: one address in, a set of tables out. The CLI and the
-TUI both go through it, which is what stops them drifting apart. Change fetching
-behaviour there, not in a screen.
+`pipeline.py` is the spine: one address in, a set of tables out. The CLI and the TUI both go through it, which is what stops them drifting apart. Change fetching behaviour there, not in a screen.
 
-`store.py` holds the schema. `TABLES` is the single source of truth for column
-names, types, primary keys and column order — including for every export format
-and for `schema.dbml`. A new column starts there, and `schema.dbml` is
-regenerated afterwards.
+`store.py` holds the schema. `TABLES` is the single source of truth for column names, types, primary keys and column order — including for every export format and for `schema.dbml`. A new column starts there, and `schema.dbml` is regenerated afterwards.
 
-`plugin/` is the Claude Code plugin: a manifest and the skill for *using* the
-data, which is a different audience from this file. The repository is also its
-own marketplace (`.claude-plugin/marketplace.json`), so it installs with
-`/plugin marketplace add kiliantscherny/yaybo` and needs no clone. Working from
-a clone, `claude --plugin-dir ./plugin` loads it without installing.
+`plugin/` is the Claude Code plugin: a manifest and the skill for *using* the data, which is a different audience from this file. The repository is also its own marketplace (`.claude-plugin/marketplace.json`), so it installs with `/plugin marketplace add kiliantscherny/yaybo` and needs no clone. Working from a clone, `claude --plugin-dir ./plugin` loads it without installing.
 
-The skill must stay self-contained: it ships to machines that have no copy of
-this repository, so it cannot reference anything outside its own directory.
-That is why `schema.dbml` is written twice.
+The skill must stay self-contained: it ships to machines that have no copy of this repository, so it cannot reference anything outside its own directory. That is why `schema.dbml` is written twice.
 
-`register/` is tinglysning.dk itself (HTTP, address lookup, attest parsing, and
-`rows.py`, which turns parsed documents into the stored tables). It reads two of
-the register's four books - the tingbog and the andelsboligbog - and
-`client.TINGBOG`/`ANDELSBOG` are what every later step dispatches on. `enrich/` is
-the two sources that need no login. `screens/` is the TUI, one file per screen;
-each inherits `YayboScreen` and reads the database for itself rather than being
-handed rows.
+`register/` is tinglysning.dk itself (HTTP, address lookup, attest parsing, and `rows.py`, which turns parsed documents into the stored tables). It reads two of the register's four books - the tingbog and the andelsboligbog - and `client.TINGBOG`/`ANDELSBOG` are what every later step dispatches on. `enrich/` is the two sources that need no login. `screens/` is the TUI, one file per screen; each inherits `YayboScreen` and reads the database for itself rather than being handed rows.
 
 ## The data model
 
-Fifteen tables in one DuckDB file. Twelve are keyed on the property; the
-other three are the andelsboligbog, keyed on the share.
+Fifteen tables in one DuckDB file. Twelve are keyed on the property; the other three are the andelsboligbog, keyed on the share.
 
-- [schema.dbml](schema.dbml) — every table, column, type and key. Generated by
-  `scripts/generate_schema_dbml.py` from `store.TABLES`, and a test fails if it
-  falls behind, so regenerate rather than editing it. It is written twice: here,
-  and inside the skill, which ships without a repository to look in
+- [schema.dbml](schema.dbml) — every table, column, type and key. Generated by `scripts/generate_schema_dbml.py` from `store.TABLES`, and a test fails if it falls behind, so regenerate rather than editing it. It is written twice: here, and inside the skill, which ships without a repository to look in
 - The README has the same thing as an ER diagram
-- `plugin/skills/danish-property-records/` — the CLI, how to read the data
-  model, and worked queries, for actually using the data
+- `plugin/skills/danish-property-records/` — the CLI, how to read the data model, and worked queries, for actually using the data
 
 The things most often got wrong:
 
 - **`ejendom_uuid` is the join key everywhere**, and matches `ejendomme.uuid`.
-- **Four tables need a MitID login**: `dokument_parter`, `adkomsthistorik`,
-  `adkomsthistorik_ejere` and `attester`. They are simply absent or thin for
-  anonymous fetches. `ejendomme.beriget` says, per property, whether the fetch
-  was authenticated — check it before concluding something is missing.
-- **Some columns are derived, not recorded.** `samlet_gaeld_dkk`,
-  `frivaerdi_dkk` and `belaaningsgrad_pct` are computed against the *public
-  valuation*, which sits well below market: equity is a floor, loan-to-value a
-  ceiling. `laantype_estimat` is an estimate matched from DST rates, with
-  `laantype_afstand` giving the distance to the runner-up. Never present any of
-  these as facts from the register.
-- **`areal_m2` and `boligareal_m2` are different measures.** The first is the
-  register's tinglyste areal, the second the BBR living area a listing quotes.
-- **Re-fetching replaces.** A property's rows are deleted and rewritten, so the
-  database holds the latest reading, not a history of readings. `hentet` says
-  when each row was written.
-- **An andel is not an ejendom, and `andele` is not `ejendomme` with a flag.**
-  The tingbog holds a co-op block as one property owned by the association;
-  the andelsboligbog holds it as one share per flat. `andele.ejendom_uuid`
-  joins the second to the first. A share has no valuation, no matrikel, no
-  registered area and no easements, which is why the derived columns a
-  property gets - `frivaerdi_dkk`, `belaaningsgrad_pct` - do not exist there:
-  there is nothing to divide by. There is also **no owner of record**: the
-  book registers rights over a share, not title to one. Names appear in two
-  places only - `andel_haeftelser.kreditorer`, which for an ejerpantebrev is
-  in practice the andelshaver because that instrument is issued to oneself,
-  and `andel_meddelelser.debitorer`/`.disponenter`, which name them when a
-  death or a bankruptcy is noted. Neither carries a date of birth. `samlet_gaeld_dkk` totals what
-  is charged against the share alone and is *not* what living there owes,
-  because a share of the association's own mortgage sits against the building.
-  Never store a sale price on an andel row: Boligsiden reports the building's
-  sale against every door in the block.
+- **Four tables need a MitID login**: `dokument_parter`, `adkomsthistorik`, `adkomsthistorik_ejere` and `attester`. They are simply absent or thin for anonymous fetches. `ejendomme.beriget` says, per property, whether the fetch was authenticated — check it before concluding something is missing.
+- **Some columns are derived, not recorded.** `samlet_gaeld_dkk`, `frivaerdi_dkk` and `belaaningsgrad_pct` are computed against the *public valuation*, which sits well below market: equity is a floor, loan-to-value a ceiling. `laantype_estimat` is an estimate matched from DST rates, with `laantype_afstand` giving the distance to the runner-up. Never present any of these as facts from the register.
+- **`areal_m2` and `boligareal_m2` are different measures.** The first is the register's tinglyste areal, the second the BBR living area a listing quotes.
+- **Re-fetching replaces.** A property's rows are deleted and rewritten, so the database holds the latest reading, not a history of readings. `hentet` says when each row was written.
+- **An andel is not an ejendom, and `andele` is not `ejendomme` with a flag.** The tingbog holds a co-op block as one property owned by the association; the andelsboligbog holds it as one share per flat. `andele.ejendom_uuid` joins the second to the first. A share has no valuation, no matrikel, no registered area and no easements, which is why the derived columns a property gets - `frivaerdi_dkk`, `belaaningsgrad_pct` - do not exist there: there is nothing to divide by. There is also **no owner of record**: the book registers rights over a share, not title to one. Names appear in two places only - `andel_haeftelser.kreditorer`, which for an ejerpantebrev is in practice the andelshaver because that instrument is issued to oneself, and `andel_meddelelser.debitorer`/`.disponenter`, which name them when a death or a bankruptcy is noted. Neither carries a date of birth. `samlet_gaeld_dkk` totals what is charged against the share alone and is *not* what living there owes, because a share of the association's own mortgage sits against the building. Never store a sale price on an andel row: Boligsiden reports the building's sale against every door in the block.
 
 ## Primary keys
 
-Every table has one, and `store.TABLES[name]["pk"]` declares it. Two
-consequences worth knowing:
+Every table has one, and `store.TABLES[name]["pk"]` declares it. Two consequences worth knowing:
 
-- DuckDB makes every primary key column `NOT NULL`. A row arriving without a
-  complete key is dropped and a warning logged, rather than failing the run.
-- DuckDB can add a primary key to an existing table but **cannot add a foreign
-  key**. That is why relationships are documented in the README and not
-  enforced: enforcing them would leave older databases permanently unable to
-  catch up. An unkeyed table from an older version gains its key on the next
-  write, or after `yaybo backfill`.
+- DuckDB makes every primary key column `NOT NULL`. A row arriving without a complete key is dropped and a warning logged, rather than failing the run.
+- DuckDB can add a primary key to an existing table but **cannot add a foreign key**. That is why relationships are documented in the README and not enforced: enforcing them would leave older databases permanently unable to catch up. An unkeyed table from an older version gains its key on the next write, or after `yaybo backfill`.
 
-`yaybo backfill` re-derives every table that comes from a stored document,
-without a login and without touching the register. Run it after changing a
-reader in `register/`.
+`yaybo backfill` re-derives every table that comes from a stored document, without a login and without touching the register. Run it after changing a reader in `register/`.
 
 ## Conventions
 
 Match the surrounding code. Some of it is specific to this repository:
 
-- Comments explain **why**, not what, and are written in prose. Docstrings often
-  carry the reasoning for a design decision. Keep that; do not replace it with
-  restated signatures.
-- Danish column and table names are deliberate — they match the register's own
-  vocabulary. Do not anglicise them.
-- Numbers arrive as text in Danish format (`26.000 DKK`, `3,5`). `store.coerce`
-  handles the conversion; anything unparseable becomes `NULL` rather than
-  raising.
-- Commit messages are plain imperative prose explaining why. There is no
-  conventional-commit automation, and no attribution or trailer lines.
+- Comments explain **why**, not what, and are written in prose. Docstrings often carry the reasoning for a design decision. Keep that; do not replace it with restated signatures.
+- Danish column and table names are deliberate — they match the register's own vocabulary. Do not anglicise them.
+- Numbers arrive as text in Danish format (`26.000 DKK`, `3,5`). `store.coerce` handles the conversion; anything unparseable becomes `NULL` rather than raising.
+- Markdown prose is **not** hard-wrapped: one line per paragraph, per bullet, per table row. GitHub renders a release note, a pull request and a comment in a mode where every newline becomes a `<br>`, so a file wrapped at 80 columns reads as ragged short lines the moment its text is used as release notes - which is exactly what `release.yml` does with a `CHANGELOG.md` section. Code blocks, tables and link definitions keep their own line breaks, because there a newline means something.
+- Commit messages are plain imperative prose explaining why. There is no conventional-commit automation, and no attribution or trailer lines.

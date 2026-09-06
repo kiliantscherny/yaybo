@@ -5,9 +5,7 @@
 <h1 align="center">yaybo</h1>
 
 <p align="center">
-  Look up a Danish address, see what the land register (Tingbogen) holds on it,
-  and keep the results in a local DuckDB database you can browse, query and
-  export from your terminal.
+  Look up a Danish address, see what the land register (Tingbogen) holds on it, and keep the results in a local DuckDB database you can browse, query and export from your terminal.
   <br>
   <a href="https://pypi.org/project/yaybo/"><img alt="PyPI - Version" src="https://img.shields.io/pypi/v/yaybo?style=flat&logo=python&logoColor=orange&label=yaybo&labelColor=teal&color=navy"></a>
 </p>
@@ -54,8 +52,7 @@ yaybo fetch "Prøvegade 1, 9999 Prøveby"     # fetch one address
 yaybo --version                             # which version is installed
 ```
 
-Results go to `out/tinglysning.duckdb`. Looking the same address up again
-replaces its rows rather than adding a second copy.
+Results go to `out/tinglysning.duckdb`. Looking the same address up again replaces its rows rather than adding a second copy.
 
 ## Where the data comes from
 
@@ -66,9 +63,7 @@ replaces its rows rather than adding a second copy.
 | **Danmarks Statistik** | what each kind of realkredit loan cost month by month, used to read a bare interest rate as an F3 or a fixed loan | no |
 | **DAWA** | address lookup and validation while you type | no |
 
-Most of it is available without logging in. Logging in with MitID adds owners'
-dates of birth, everyone named on each mortgage, and the history of previous
-owners.
+Most of it is available without logging in. Logging in with MitID adds owners' dates of birth, everyone named on each mortgage, and the history of previous owners.
 
 > [!NOTE]
 > This tells you who **owns** a property, not who lives there. Resident data
@@ -94,69 +89,38 @@ Run `yaybo` with no arguments. Eight screens, all reading the same database:
 | **SQL** | `s` | query the database directly |
 | **Property** | `enter` | one property in full |
 
-**Properties** is where it opens. Each row shows how stale it is, its valuation,
-debt and loan-to-value, and whether it was fetched while logged in. Sort by any
-column with `o`, filter with `name:value`, tick rows with `space` and act on the
-lot. `enter` opens a property, `f` re-fetches, `e` exports.
+**Properties** is where it opens. Each row shows how stale it is, its valuation, debt and loan-to-value, and whether it was fetched while logged in. Sort by any column with `o`, filter with `name:value`, tick rows with `space` and act on the lot. `enter` opens a property, `f` re-fetches, `e` exports.
 
-**Search** resolves your typing against [DAWA](https://dawadocs.dataforsyningen.dk/),
-then asks the register which properties actually sit at that address – one for a
-rented block, over a hundred for a block of owner-occupied flats. Tick the ones
-you want and press `f` to hand them to the queue.
+**Search** resolves your typing against [DAWA](https://dawadocs.dataforsyningen.dk/), then asks the register which properties actually sit at that address – one for a rented block, over a hundred for a block of owner-occupied flats. Tick the ones you want and press `f` to hand them to the queue.
 
-**Property** shows one property, tab by tab, read back out of the database, so
-it is instant and works offline:
+**Property** shows one property, tab by tab, read back out of the database, so it is instant and works offline:
 
 - **Oversigt** – what it is, who owns it, what it is worth, what it owes
-- **Ejere · Hæftelser · Servitutter · Parter · Handler** – the tables in full,
-  with each charge's interest terms and the loan product it implies
-- **Forløb** – sales, transfers, mortgages, easements and valuations on one
-  timeline. The register keeps these as four separate lists
+- **Ejere · Hæftelser · Servitutter · Parter · Handler** – the tables in full, with each charge's interest terms and the loan product it implies
+- **Forløb** – sales, transfers, mortgages, easements and valuations on one timeline. The register keeps these as four separate lists
 - **Kurve** – price per square metre over time
 - **Bygning** – the BBR record
 - **Dokument** – the signed attest itself
 
-**Co-op shares** is the same idea for the andelsboligbog, which is a different
-register about a different thing – see [Andelsboliger](#andelsboliger). Each row
-is one co-op share: its area, what is charged against it, and the association's
-building. `enter` opens a share, with its charges and everyone named on them and
-any notices; `g` opens the building, which is where a share's valuation and the
-association's own mortgages live.
+**Co-op shares** is the same idea for the andelsboligbog, which is a different register about a different thing – see [Andelsboliger](#andelsboliger). Each row is one co-op share: its area, what is charged against it, and the association's building. `enter` opens a share, with its charges and everyone named on them and any notices; `g` opens the building, which is where a share's valuation and the association's own mortgages live.
 
-**Buildings** groups the properties one building to a row: how many of its
-properties you hold, how many were fetched while logged in, and the medians
-across them. `enter` goes to that building's properties.
+**Buildings** groups the properties one building to a row: how many of its properties you hold, how many were fetched while logged in, and the medians across them. `enter` goes to that building's properties.
 
-**Queue** takes what Search hands it and fetches in the background, with a
-progress bar and per-row status. Pause with `space`. Anything already fetched is
-already saved, so a lapsed login partway through costs you nothing.
+**Queue** takes what Search hands it and fetches in the background, with a progress bar and per-row status. Pause with `space`. Anything already fetched is already saved, so a lapsed login partway through costs you nothing.
 
-**Figures** answers questions about a set of properties rather than one:
-median price per m² by floor, valuations by building, owners by postcode.
-Narrow the set with dropdowns filled from the database, then pick a figure.
-Nothing is fetched – it describes only the properties you already hold.
+**Figures** answers questions about a set of properties rather than one: median price per m² by floor, valuations by building, owners by postcode. Narrow the set with dropdowns filled from the database, then pick a figure. Nothing is fetched – it describes only the properties you already hold.
 
-**SQL** runs read-only queries against the whole database, with eight examples
-ready to load and edit. `ctrl+R` runs, `ctrl+E` exports the result.
+**SQL** runs read-only queries against the whole database, with eight examples ready to load and edit. `ctrl+R` runs, `ctrl+E` exports the result.
 
-Press `ctrl+L` anywhere to log in with MitID, or to log out, and `ctrl+G` to
-switch language.
+Press `ctrl+L` anywhere to log in with MitID, or to log out, and `ctrl+G` to switch language.
 
 ### English or Danish
 
-The interface comes in both and opens in English. `ctrl+G` switches at any
-point and rebuilds every screen in the chosen language, putting you back where
-you were; the choice is remembered for next time.
+The interface comes in both and opens in English. `ctrl+G` switches at any point and rebuilds every screen in the chosen language, putting you back where you were; the choice is remembered for next time.
 
-**The data is never translated.** A register record is Danish — `Ejerpantebrev`,
-`Almindeligt salg`, the wording of an easement — and reading one is a
-Danish-language job however the buttons around it are labelled. Anglicising a
-value would also make the database disagree with the register it came from, so
-only the chrome moves: headings, column labels, tabs, footer keys and the
-sentences a screen writes about what it is showing.
+**The data is never translated.** A register record is Danish — `Ejerpantebrev`, `Almindeligt salg`, the wording of an easement — and reading one is a Danish-language job however the buttons around it are labelled. Anglicising a value would also make the database disagree with the register it came from, so only the chrome moves: headings, column labels, tabs, footer keys and the sentences a screen writes about what it is showing.
 
-The command line and the exports are English throughout and are not affected by
-the setting.
+The command line and the exports are English throughout and are not affected by the setting.
 
 ## On the command line
 
@@ -172,8 +136,7 @@ yaybo backfill                     # re-derive stored tables, fetching nothing
 yaybo logout
 ```
 
-`fetch` takes several addresses at once and pauses between them. One that
-cannot be resolved is reported and skipped; the rest still get fetched.
+`fetch` takes several addresses at once and pauses between them. One that cannot be resolved is reported and skipped; the rest still get fetched.
 
 ```sh
 yaybo fetch "Prøvegade 1, 9999 Prøveby" "Prøvevej 2, 9999 Prøveby"
@@ -203,20 +166,15 @@ yaybo export --format csv --name priser --query "SELECT ..."
 yaybo export --query-file report.sql --name rapport
 ```
 
-It prints the written path on stdout and nothing else, so `file=$(yaybo export)`
-gives you the file.
+It prints the written path on stdout and nothing else, so `file=$(yaybo export)` gives you the file.
 
 `fetch` and the TUI share the same pipeline, so they cannot drift apart.
 
-`backfill` rebuilds every table derived from a stored document – charges,
-easements, the people named on them, previous owners – with no login and no
-requests to the register. Run it after upgrading, when a reader has improved.
+`backfill` rebuilds every table derived from a stored document – charges, easements, the people named on them, previous owners – with no login and no requests to the register. Run it after upgrading, when a reader has improved.
 
 ## The data
 
-One DuckDB file, fifteen tables. Twelve of them are keyed on the property;
-the other three are the andelsboligbog, which is a different register about a
-different thing – see [Andelsboliger](#andelsboliger) below.
+One DuckDB file, fifteen tables. Twelve of them are keyed on the property; the other three are the andelsboligbog, which is a different register about a different thing – see [Andelsboliger](#andelsboliger) below.
 
 ```mermaid
 erDiagram
@@ -361,83 +319,41 @@ erDiagram
 | `andel_haeftelser` | charge registered against one share | no |
 | `andel_meddelelser` | notice noted on a share: death, bankruptcy, seizure | no |
 
-`rentestatistik` is not about any one property. It is the rate series
-`laantype_estimat` was matched against, kept so an estimate can be checked.
+`rentestatistik` is not about any one property. It is the rate series `laantype_estimat` was matched against, kept so an estimate can be checked.
 
-The full column-level schema is in [schema.dbml](schema.dbml), generated from
-the code so it cannot fall behind it. Paste it into
-[dbdiagram.io](https://dbdiagram.io) for a browsable diagram.
+The full column-level schema is in [schema.dbml](schema.dbml), generated from the code so it cannot fall behind it. Paste it into [dbdiagram.io](https://dbdiagram.io) for a browsable diagram.
 
 ### Andelsboliger
 
-Tinglysning is four registers, not one, and two of them matter here. The
-**tingbog** records real property. The **andelsboligbog** records shares in
-housing associations, and they disagree about what a co-op building is —
-correctly, in both cases:
+Tinglysning is four registers, not one, and two of them matter here. The **tingbog** records real property. The **andelsboligbog** records shares in housing associations, and they disagree about what a co-op building is — correctly, in both cases:
 
-- To the tingbog, a co-op block is **one property**, owned by the association,
-  however many doors it has. That is the row in `ejendomme`.
-- To the andelsboligbog, the same block is **one entry per flat**. Those are
-  the rows in `andele`.
+- To the tingbog, a co-op block is **one property**, owned by the association, however many doors it has. That is the row in `ejendomme`.
+- To the andelsboligbog, the same block is **one entry per flat**. Those are the rows in `andele`.
 
-Both are fetched, and `andele.ejendom_uuid` joins the second to the first. A
-lookup that finds shares says so: *found 1 property and 10 co-op shares*.
+Both are fetched, and `andele.ejendom_uuid` joins the second to the first. A lookup that finds shares says so: *found 1 property and 10 co-op shares*.
 
-What the second book actually holds is much less than the first. A share is not
-land, so it has **no valuation, no matrikel, no registered area and no
-easements** — only its address, whatever is charged against it, and any
-notices. The area and the coordinates on an `andele` row come from Boligsiden
-rather than the register.
+What the second book actually holds is much less than the first. A share is not land, so it has **no valuation, no matrikel, no registered area and no easements** — only its address, whatever is charged against it, and any notices. The area and the coordinates on an `andele` row come from Boligsiden rather than the register.
 
-**There is no owner of record.** The andelsboligbog registers rights *over* a
-share, not title *to* one; who holds an andel is the association's record, not
-the register's. Two places name people anyway:
+**There is no owner of record.** The andelsboligbog registers rights *over* a share, not title *to* one; who holds an andel is the association's record, not the register's. Two places name people anyway:
 
-- `andel_haeftelser.kreditorer`. Most charges on a share are an
-  **ejerpantebrev** — a deed the owner issues to *themselves* and then pledges
-  to a bank — so its creditor is in practice the andelshaver. That is an
-  inference from the instrument, not something the register states.
-- `andel_meddelelser.debitorer` and `.disponenter`. A notice is the register
-  recording that something has happened to the andelshaver rather than to the
-  flat: a death, a bankruptcy, a court removing their power to dispose of it.
-  It names them, and whoever may now act for them.
+- `andel_haeftelser.kreditorer`. Most charges on a share are an **ejerpantebrev** — a deed the owner issues to *themselves* and then pledges to a bank — so its creditor is in practice the andelshaver. That is an inference from the instrument, not something the register states.
+- `andel_meddelelser.debitorer` and `.disponenter`. A notice is the register recording that something has happened to the andelshaver rather than to the flat: a death, a bankruptcy, a court removing their power to dispose of it. It names them, and whoever may now act for them.
 
-Neither carries a date of birth. Those come from the CPR numbers printed on a
-signed attest, and no attest for a share has been read here — see below.
+Neither carries a date of birth. Those come from the CPR numbers printed on a signed attest, and no attest for a share has been read here — see below.
 
 Three things worth knowing before querying it:
 
-- **A flat missing from `andele` is not evidence it is not an andel.** A share
-  only enters the book once something is registered against it.
-- **`andele.samlet_gaeld_dkk` is not what living there owes.** It totals what
-  is charged against that share alone. An andelshaver also owes their portion
-  of the association's own mortgage, which is registered against the *building*
-  in the tingbog and is nowhere in this table.
-- **There is no sale price for a share, and this deliberately stores none.**
-  Boligsiden reports the building's own sale against every door in the block —
-  the same date and amount on all of them — and divides it by each flat's area
-  into a price per m² that describes nothing. That sale is a fact about the
-  building, and is stored as one, on the `ejendomme` row.
+- **A flat missing from `andele` is not evidence it is not an andel.** A share only enters the book once something is registered against it.
+- **`andele.samlet_gaeld_dkk` is not what living there owes.** It totals what is charged against that share alone. An andelshaver also owes their portion of the association's own mortgage, which is registered against the *building* in the tingbog and is nowhere in this table.
+- **There is no sale price for a share, and this deliberately stores none.** Boligsiden reports the building's own sale against every door in the block — the same date and amount on all of them — and divides it by each flat's area into a price per m² that describes nothing. That sale is a fact about the building, and is stored as one, on the `ejendomme` row.
 
-One thing is known to exist and is **not** read here: a logged-in session can
-fetch a signed andelsboligbogsattest (`rest/andelsbolig/...`) and search the
-book by person name and date of birth. By analogy with the tingbog that attest
-would carry parties' CPR-derived birth dates. It is unverified and nothing here
-depends on it.
+One thing is known to exist and is **not** read here: a logged-in session can fetch a signed andelsboligbogsattest (`rest/andelsbolig/...`) and search the book by person name and date of birth. By analogy with the tingbog that attest would carry parties' CPR-derived birth dates. It is unverified and nothing here depends on it.
 
-In the TUI, **Co-op shares** lists the shares held; enter opens one - its charges,
-everyone named on them, and its notices - and `g` opens the association's
-property.
+In the TUI, **Co-op shares** lists the shares held; enter opens one - its charges, everyone named on them, and its notices - and `g` opens the association's property.
 
-`yaybo fetch --no-andele` skips the second book and behaves as earlier versions
-did. `yaybo backfill` cannot rebuild these two tables — the register stores no
-signed document for a share, so there is nothing to re-derive them from — and
-leaves them untouched.
+`yaybo fetch --no-andele` skips the second book and behaves as earlier versions did. `yaybo backfill` cannot rebuild these two tables — the register stores no signed document for a share, so there is nothing to re-derive them from — and leaves them untouched.
 
-Every table has a primary key, so a row is identifiable and a re-run replaces
-rather than duplicates. Relationships are drawn above but not enforced: DuckDB
-cannot add a foreign key to an existing table, so enforcing them would leave
-every database created before this version permanently unable to catch up.
+Every table has a primary key, so a row is identifiable and a re-run replaces rather than duplicates. Relationships are drawn above but not enforced: DuckDB cannot add a foreign key to an existing table, so enforcing them would leave every database created before this version permanently unable to catch up.
 
 > [!WARNING]
 > **Some columns are worked out, not recorded, and they can be wrong.**
@@ -454,8 +370,7 @@ every database created before this version permanently unable to catch up.
 
 ## Exporting
 
-Press `e` on any screen, pass `--format` to `fetch`, or run `yaybo export`
-against what is already stored.
+Press `e` on any screen, pass `--format` to `fetch`, or run `yaybo export` against what is already stored.
 
 | format | shape |
 | --- | --- |
@@ -463,13 +378,11 @@ against what is already stored.
 | **Excel** | one sheet per table, header row frozen |
 | **CSV** | one file per table, in a folder named after the address |
 
-Column order follows the schema, so the same table exported twice has the same
-columns in the same places.
+Column order follows the schema, so the same table exported twice has the same columns in the same places.
 
 ## Using it with an AI agent
 
-The TUI is for people. Agents should use the CLI, which is non-interactive
-apart from the login.
+The TUI is for people. Agents should use the CLI, which is non-interactive apart from the login.
 
 ### Install the plugin (no clone needed)
 
@@ -480,10 +393,7 @@ In [Claude Code](https://claude.com/claude-code) – terminal or desktop – typ
 /plugin install yaybo@yaybo
 ```
 
-That is the whole setup. It works from any folder, and gives the agent the CLI
-reference, the data model and the schema. The only thing you need on your
-machine is [uv](https://docs.astral.sh/uv/) – it installs Python itself, so
-that is not a separate prerequisite:
+That is the whole setup. It works from any folder, and gives the agent the CLI reference, the data model and the schema. The only thing you need on your machine is [uv](https://docs.astral.sh/uv/) – it installs Python itself, so that is not a separate prerequisite:
 
 ```sh
 curl -LsSf https://astral.sh/uv/install.sh | sh          # macOS and Linux
@@ -495,9 +405,7 @@ Then just ask, in plain language:
 > What does the land register hold on Prøvegade 1 and Prøvevej 2 in 9999
 > Prøveby? Put it in a spreadsheet.
 
-The agent fetches with `yaybo fetch`, queries the database, and hands back an
-Excel file. Fetched data lands in `out/` in whatever folder you are working in,
-so it is worth making one and staying in it:
+The agent fetches with `yaybo fetch`, queries the database, and hands back an Excel file. Fetched data lands in `out/` in whatever folder you are working in, so it is worth making one and staying in it:
 
 ```sh
 mkdir ~/property-lookups && cd ~/property-lookups
@@ -505,8 +413,7 @@ mkdir ~/property-lookups && cd ~/property-lookups
 
 ### Or clone the repository
 
-Cloning gets you the source. To use the skill from a clone without installing
-it, point Claude Code at the plugin directory:
+Cloning gets you the source. To use the skill from a clone without installing it, point Claude Code at the plugin directory:
 
 ```sh
 git clone https://github.com/kiliantscherny/yaybo.git
@@ -561,12 +468,7 @@ Logging in means logging in as you, to a government register, with MitID.
 
 ## mitid-client
 
-The MitID login is a separate library:
-[mitid-client](https://github.com/kiliantscherny/mitid-client). It knows nothing
-about property – it is a Python stand-in for MitID's JavaScript core client, the
-NemLog-in broker that fronts the Danish public sector, a store for keeping a
-login's cookies between runs, and two ways of showing a login to whoever is
-doing it: a few lines on stderr, or a Textual screen.
+The MitID login is a separate library: [mitid-client](https://github.com/kiliantscherny/mitid-client). It knows nothing about property – it is a Python stand-in for MitID's JavaScript core client, the NemLog-in broker that fronts the Danish public sector, a store for keeping a login's cookies between runs, and two ways of showing a login to whoever is doing it: a few lines on stderr, or a Textual screen.
 
 ```python
 from mitid.brokers import nemlogin
@@ -578,14 +480,10 @@ result = await self.push_screen_wait(
 )
 ```
 
-Point it at any NemLog-in-protected URL and it returns the session cookie that
-URL was guarding. It installs as a dependency of this, so there is nothing to
-do about it. It is worth knowing about separately because the login is the
-reusable half.
+Point it at any NemLog-in-protected URL and it returns the session cookie that URL was guarding. It installs as a dependency of this, so there is nothing to do about it. It is worth knowing about separately because the login is the reusable half.
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md). Releases are described in
-[RELEASING.md](RELEASING.md), and changes in [CHANGELOG.md](CHANGELOG.md).
+See [CONTRIBUTING.md](CONTRIBUTING.md). Releases are described in [RELEASING.md](RELEASING.md), and changes in [CHANGELOG.md](CHANGELOG.md).
 
 MIT licensed.
