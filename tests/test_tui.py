@@ -897,6 +897,70 @@ def test_g_from_an_andel_goes_to_its_building(database):
     asyncio.run(walk())
 
 
+def test_re_fetching_an_andel_asks_for_two_properties_not_one(database):
+    """An andel's address resolves to the share and to the association's
+    building, so a cap of one would drop the property row it joins to.
+
+    Auto-fetch is turned off first, so the queue parks the job instead of
+    running it - the assertion is about what was queued, not about fetching.
+    """
+    from yaybo.app import YayboApp
+    from yaybo.screens.andele import AndeleScreen
+
+    async def walk() -> None:
+        app = YayboApp(database=database)
+        async with app.run_test(size=(180, 50)) as pilot:
+            await pilot.pause()
+            app.fetching.auto = False
+            app.action_andele()
+            await pilot.pause(0.5)
+            assert isinstance(app.screen, AndeleScreen)
+
+            await pilot.press("f")
+            await pilot.pause(0.3)
+            assert len(app.fetching.jobs) == 1
+            job = app.fetching.jobs[0]
+            assert job.limit == 2, "a share and its building, not just the first"
+            assert "ST. TH" in job.query
+
+    asyncio.run(walk())
+
+
+def test_the_andele_filter_box_takes_and_gives_back_focus(database):
+    from textual.widgets import DataTable, Input
+
+    from yaybo.app import YayboApp
+    from yaybo.screens.andele import AndeleScreen
+
+    async def walk() -> None:
+        app = YayboApp(database=database)
+        async with app.run_test(size=(180, 50)) as pilot:
+            await pilot.pause()
+            app.action_andele()
+            await pilot.pause(0.5)
+            screen = app.screen
+            assert isinstance(screen, AndeleScreen)
+
+            await pilot.press("ctrl+f")
+            await pilot.pause(0.2)
+            box = screen.query_one("#andele-filter", Input)
+            assert box.has_focus
+
+            box.value = "ST. TH"
+            await pilot.pause(0.2)
+            assert len(screen.shown) == 1
+
+            # Escape clears first, and only then hands focus back.
+            await pilot.press("escape")
+            await pilot.pause(0.2)
+            assert box.value == ""
+            await pilot.press("escape")
+            await pilot.pause(0.2)
+            assert screen.query_one("#andele-table", DataTable).has_focus
+
+    asyncio.run(walk())
+
+
 def test_a_database_without_the_second_book_still_opens_the_tab(library):
     """Every database written before this existed, and any fetched with
     --no-andele, has no andele table at all."""

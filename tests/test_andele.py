@@ -278,6 +278,157 @@ def test_the_search_screen_says_the_same_thing_in_danish():
     assert _tally(0, 4) == "4 andele"
 
 
+def test_the_second_book_is_asked_at_building_level(monkeypatch):
+    """Floor and door would narrow correctly here, unlike in the tingbog, and
+    are still left off: one request then answers for every flat in the block."""
+    from yaybo.register.client import Tinglysning
+
+    asked = {}
+
+    def fake_get(self, path, params=None, token=True):
+        asked["path"], asked["params"] = path, params
+        return {"statuskode": 0, "items": [SHARE]}
+
+    monkeypatch.setattr(Tinglysning, "_get", fake_get)
+    api = Tinglysning()
+    found = api.find_andele(
+        {"postnummer": "9999", "vejnavn": "Prøvegade", "husnummer": "1",
+         "etage": "st", "doer": "th"}
+    )
+    assert found == [SHARE]
+    assert asked["path"] == "andelsoeg/soeg"
+    assert asked["params"] == {
+        "postnummer": "9999", "vejnavn": "Prøvegade", "husnummer": "1"
+    }
+
+
+def test_a_refused_share_is_raised_rather_than_returned_empty(monkeypatch):
+    """0 means OK. Anything else is the register declining, and a record that
+    is not a record must not become rows."""
+    from yaybo.register.client import Tinglysning
+
+    monkeypatch.setattr(
+        Tinglysning, "_get",
+        lambda self, path, params=None, token=True: {
+            "statuskode": 3, "statustekst": "ukendt andel"
+        },
+    )
+    api = Tinglysning()
+    try:
+        api.fetch_andel("andel-1")
+    except RuntimeError as error:
+        assert "ukendt andel" in str(error)
+    else:
+        raise AssertionError("a refused fetch should raise")
+
+
+def test_a_share_that_answers_is_handed_back_whole(monkeypatch):
+    from yaybo.register.client import Tinglysning
+
+    monkeypatch.setattr(
+        Tinglysning, "_get", lambda self, path, params=None, token=True: RECORD
+    )
+    assert Tinglysning().fetch_andel("andel-1")["uuid"] == "andel-1"
+
+
+class _FetchApi(_Api):
+    """Enough of Tinglysning to drive pipeline.fetch over both books."""
+
+    authenticated = False
+
+    def fetch_record(self, uuid):
+        return {
+            "uuid": uuid,
+            "adresse": BUILDING["adresse"],
+            "ejendomstype": "Parcel",
+            "matrikler": [{"landsejerlavkode": "1", "matrikelnummer": "2a"}],
+            "ejere": [{"navn": "Foreningen Prøve", "andel": "1/1"}],
+            "haeftelser": [],
+            "servitutter": [],
+        }
+
+    def fetch_andel(self, uuid):
+        return RECORD
+
+    def fetch_details(self, uuid):
+        return None
+
+    def fetch_history(self, uuid):
+        return None
+
+
+def test_fetch_fills_both_books_from_one_address(monkeypatch):
+    """The seam, end to end and offline.
+
+    A co-op address answers with the association's property and the share, and
+    one pass has to put each in its own tables, join the second to the first
+    and total only what is charged against the share.
+    """
+    monkeypatch.setattr(pipeline, "fetch_parcel", lambda *a, **k: {})
+
+    bundle = pipeline.fetch(
+        _FetchApi(),
+        {"tekst": BUILDING["adresse"], "vejnavn": "Prøvegade", "husnummer": "1",
+         "postnummer": "9999", "etage": "", "doer": ""},
+        [BUILDING, SHARE],
+        delay=0,
+        boligsiden_on=False,
+        laantype_on=False,
+    )
+
+    # One of each, in its own table, neither leaking into the other's.
+    assert len(bundle.properties) == 1
+    assert len(bundle.andele) == 1
+    assert bundle.properties[0]["uuid"] == "ejd-1"
+    assert bundle.andele[0]["uuid"] == "andel-1"
+    assert bundle.fetched == 2
+
+    # The share joined to the association's building.
+    assert bundle.andele[0]["ejendom_uuid"] == "ejd-1"
+    assert bundle.andele[0]["bygning_adresse"] == BUILDING["adresse"]
+
+    # Its charges are in the andel table and not in the property's.
+    assert len(bundle.tables["andel_haeftelser"]) == 2
+    assert bundle.tables["haeftelser"] == []
+    assert bundle.andele[0]["samlet_gaeld_dkk"] == 1_750_000
+    # The property's own total is its own, and this share's debt is not in it.
+    assert bundle.properties[0]["samlet_gaeld_dkk"] == 0
+
+
+def test_a_share_alone_leaves_the_building_join_empty(monkeypatch):
+    """More than one property at an address, or none, and there is no single
+    building to attribute a share to. Guessing would be worse than empty."""
+    monkeypatch.setattr(pipeline, "fetch_parcel", lambda *a, **k: {})
+    bundle = pipeline.fetch(
+        _FetchApi(),
+        {"tekst": "x", "vejnavn": "Prøvegade", "husnummer": "1",
+         "postnummer": "9999", "etage": "", "doer": ""},
+        [SHARE],
+        delay=0, boligsiden_on=False, laantype_on=False,
+    )
+    assert bundle.andele[0]["ejendom_uuid"] == ""
+    assert bundle.properties == []
+
+
+def test_notices_come_through_the_fetch_too(monkeypatch):
+    monkeypatch.setattr(pipeline, "fetch_parcel", lambda *a, **k: {})
+
+    class _WithNotice(_FetchApi):
+        def fetch_andel(self, uuid):
+            return {**RECORD, "meddelelser": [NOTICE]}
+
+    bundle = pipeline.fetch(
+        _WithNotice(),
+        {"tekst": "x", "vejnavn": "Prøvegade", "husnummer": "1",
+         "postnummer": "9999", "etage": "", "doer": ""},
+        [SHARE],
+        delay=0, boligsiden_on=False, laantype_on=False,
+    )
+    assert len(bundle.tables["andel_meddelelser"]) == 1
+    assert bundle.tables["andel_meddelelser"][0]["debitorer"] == "Ida Testesen"
+    assert bundle.andele[0]["antal_meddelelser"] == 1
+
+
 def _one(db, sql):
     row = db.sql(sql).fetchone()
     assert row is not None, sql
