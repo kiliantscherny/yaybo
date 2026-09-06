@@ -788,6 +788,17 @@ def andele(path: str | Path) -> list[dict]:
         held = {row[0] for row in db.execute("SHOW TABLES").fetchall()}
         if "andele" not in held:
             return []
+        # Named columns rather than a star, so every column a database is
+        # missing is asked for by name and answered with NULL. A table only
+        # gains a column when something is next saved into it, and reading is
+        # not writing - opening a screen must not depend on having fetched
+        # since the column was added. This is a young table and will gain more,
+        # so the whole list is checked rather than the newest of them.
+        present = {row[0] for row in db.execute("DESCRIBE andele").fetchall()}
+
+        def column(name: str) -> str:
+            return f'a."{name}"' if name in present else f'NULL AS "{name}"'
+
         # A database fetched with --no-andele, or written before either table
         # existed, still has to open.
         building = "LEFT JOIN ejendomme e ON e.uuid = a.ejendom_uuid"
@@ -797,18 +808,24 @@ def andele(path: str | Path) -> list[dict]:
         )
         if "ejendomme" not in held:
             building = ""
+            fallback = (
+                'a."bygning_adresse"' if "bygning_adresse" in present else "NULL"
+            )
             columns = (
-                "a.bygning_adresse AS bygning, NULL AS bygning_vurdering_dkk,"
+                f"{fallback} AS bygning, NULL AS bygning_vurdering_dkk,"
                 " NULL AS bygning_gaeld_dkk,"
             )
+        wanted = (
+            "uuid", "adresse", "lejlighed", "boligtype", "boligareal_m2",
+            "samlet_gaeld_dkk", "antal_haeftelser", "antal_meddelelser",
+            "til_salg", "boligsiden_url", "ejendom_uuid", "bygning_adresse",
+            "kommunekode", "vejkode", "breddegrad", "laengdegrad",
+        )
+        picked = ", ".join(column(name) for name in wanted)
         return _rows(
             db,
             f"""
-            SELECT a.uuid, a.adresse, a.lejlighed, a.boligtype, a.boligareal_m2,
-                   a.samlet_gaeld_dkk, a.antal_haeftelser, a.antal_meddelelser,
-                   a.til_salg,
-                   a.boligsiden_url, a.ejendom_uuid, a.bygning_adresse,
-                   a.kommunekode, a.vejkode, a.breddegrad, a.laengdegrad,
+            SELECT {picked},
                    {columns}
                    a."{FETCHED}" AS hentet
             FROM andele a

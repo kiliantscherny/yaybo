@@ -328,6 +328,43 @@ def test_notices_round_trip_and_are_keyed_by_their_registration():
         ]
 
 
+def test_an_andele_table_from_before_a_column_existed_still_reads():
+    """The table gains a column the next time something is saved into it, and
+    reading is not writing: opening the screen must not depend on having
+    fetched since the column was added.
+
+    Built the way a real older database is - the table as an earlier version
+    wrote it, with rows in it - rather than by dropping a column, because that
+    is the shape the failure actually had.
+    """
+    with tempfile.TemporaryDirectory() as folder:
+        path = Path(folder) / "older.duckdb"
+        with duckdb.connect(str(path)) as db:
+            db.execute(
+                'CREATE TABLE "andele" ('
+                '"uuid" VARCHAR, "adresse" VARCHAR, "lejlighed" VARCHAR, '
+                '"antal_haeftelser" BIGINT, "samlet_gaeld_dkk" BIGINT, '
+                '"hentet" TIMESTAMP)'
+            )
+            db.execute(
+                "INSERT INTO andele VALUES "
+                "('a1', 'Prøvegade 1, ST. TH, 9999 Prøveby', 'ST. TH', 1, 1500000, now())"
+            )
+
+        held = store.andele(path)
+        assert len(held) == 1
+        assert held[0]["adresse"] == "Prøvegade 1, ST. TH, 9999 Prøveby"
+        assert held[0]["antal_haeftelser"] == 1
+        # Asked for by name and answered with NULL rather than refused.
+        assert held[0]["antal_meddelelser"] is None
+        assert held[0]["boligareal_m2"] is None
+        assert held[0]["bygning"] is None
+
+        # And the next write brings it up to date.
+        store.save(path, {"andele": [build.andel_row(RECORD, "a1")]})
+        assert store.andele(path)[0]["antal_meddelelser"] == 0
+
+
 def test_re_fetching_a_share_replaces_its_charges():
     """Same rule as a property: the database holds the latest reading, not a
     history of readings."""

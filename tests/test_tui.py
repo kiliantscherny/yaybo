@@ -833,6 +833,47 @@ def test_a_database_without_the_second_book_still_opens_the_tab(library):
     asyncio.run(walk())
 
 
+def test_the_andele_tab_opens_on_a_database_from_before_a_column_existed(tmp_path,
+                                                                         monkeypatch):
+    """The reported failure went through the screen, so the walk does too.
+
+    A table only gains a column when something is next saved into it, so an
+    andel fetched before the column existed leaves the screen reading a table
+    that is a version behind.
+    """
+    import duckdb
+    from textual.widgets import DataTable
+
+    from yaybo.app import YayboApp
+    from yaybo.screens.andele import AndeleScreen
+
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
+    path = tmp_path / "older.duckdb"
+    with duckdb.connect(str(path)) as db:
+        db.execute(
+            'CREATE TABLE "andele" ("uuid" VARCHAR, "adresse" VARCHAR, '
+            '"lejlighed" VARCHAR, "antal_haeftelser" BIGINT, '
+            '"samlet_gaeld_dkk" BIGINT, "hentet" TIMESTAMP)'
+        )
+        db.execute(
+            "INSERT INTO andele VALUES ('a1', 'Prøvegade 1, ST. TH, 9999 Prøveby',"
+            " 'ST. TH', 1, 1500000, now())"
+        )
+
+    async def walk() -> None:
+        app = YayboApp(database=path)
+        async with app.run_test(size=(160, 48)) as pilot:
+            app.action_andele()
+            await pilot.pause(0.5)
+            assert isinstance(app.screen, AndeleScreen)
+            # The row draws, with the columns it has and dashes for the rest.
+            assert len(app.screen.shown) == 1
+            table = app.screen.query_one("#andele-table", DataTable)
+            assert table.row_count == 1
+
+    asyncio.run(walk())
+
+
 def test_every_tab_names_a_place_that_exists(library):
     """The nav bar is only useful if each tab actually goes somewhere."""
     from yaybo.app import YayboApp
