@@ -180,6 +180,39 @@ SAMPLE = {
             "dokument_json": '{"ejendom": "ingenting"}',
         }
     ],
+    # The other book. Joined to the property above, the way a co-op flat joins
+    # to the building its association owns.
+    "andele": [
+        {
+            "uuid": "a1",
+            "adresse": "Prøvegade 1, ST. TH, 9999 Prøveby",
+            "lejlighed": "ST. TH",
+            "kommunekode": "0999",
+            "vejkode": "1234",
+            "ejendom_uuid": "u1",
+            "bygning_adresse": "Prøvegade 1, 9999 Prøveby",
+            "antal_haeftelser": 1,
+            "samlet_gaeld_dkk": 1500000,
+            "boligtype": "cooperative",
+            "boligareal_m2": 77,
+            "til_salg": "false",
+        }
+    ],
+    "andel_haeftelser": [
+        {
+            "andel_uuid": "a1",
+            "dokument_uuid": "ad1",
+            "dokument_version": "1",
+            "adresse": "Prøvegade 1, ST. TH, 9999 Prøveby",
+            "dato_loebenummer": "04.03.2024-1000000001",
+            "prioritet": 1,
+            "dokumenttype": "Ejerpantebrev",
+            "hovedstol": "1.500.000 DKK",
+            "hovedstol_dkk": "1.500.000 DKK",
+            "rentetype": "variabel",
+            "kreditorer": "Ida Testesen",
+        }
+    ],
 }
 
 
@@ -225,6 +258,10 @@ def test_exports_every_format(database, tmp_path):
     filled = [name for name, rows in tables.items() if rows]
     assert len(written) == len(filled)
     assert all(path.exists() for path in written)
+    # The second register travels with the rest rather than being a TUI-only
+    # view of the database.
+    assert {"andele", "andel_haeftelser"} <= set(filled)
+    assert any("andel_haeftelser" in path.name for path in written)
 
 
 def test_every_screen_opens(database):
@@ -727,6 +764,71 @@ def test_the_figures_open_over_whatever_is_in_scope(library):
             back = app.screen
             assert isinstance(back, StatsScreen)
             assert len(back.scope) == 3, "escape keeps the selection"
+
+    asyncio.run(walk())
+
+
+def test_the_andele_screen_shows_the_other_book(database):
+    """A share is not a property, and the screen for it reads a different table.
+
+    Also the join: what makes a co-op flat worth looking up is the building
+    the association owns, and the row has to be able to name it.
+    """
+    from textual.widgets import DataTable
+
+    from yaybo.app import YayboApp
+    from yaybo.screens.andele import AndeleScreen
+    from yaybo.screens.library import LibraryScreen
+
+    async def walk() -> None:
+        app = YayboApp(database=database)
+        async with app.run_test(size=(160, 48)) as pilot:
+            await pilot.pause()
+            # The share is not in the properties list: different book.
+            assert isinstance(app.screen, LibraryScreen)
+            assert [row["uuid"] for row in app.screen.shown] == ["u1"]
+
+            app.action_andele()
+            await pilot.pause(0.5)
+            assert isinstance(app.screen, AndeleScreen)
+            assert len(app.screen.shown) == 1
+            share = app.screen.shown[0]
+            assert share["uuid"] == "a1"
+            assert share["lejlighed"] == "ST. TH"
+            # Joined out to the association's property, which is where the
+            # valuation and the association's own mortgages are.
+            assert share["ejendom_uuid"] == "u1"
+            assert share["bygning"] == "Prøvegade 1, 1. tv, 9999 Prøveby"
+
+            table = app.screen.query_one("#andele-table", DataTable)
+            assert table.row_count == 1
+
+            # Filtering is on the address, like everywhere else.
+            app.screen._apply_filter("ST. TH")
+            await pilot.pause()
+            assert len(app.screen.shown) == 1
+            app.screen._apply_filter("nowhere at all")
+            await pilot.pause()
+            assert app.screen.shown == []
+
+    asyncio.run(walk())
+
+
+def test_a_database_without_the_second_book_still_opens_the_tab(library):
+    """Every database written before this existed, and any fetched with
+    --no-andele, has no andele table at all."""
+    from yaybo.app import YayboApp
+    from yaybo.screens.andele import AndeleScreen
+
+    assert store.andele(library) == []
+
+    async def walk() -> None:
+        app = YayboApp(database=library)
+        async with app.run_test(size=(160, 48)) as pilot:
+            app.action_andele()
+            await pilot.pause(0.5)
+            assert isinstance(app.screen, AndeleScreen)
+            assert app.screen.shown == []
 
     asyncio.run(walk())
 
