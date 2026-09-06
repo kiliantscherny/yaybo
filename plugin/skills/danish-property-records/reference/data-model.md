@@ -33,6 +33,7 @@ the tables mean and where they mislead.
 | `rentestatistik` | month × loan type of DST rates | `maaned, rentfix_kode` |
 | `andele` | co-op share | `uuid` |
 | `andel_haeftelser` | charge against a share, at a document version | `andel_uuid, dokument_uuid, dokument_version` |
+| `andel_meddelelser` | notice noted on a share | `andel_uuid, dato_loebenummer` |
 
 `haeftelser` is keyed on the document **version** because one document can
 secure more than one charge — an ejerpantebrev raised twice appears as two rows
@@ -50,9 +51,30 @@ building is — correctly, in both cases.
   flat**. That is `andele`, joined back by `andele.ejendom_uuid`.
 
 A share is not land, so `andele` has **no valuation, no matrikel, no registered
-area, no easements and no owner** — only an address, its charges and any
-notices. `boligareal_m2`, the coordinates and `til_salg` come from Boligsiden,
-not from the register.
+area and no easements** — only an address, its charges and any notices.
+`boligareal_m2`, the coordinates and `til_salg` come from Boligsiden, not from
+the register.
+
+### Who lives there
+
+There is **no owner of record**. The andelsboligbog registers rights *over* a
+share, not title *to* one — who holds an andel is the association's record, and
+is in no register this reads. If asked who owns a co-op flat, say that, then
+offer the two places names do appear:
+
+- `andel_haeftelser.kreditorer`. Most charges on a share are an
+  **ejerpantebrev**, a deed the owner issues to *themselves* and pledges to a
+  bank, so its creditor is in practice the andelshaver. Present this as an
+  inference from the instrument type, never as the register naming an owner,
+  and check `dokumenttype` before drawing it.
+- `andel_meddelelser.debitorer` and `.disponenter`. A notice is noted when
+  something has happened to the andelshaver rather than to the flat — a death,
+  a bankruptcy, a court removing their power to dispose of it. Most shares have
+  none, and their absence means nothing has been noted, not that nobody lives
+  there.
+
+Neither carries a date of birth. `ejere.foedselsdato` and
+`dokument_parter.foedselsdato` have no counterpart here.
 
 Three traps, all of which produce plausible-looking wrong answers:
 
@@ -91,6 +113,9 @@ which is which — the columns line up and the meanings do not.
   matches `ejendomme.uuid`
 - `andele.ejendom_uuid` → `ejendomme.uuid`, and is empty when the lookup found
   no single building to attribute the share to
+- `andel_meddelelser.andel_uuid` → `andele.uuid`. Keyed on `dato_loebenummer`
+  rather than a document uuid, because the register's own view of a notice
+  reads only the date and serial
 
 `rolle` in `dokument_parter` is one of `kreditor`, `debitor`, `meddelelseshaver`,
 `fuldmagtshaver`, `adkomsthaver`, `underpanthaver`, `paataleberettiget`.

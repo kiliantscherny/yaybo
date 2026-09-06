@@ -69,6 +69,9 @@ TABLES = {
     "the association's building in the tingbog, which is where all of that is.",
     "andel_haeftelser": "Charges registered against one share. The same fields "
     "the tingbog uses for a property's mortgages, under a different key.",
+    "andel_meddelelser": "Notices noted on a share - a death, a bankruptcy, a "
+    "court removing the andelshaver's power to dispose of it. The only place "
+    "this book names anyone other than a creditor.",
 }
 
 # Columns worth a word of warning, because they are not what they look like.
@@ -110,6 +113,11 @@ NOTES = {
     "records no area at all",
     ("andele", "boligtype"): "Boligsiden's word for it; reads 'cooperative' "
     "for a share",
+    ("andel_meddelelser", "debitorer"): "the andelshaver the notice concerns. "
+    "The andelsboligbog has no owner register, so this is the nearest it comes "
+    "to naming who lives there",
+    ("andel_meddelelser", "disponenter"): "whoever may act for them - an "
+    "executor, a trustee",
 }
 
 # How the tables relate. DuckDB cannot add a foreign key to an existing table,
@@ -127,6 +135,7 @@ REFS = [
     ("underpant", "haeftelse_uuid", "haeftelser", "dokument_uuid", ">"),
     ("andele", "ejendom_uuid", "ejendomme", "uuid", ">"),
     ("andel_haeftelser", "andel_uuid", "andele", "uuid", ">"),
+    ("andel_meddelelser", "andel_uuid", "andele", "uuid", ">"),
 ]
 
 # Relationships DBML cannot state in one line, because the target depends on a

@@ -125,9 +125,14 @@ The things most often got wrong:
   The tingbog holds a co-op block as one property owned by the association;
   the andelsboligbog holds it as one share per flat. `andele.ejendom_uuid`
   joins the second to the first. A share has no valuation, no matrikel, no
-  registered area, no easements and no named owner, which is why the derived
-  columns a property gets - `frivaerdi_dkk`, `belaaningsgrad_pct` - do not
-  exist there: there is nothing to divide by. `samlet_gaeld_dkk` totals what
+  registered area and no easements, which is why the derived columns a
+  property gets - `frivaerdi_dkk`, `belaaningsgrad_pct` - do not exist there:
+  there is nothing to divide by. There is also **no owner of record**: the
+  book registers rights over a share, not title to one. Names appear in two
+  places only - `andel_haeftelser.kreditorer`, which for an ejerpantebrev is
+  in practice the andelshaver because that instrument is issued to oneself,
+  and `andel_meddelelser.debitorer`/`.disponenter`, which name them when a
+  death or a bankruptcy is noted. Neither carries a date of birth. `samlet_gaeld_dkk` totals what
   is charged against the share alone and is *not* what living there owes,
   because a share of the association's own mortgage sits against the building.
   Never store a sale price on an andel row: Boligsiden reports the building's

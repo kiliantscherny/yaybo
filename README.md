@@ -203,6 +203,7 @@ erDiagram
     adkomsthistorik ||--o{ adkomsthistorik_ejere : names
     ejendomme ||--o{ andele : "shares in"
     andele ||--o{ andel_haeftelser : "charged with"
+    andele ||--o{ andel_meddelelser : "noted on"
 
     ejendomme {
         varchar uuid PK
@@ -302,6 +303,13 @@ erDiagram
         varchar dokumenttype
         bigint hovedstol_dkk
     }
+    andel_meddelelser {
+        varchar andel_uuid PK, FK
+        varchar dato_loebenummer PK
+        varchar dokumenttype
+        varchar debitorer "the andelshaver"
+        varchar disponenter "who may act for them"
+    }
 ```
 
 | table | one row per | needs login |
@@ -320,6 +328,7 @@ erDiagram
 | `rentestatistik` | month of DST realkredit rates | no |
 | `andele` | co-op share, from the andelsboligbog | no |
 | `andel_haeftelser` | charge registered against one share | no |
+| `andel_meddelelser` | notice noted on a share: death, bankruptcy, seizure | no |
 
 `rentestatistik` is not about any one property. It is the rate series
 `laantype_estimat` was matched against, kept so an estimate can be checked.
@@ -344,10 +353,26 @@ Both are fetched, and `andele.ejendom_uuid` joins the second to the first. A
 lookup that finds shares says so: *found 1 property and 10 co-op shares*.
 
 What the second book actually holds is much less than the first. A share is not
-land, so it has **no valuation, no matrikel, no registered area, no easements
-and no named owner** — only its address, whatever is charged against it, and
-any notices. The area and the coordinates on an `andele` row come from
-Boligsiden rather than the register.
+land, so it has **no valuation, no matrikel, no registered area and no
+easements** — only its address, whatever is charged against it, and any
+notices. The area and the coordinates on an `andele` row come from Boligsiden
+rather than the register.
+
+**There is no owner of record.** The andelsboligbog registers rights *over* a
+share, not title *to* one; who holds an andel is the association's record, not
+the register's. Two places name people anyway:
+
+- `andel_haeftelser.kreditorer`. Most charges on a share are an
+  **ejerpantebrev** — a deed the owner issues to *themselves* and then pledges
+  to a bank — so its creditor is in practice the andelshaver. That is an
+  inference from the instrument, not something the register states.
+- `andel_meddelelser.debitorer` and `.disponenter`. A notice is the register
+  recording that something has happened to the andelshaver rather than to the
+  flat: a death, a bankruptcy, a court removing their power to dispose of it.
+  It names them, and whoever may now act for them.
+
+Neither carries a date of birth. Those come from the CPR numbers printed on a
+signed attest, and no attest for a share has been read here — see below.
 
 Three things worth knowing before querying it:
 
@@ -362,6 +387,12 @@ Three things worth knowing before querying it:
   the same date and amount on all of them — and divides it by each flat's area
   into a price per m² that describes nothing. That sale is a fact about the
   building, and is stored as one, on the `ejendomme` row.
+
+One thing is known to exist and is **not** read here: a logged-in session can
+fetch a signed andelsboligbogsattest (`rest/andelsbolig/...`) and search the
+book by person name and date of birth. By analogy with the tingbog that attest
+would carry parties' CPR-derived birth dates. It is unverified and nothing here
+depends on it.
 
 `yaybo fetch --no-andele` skips the second book and behaves as earlier versions
 did. `yaybo backfill` cannot rebuild these two tables — the register stores no

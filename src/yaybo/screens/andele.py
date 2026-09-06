@@ -11,6 +11,12 @@ Hence the two columns on the right. `Gæld` is what this share owes; `Bygning`
 is the property the association owns, which is where a co-op flat's other
 liability lives - a share of the association's own mortgage, which is nowhere
 in this book and is not added in here.
+
+There is no owner column because the book has no owner. It registers rights
+over a share, not title to one; who holds an andel is the association's
+record, not the register's. `Medd.` is as close as it comes: a notice names
+the andelshaver, and is noted when something has happened to them rather than
+to the flat.
 """
 
 from __future__ import annotations
@@ -34,6 +40,7 @@ COLUMNS = (
     ("Etage", 7),
     ("Areal", 6),
     ("Hæft.", 6),
+    ("Medd.", 6),
     ("Gæld", 10),
     ("Gæld/m²", 9),
     ("Til salg", 8),
@@ -125,6 +132,7 @@ class AndeleScreen(YayboScreen):
                 str(row.get("lejlighed") or "—"),
                 display.area(area),
                 str(row.get("antal_haeftelser") or 0),
+                self._notices(row),
                 display.compact_kr(debt),
                 display.compact_kr(debt / area if debt and area else None),
                 self._for_sale(row),
@@ -133,6 +141,20 @@ class AndeleScreen(YayboScreen):
                 key=str(row.get("uuid")),
             )
         self._describe()
+
+    def _notices(self, row: dict) -> Text:
+        """How many notices are noted on the share.
+
+        Worth colouring rather than counting quietly. A notice is the register
+        recording that something has happened to the andelshaver - a death, a
+        bankruptcy, a court taking away their power to dispose of it - and it
+        is the only thing in this book that names anybody but a creditor.
+        """
+        count = row.get("antal_meddelelser") or 0
+        if not count:
+            return Text("—", style="dim")
+        theme = self.app.current_theme
+        return Text(str(count), style=f"bold {theme.warning or 'yellow'}")
 
     def _for_sale(self, row: dict) -> Text:
         listed = row.get("til_salg")

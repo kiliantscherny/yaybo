@@ -45,6 +45,7 @@ TABLE_NAMES = (
     "attester",
     "andele",
     "andel_haeftelser",
+    "andel_meddelelser",
 )
 
 
@@ -197,6 +198,7 @@ def _gather_andel(api, uuid: str, gathered: dict, addresses: dict, building: dic
         }
     )
     gathered["andel_haeftelser"] += rows.andel_haeftelse_rows(record, uuid)
+    gathered["andel_meddelelser"] += rows.andel_meddelelse_rows(record, uuid)
     return record
 
 

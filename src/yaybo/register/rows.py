@@ -17,7 +17,7 @@ from __future__ import annotations
 
 from yaybo.register import historik
 from yaybo.register.address import unit_label
-from yaybo.register.fields import normalise, plain_number
+from yaybo.register.fields import iso_date, normalise, plain_number
 
 HISTORIK_FIELDS = [
     "adresse", "dato", "dokumenttype", "koebesum_dkk", "antal_ejere",
@@ -510,6 +510,7 @@ def andel_row(
         "ejendom_uuid": ejendom_uuid,
         "bygning_adresse": bygning_adresse,
         "antal_haeftelser": len(record.get("haeftelser") or []),
+        "antal_meddelelser": len(record.get("meddelelser") or []),
     }
 
 
@@ -551,6 +552,40 @@ def andel_haeftelse_rows(record: dict, uuid: str) -> list[dict]:
             "dokument_uuid": h.get("uuid", ""),
         }
         for h in record.get("haeftelser") or []
+    ]
+
+
+def andel_meddelelse_rows(record: dict, uuid: str) -> list[dict]:
+    """Notices noted on one share, one row each.
+
+    The only place the andelsboligbog names anyone but a creditor: a notice is
+    the register recording something that has happened to the andelshaver -
+    a death, a bankruptcy, a court taking away their power to dispose of the
+    share - and it names them, and whoever may now act for them.
+
+    Built from the fields the register's own public view of a share reads,
+    because no share sampled while writing this carried a notice. Everything
+    is optional in consequence, which is also how it should behave: a book
+    that has nothing to say about somebody says nothing.
+    """
+    adresse = record.get("adresse", "")
+    return [
+        {
+            "andel_uuid": uuid,
+            "adresse": adresse,
+            "dato_loebenummer": m.get("alias", ""),
+            "prioritet": m.get("prioritet", ""),
+            "dokumenttype": m.get("dokumenttype", ""),
+            # The one date here, and the format it arrives in is unknown - the
+            # register writes dates three ways. iso_date knows all three.
+            "afgoerelsesdato": iso_date(str(m.get("afgoerelsesdato") or "")),
+            "debitorer": "; ".join(m.get("debitorer") or []),
+            "disponenter": "; ".join(m.get("disponenter") or []),
+            "tillaegstekst": m.get("tillaegstekst", ""),
+            "dokument_uuid": m.get("uuid", ""),
+            "dokument_version": m.get("version", ""),
+        }
+        for m in record.get("meddelelser") or []
     ]
 
 

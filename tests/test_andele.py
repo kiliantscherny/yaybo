@@ -62,6 +62,21 @@ RECORD = {
     "meddelelser": None,
 }
 
+# No share sampled from the live register carried a notice, so this one is
+# built from the fields the register's own public view of a share reads. It is
+# the only place this book names anyone but a creditor.
+NOTICE = {
+    "alias": "11.03.2024-1000000009",
+    "version": "1",
+    "uuid": "med-1",
+    "prioritet": "1",
+    "dokumenttype": "Konkursdekret",
+    "afgoerelsesdato": "11.03.2024",
+    "debitorer": ["Ida Testesen"],
+    "disponenter": ["Kurator Prøvesen"],
+    "tillaegstekst": "Skifteretten har noteret konkurs.",
+}
+
 BUILDING = {"uuid": "ejd-1", "adresse": "Prøvegade 1, 9999 Prøveby", "bog": "Tingbog"}
 SHARE = {"uuid": "andel-1", "adresse": RECORD["adresse"], "bog": ANDELSBOG}
 
@@ -101,6 +116,40 @@ def test_charges_read_the_same_fields_a_property_does():
 
 def test_a_share_with_nothing_registered_against_it_has_no_charges():
     assert build.andel_haeftelse_rows({"adresse": "x"}, "andel-2") == []
+
+
+def test_a_notice_is_where_this_book_names_somebody():
+    """The andelsboligbog has no owner register. A notice is the nearest it
+    comes to naming who holds a share, and it only appears when something has
+    happened to them."""
+    record = {**RECORD, "meddelelser": [NOTICE]}
+    notices = build.andel_meddelelse_rows(record, "andel-1")
+    assert len(notices) == 1
+    notice = notices[0]
+    assert notice["andel_uuid"] == "andel-1"
+    assert notice["dokumenttype"] == "Konkursdekret"
+    assert notice["debitorer"] == "Ida Testesen"
+    assert notice["disponenter"] == "Kurator Prøvesen"
+    # The register writes dates three ways and this one is unknown, so it is
+    # normalised rather than trusted.
+    assert notice["afgoerelsesdato"] == "2024-03-11"
+    assert build.andel_row(record, "andel-1")["antal_meddelelser"] == 1
+
+
+def test_a_notice_missing_everything_optional_still_makes_a_row():
+    """Built from the register's labels rather than an observed payload, so
+    every field has to tolerate being absent."""
+    bare = build.andel_meddelelse_rows(
+        {"adresse": "x", "meddelelser": [{"alias": "01.01.2024-1"}]}, "andel-2"
+    )
+    assert bare[0]["debitorer"] == ""
+    assert bare[0]["disponenter"] == ""
+    assert bare[0]["afgoerelsesdato"] == ""
+
+
+def test_no_notices_is_the_ordinary_case():
+    assert build.andel_meddelelse_rows(RECORD, "andel-1") == []
+    assert build.andel_row(RECORD, "andel-1")["antal_meddelelser"] == 0
 
 
 def test_debt_is_totalled_but_never_divided():
@@ -259,6 +308,24 @@ def test_the_two_tables_survive_a_round_trip():
                 "JOIN andel_haeftelser h ON h.andel_uuid = a.uuid "
                 "WHERE h.dokument_uuid = 'doc-1'",
             ) == "ST. TH"
+
+
+def test_notices_round_trip_and_are_keyed_by_their_registration():
+    """No document uuid to key on the way a charge has - the date and serial
+    is what identifies one registration."""
+    notices = build.andel_meddelelse_rows({**RECORD, "meddelelser": [NOTICE]}, "andel-1")
+    with tempfile.TemporaryDirectory() as folder:
+        path = Path(folder) / "notices.duckdb"
+        written = store.save(path, {"andel_meddelelser": notices})
+        assert written["andel_meddelelser"] == 1
+        with duckdb.connect(str(path), read_only=True) as db:
+            assert _one(db, "SELECT debitorer FROM andel_meddelelser") == "Ida Testesen"
+            assert str(_one(db, "SELECT afgoerelsesdato FROM andel_meddelelser")) == (
+                "2024-03-11"
+            )
+        assert store.TABLES["andel_meddelelser"]["pk"] == [
+            "andel_uuid", "dato_loebenummer"
+        ]
 
 
 def test_re_fetching_a_share_replaces_its_charges():

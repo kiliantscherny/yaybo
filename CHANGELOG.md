@@ -21,9 +21,20 @@ versions follow [semantic versioning](https://semver.org/).
   nothing to divide by.
 - **Andele**, a screen for them, beside Ejendomme in the tabs. Enter opens the
   association's building, which is where everything a share does not have is.
+- `andel_meddelelser`, the notices noted on a share - a death, a bankruptcy, a
+  court removing the andelshaver's power to dispose of it. It is the only
+  place this book names anybody other than a creditor, and the Andele screen
+  counts them in a column of their own because a notice is worth noticing.
 - `yaybo fetch --no-andele` skips the second book and behaves as before.
 
 ### Notes
+
+- **The andelsboligbog has no owner of record.** It registers rights over a
+  share, not title to one; who holds an andel is the association's record.
+  Names appear in two places and neither is the register stating ownership:
+  `andel_haeftelser.kreditorer`, which for an ejerpantebrev is the owner
+  issuing to themselves, and `andel_meddelelser.debitorer`. Neither carries a
+  date of birth.
 
 - `andele.samlet_gaeld_dkk` totals what is charged against one share. It is
   not what living there owes: an andelshaver also owes a portion of the

@@ -30,7 +30,8 @@ UNION ALL SELECT 'handelshistorik', count(*) FROM handelshistorik
 UNION ALL SELECT 'bygninger', count(*) FROM bygninger
 UNION ALL SELECT 'adkomsthistorik', count(*) FROM adkomsthistorik
 UNION ALL SELECT 'andele', count(*) FROM andele
-UNION ALL SELECT 'andel_haeftelser', count(*) FROM andel_haeftelser;
+UNION ALL SELECT 'andel_haeftelser', count(*) FROM andel_haeftelser
+UNION ALL SELECT 'andel_meddelelser', count(*) FROM andel_meddelelser;
 ```
 
 `andele` and `andel_haeftelser` may not exist at all in a database written
@@ -304,6 +305,27 @@ absent from the book entirely rather than present with zero.
 ```sql
 SELECT adresse, boligareal_m2, hentet
 FROM andele WHERE antal_haeftelser = 0 ORDER BY adresse;
+```
+
+Who the book names. There is no owner of record, so this is as close as it
+gets — and the two halves mean different things:
+
+```sql
+-- The creditor on an ejerpantebrev is the owner issuing to themselves, so
+-- this usually names the andelshaver. It is an inference from dokumenttype,
+-- not the register naming an owner.
+SELECT a.adresse, h.dokumenttype, h.kreditorer
+FROM andel_haeftelser h
+JOIN andele a ON a.uuid = h.andel_uuid
+WHERE h.dokumenttype = 'Ejerpantebrev'
+ORDER BY a.adresse;
+
+-- A notice names them outright, but only exists when something has happened
+-- to them: a death, a bankruptcy, a court removing their power to dispose.
+SELECT a.adresse, m.dokumenttype, m.afgoerelsesdato, m.debitorer, m.disponenter
+FROM andel_meddelelser m
+JOIN andele a ON a.uuid = m.andel_uuid
+ORDER BY m.afgoerelsesdato DESC;
 ```
 
 Which co-op buildings are held, and how much of each:

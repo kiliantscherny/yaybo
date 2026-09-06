@@ -262,6 +262,7 @@ TABLES: dict[str, TableSpec] = {
             ("ejendom_uuid", TEXT),
             ("bygning_adresse", TEXT),
             ("antal_haeftelser", INTEGER),
+            ("antal_meddelelser", INTEGER),
             # What is charged against this share alone. Not what the flat
             # owes: an andelshaver also owes a share of the association's own
             # mortgage, which is registered against the building in the
@@ -286,6 +287,36 @@ TABLES: dict[str, TableSpec] = {
             # each flat's area into a price per square metre that means
             # nothing. That sale is a fact about the building, and is already
             # stored as one on the ejendomme row this andel joins to.
+        ],
+    },
+    # Notices noted on a share, which is the only place this book names anyone
+    # other than a creditor. They are the register recording that something has
+    # happened to the andelshaver rather than to the andel: a death, a
+    # bankruptcy, a gældssanering, a court removing their power to dispose of
+    # it. Hence the two lists of names - the debtor the notice concerns, and
+    # whoever may act for them.
+    #
+    # Read from the labels and bindings of the register's own public view of a
+    # share rather than from an observed payload: none of the andele sampled
+    # while writing this had a notice on them, which is what one would hope.
+    # Every field is therefore optional and absent means absent.
+    "andel_meddelelser": {
+        "key": "andel_uuid",
+        # No document uuid to key on the way a charge has: the view reads only
+        # the date and serial, which identifies one registration.
+        "pk": ["andel_uuid", "dato_loebenummer"],
+        "columns": [
+            ("andel_uuid", TEXT),
+            ("dato_loebenummer", TEXT),
+            ("adresse", TEXT),
+            ("prioritet", INTEGER),
+            ("dokumenttype", TEXT),
+            ("afgoerelsesdato", DATE),
+            ("debitorer", TEXT),
+            ("disponenter", TEXT),
+            ("tillaegstekst", TEXT),
+            ("dokument_uuid", TEXT),
+            ("dokument_version", TEXT),
         ],
     },
     # Charges registered against one share. The book states these in exactly
@@ -774,7 +805,8 @@ def andele(path: str | Path) -> list[dict]:
             db,
             f"""
             SELECT a.uuid, a.adresse, a.lejlighed, a.boligtype, a.boligareal_m2,
-                   a.samlet_gaeld_dkk, a.antal_haeftelser, a.til_salg,
+                   a.samlet_gaeld_dkk, a.antal_haeftelser, a.antal_meddelelser,
+                   a.til_salg,
                    a.boligsiden_url, a.ejendom_uuid, a.bygning_adresse,
                    a.kommunekode, a.vejkode, a.breddegrad, a.laengdegrad,
                    {columns}
