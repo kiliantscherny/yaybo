@@ -81,12 +81,14 @@ owners.
 > [!WARNING]
 > The TUI is a work in progress and will change.
 
-Run `yaybo` with no arguments. Six screens, all reading the same database:
+Run `yaybo` with no arguments. Eight screens, all reading the same database:
 
 | screen | key | what it is for |
 | --- | --- | --- |
 | **Library** | `l` | everything you have fetched, searchable offline |
-| **Search** | `/` | find an address, see what the register holds at it |
+| **Andele** | tab | the co-op shares you have fetched, from the other register |
+| **Bygninger** | `g` | the library grouped one building to a row |
+| **Search** | `/` | find an address, see what the registers hold at it |
 | **Queue** | `b` | fetch many properties in the background |
 | **Nøgletal** | `k` | figures across a set of properties |
 | **SQL** | `s` | query the database directly |
@@ -113,6 +115,17 @@ it is instant and works offline:
 - **Kurve** – price per square metre over time
 - **Bygning** – the BBR record
 - **Dokument** – the signed attest itself
+
+**Andele** is the same idea for the andelsboligbog, which is a different
+register about a different thing – see [Andelsboliger](#andelsboliger). Each row
+is one co-op share: its area, what is charged against it, and the association's
+building. `enter` opens a share, with its charges and everyone named on them and
+any notices; `g` opens the building, which is where a share's valuation and the
+association's own mortgages live.
+
+**Bygninger** groups the library one building to a row: how many of its
+properties you hold, how many were fetched while logged in, and the medians
+across them. `enter` goes to that building's properties.
 
 **Queue** takes what Search hands it and fetches in the background, with a
 progress bar and per-row status. Pause with `space`. Anything already fetched is
@@ -158,6 +171,7 @@ Useful `fetch` options:
 | `--anonymous` | ignore any cached session and use only the public lookup |
 | `--delay SECONDS` | pause between fetches (default 1.0) |
 | `--outdir DIR` | where results go (default `out/`, which is git-ignored) |
+| `--no-andele` | skip the andelsboligbog; co-op blocks give only the association's property |
 | `--no-boligsiden` | skip sale prices, BBR data and equity |
 | `--no-laantype` | skip estimating each charge's loan type |
 | `--keepalive [MIN]` | hold the session open afterwards (default 60) |
@@ -183,8 +197,8 @@ requests to the register. Run it after upgrading, when a reader has improved.
 
 ## The data
 
-One DuckDB file, fourteen tables. Twelve of them are keyed on the property;
-the other two are the andelsboligbog, which is a different register about a
+One DuckDB file, fifteen tables. Twelve of them are keyed on the property;
+the other three are the andelsboligbog, which is a different register about a
 different thing – see [Andelsboliger](#andelsboliger) below.
 
 ```mermaid

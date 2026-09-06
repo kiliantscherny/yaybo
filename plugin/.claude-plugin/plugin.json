@@ -1,6 +1,6 @@
 {
   "name": "yaybo",
-  "description": "Look up Danish property records - owners, mortgages, easements, sale prices and BBR data - from tinglysning.dk, Boligsiden and Danmarks Statistik, then query or export them.",
+  "description": "Look up Danish property and co-op (andelsbolig) records - owners, mortgages, easements, sale prices and BBR data - from tinglysning.dk (Tingbogen and Andelsboligbogen), Boligsiden and Danmarks Statistik, then query or export them.",
   "version": "1.0.0",
   "author": {
     "name": "Kilian Tscherny"
@@ -8,5 +8,12 @@
   "homepage": "https://github.com/kiliantscherny/yaybo",
   "repository": "https://github.com/kiliantscherny/yaybo",
   "license": "MIT",
-  "keywords": ["denmark", "property", "tinglysning", "land-registry", "duckdb"]
+  "keywords": [
+    "denmark",
+    "property",
+    "tinglysning",
+    "andelsbolig",
+    "land-registry",
+    "duckdb"
+  ]
 }

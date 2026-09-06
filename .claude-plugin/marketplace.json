@@ -11,9 +11,16 @@
       "name": "yaybo",
       "source": "./plugin",
       "displayName": "yaybo - Danish property records",
-      "description": "Look up a Danish address in the land register (Tingbogen), store the results in a local DuckDB database, then query them or export to Excel. Requires uv on the machine; the yaybo CLI runs through uvx.",
+      "description": "Look up a Danish address in the land registers - Tingbogen for property, Andelsboligbogen for co-op shares - store the results in a local DuckDB database, then query them or export to Excel. Requires uv on the machine; the yaybo CLI runs through uvx.",
       "category": "data",
-      "keywords": ["denmark", "property", "tinglysning", "land-registry", "duckdb"],
+      "keywords": [
+        "denmark",
+        "property",
+        "tinglysning",
+        "andelsbolig",
+        "land-registry",
+        "duckdb"
+      ],
       "license": "MIT",
       "homepage": "https://github.com/kiliantscherny/yaybo"
     }

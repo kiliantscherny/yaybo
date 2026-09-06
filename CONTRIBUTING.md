@@ -75,7 +75,8 @@ src/yaybo/
 ├── enrich/            the two public sources that need no login
 │   ├── boligsiden.py  sale prices, price per m², and the BBR record
 │   └── laantype.py    DST rates, and reading a bare rate as a loan product
-├── screens/           library, search, property, queue, stats, analysis, sql
+├── screens/           library, andele, andel, buildings, search, property,
+│                      queue, stats, analysis, sql
 ├── widgets/           the export dialog
 └── styles/            Textual CSS
 
