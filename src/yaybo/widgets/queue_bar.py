@@ -18,6 +18,8 @@ from textual.app import ComposeResult
 from textual.containers import Horizontal
 from textual.widgets import Button, ProgressBar, Static
 
+from yaybo import i18n
+
 if TYPE_CHECKING:
     from yaybo.app import YayboApp
 
@@ -35,7 +37,7 @@ class QueueBar(Horizontal):
         yield ProgressBar(
             id="queue-bar-progress", show_eta=False, show_percentage=False
         )
-        yield Button("Stop", id="queue-bar-stop", variant="error")
+        yield Button(i18n.t("Stop"), id="queue-bar-stop", variant="error")
 
     def on_mount(self) -> None:
         self.refresh_state()
@@ -52,12 +54,14 @@ class QueueBar(Horizontal):
             total=max(total, 1), progress=done
         )
         if queue.stopping:
-            state = "stopping after this one…"
+            state = i18n.t("stopping after this one…")
         elif queue.running:
-            state = queue.current or "starting…"
+            state = queue.current or i18n.t("starting…")
         else:
-            state = f"{queue.waiting} waiting"
-        failed = f"  ·  {queue.failed} failed" if queue.failed else ""
+            state = i18n.t("{n} waiting", n=queue.waiting)
+        failed = (
+            i18n.t("  ·  {n} failed", n=queue.failed) if queue.failed else ""
+        )
         self.query_one("#queue-bar-label", Static).update(
             f"⟳  {done}/{total}  {state}{failed}"
         )

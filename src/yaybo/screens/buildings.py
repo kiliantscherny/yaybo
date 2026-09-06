@@ -21,7 +21,7 @@ from textual.binding import Binding
 from textual.containers import Horizontal
 from textual.widgets import DataTable, Footer, Header, Input, Static
 
-from yaybo import display, stats, store
+from yaybo import display, i18n, stats, store
 from yaybo.register.fields import normalise
 from yaybo.screens.base import YayboScreen
 from yaybo.widgets.nav import NavTabs
@@ -30,14 +30,14 @@ from yaybo.widgets.session_bar import SessionBar
 
 COLUMNS = (
     ("MitID", 9),
-    ("Bygning", 40),
-    ("Postnr", 6),
-    ("Ejendomme", 10),
-    ("Areal", 6),
-    ("Vurd./m²", 9),
-    ("Gæld", 10),
-    ("Belånt", 6),
-    ("Hentet", 9),
+    ("Building", 40),
+    ("Postcode", 6),
+    ("Properties", 10),
+    ("Area", 6),
+    ("Val./m²", 9),
+    ("Debt", 10),
+    ("LTV", 6),
+    ("Fetched", 9),
 )
 
 
@@ -70,7 +70,7 @@ class BuildingsScreen(YayboScreen):
 
     BINDINGS = [
         Binding("enter", "open", "Its properties"),
-        Binding("k", "figures", "Nøgletal"),
+        Binding("k", "figures", "Figures"),
         Binding("f", "refetch", "Re-fetch all"),
         Binding("r", "refresh", "Reload"),
         Binding("ctrl+f", "focus_filter", "Filter", show=False),
@@ -87,8 +87,8 @@ class BuildingsScreen(YayboScreen):
         yield SessionBar()
         yield NavTabs("bygninger")
         with Horizontal(id="buildings-bar"):
-            yield Static("Søg", id="buildings-filter-label")
-            yield Input(placeholder="address", id="buildings-filter")
+            yield Static(i18n.t("Filter"), id="buildings-filter-label")
+            yield Input(placeholder=i18n.t("address"), id="buildings-filter")
             yield Static("", id="buildings-count")
         yield Static("", id="buildings-scope")
         yield DataTable(id="buildings-table", cursor_type="row", zebra_stripes=True)
@@ -99,7 +99,7 @@ class BuildingsScreen(YayboScreen):
     def on_mount(self) -> None:
         table = self.query_one("#buildings-table", DataTable)
         for label, width in COLUMNS:
-            table.add_column(label, width=width)
+            table.add_column(i18n.t(label), width=width)
         self.action_refresh()
 
     # ── loading ─────────────────────────────────────────────────────────
@@ -183,30 +183,41 @@ class BuildingsScreen(YayboScreen):
         """
         whole, part = building.held, building.complete
         if part == whole:
-            return Text("✓ ja", style=f"bold {theme.success or 'green'}")
+            return Text(i18n.t("✓ yes"), style=f"bold {theme.success or 'green'}")
         if part == 0:
-            return Text("✗ nej", style=f"bold {theme.warning or 'yellow'}")
+            return Text(i18n.t("✗ no"), style=f"bold {theme.warning or 'yellow'}")
         return Text(f"{part}/{whole}", style=f"bold {theme.warning or 'yellow'}")
 
     def _describe(self) -> None:
         held, shown = len(self.buildings), len(self.shown)
         properties = sum(b.held for b in self.shown)
+        buildings = (
+            i18n.t("{n} building", n=shown) if shown == 1
+            else i18n.t("{n} buildings", n=shown)
+        )
         self.query_one("#buildings-count", Static).update(
-            f"{shown} of {held}" if shown != held else f"{held} building(s)"
+            i18n.t("{shown} of {held}", shown=shown, held=held)
+            if shown != held
+            else (i18n.t("{n} building", n=held) if held == 1
+                  else i18n.t("{n} buildings", n=held))
         )
         self.query_one("#buildings-scope", Static).update(
-            f"{properties} propert{'y' if properties == 1 else 'ies'} in "
-            f"{shown} building(s) · enter opens a building's properties, "
-            "k its figures, f re-fetches all of it."
+            i18n.t(
+                "{properties} in {buildings} · enter opens a building's "
+                "properties, k its figures, f re-fetches all of it.",
+                properties=(i18n.t("{n} property", n=properties) if properties == 1
+                            else i18n.t("{n} properties", n=properties)),
+                buildings=buildings,
+            )
         )
         table = self.query_one("#buildings-table", DataTable)
         empty = self.query_one("#buildings-empty", Static)
         table.display = bool(self.shown)
         empty.display = not self.shown
         empty.update(
-            "Nothing fetched yet.\n\nPress / to look an address up."
+            i18n.t("Nothing fetched yet.\n\nPress / to look an address up.")
             if not self.buildings
-            else "No building matches that."
+            else i18n.t("No building matches that.")
         )
 
     @on(Input.Changed, "#buildings-filter")
@@ -256,11 +267,13 @@ class BuildingsScreen(YayboScreen):
         added = self.app.enqueue_refetch(
             [row["adresse"] for row in building.rows if row.get("adresse")]
         )
-        held = "property" if added == 1 else "properties"
         self.notify(
-            f"Queued {added} {held} from {building.name}. {self.app.queued_note()}"
+            i18n.t("Queued {n} from {where}. {note}",
+                   n=(i18n.t("{n} property", n=added) if added == 1
+                      else i18n.t("{n} properties", n=added)),
+                   where=building.name, note=self.app.queued_note())
             if added
-            else "Those are already in the queue."
+            else i18n.t("Those are already in the queue.")
         )
 
     def action_back(self) -> None:

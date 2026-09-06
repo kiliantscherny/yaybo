@@ -32,7 +32,7 @@ from textual.widgets import (
     TabPane,
 )
 
-from yaybo import display, pipeline, store
+from yaybo import display, i18n, pipeline, store
 from yaybo.screens.base import YayboScreen
 from yaybo.widgets.nav import NavTabs
 from yaybo.widgets.queue_bar import QueueBar
@@ -41,25 +41,25 @@ from yaybo.widgets.session_bar import SessionBar
 # label, column, how to write it, how wide
 HAEFTELSER = (
     ("Pri.", "prioritet", display.number, 5),
-    ("Dato/løbenr.", "dato_loebenummer", display.text, 22),
+    ("Date/serial", "dato_loebenummer", display.text, 22),
     ("Type", "dokumenttype", display.text, 20),
-    ("Hovedstol", "hovedstol_dkk", display.kr, 15),
-    ("Rentetype", "rentetype", display.text, 11),
-    ("Rente", "rentesats_pct", display.pct, 8),
-    ("Kreditorer", "kreditorer", display.text, 40),
+    ("Principal", "hovedstol_dkk", display.kr, 15),
+    ("Rate type", "rentetype", display.text, 11),
+    ("Rate", "rentesats_pct", display.pct, 8),
+    ("Creditors", "kreditorer", display.text, 40),
 )
 MEDDELELSER = (
-    ("Dato/løbenr.", "dato_loebenummer", display.text, 22),
+    ("Date/serial", "dato_loebenummer", display.text, 22),
     ("Type", "dokumenttype", display.text, 22),
-    ("Afgjort", "afgoerelsesdato", display.when, 12),
-    ("Debitorer", "debitorer", display.text, 30),
-    ("Disponenter", "disponenter", display.text, 30),
-    ("Tillægstekst", "tillaegstekst", display.text, 40),
+    ("Decided", "afgoerelsesdato", display.when, 12),
+    ("Debtors", "debitorer", display.text, 30),
+    ("Authorised", "disponenter", display.text, 30),
+    ("Additional text", "tillaegstekst", display.text, 40),
 )
 
 COUNTED_TABS = {
-    "tab-andel-haeftelser": ("Hæftelser", "andel_haeftelser"),
-    "tab-andel-meddelelser": ("Meddelelser", "andel_meddelelser"),
+    "tab-andel-haeftelser": ("Charges", "andel_haeftelser"),
+    "tab-andel-meddelelser": ("Notices", "andel_meddelelser"),
 }
 
 
@@ -87,15 +87,15 @@ class AndelScreen(YayboScreen):
         yield Header()
         yield SessionBar()
         yield NavTabs("andele")
-        yield Static("Loading…", id="andel-title")
+        yield Static(i18n.t("Loading…"), id="andel-title")
         with TabbedContent(id="andel-tabs"):
-            with TabPane("Oversigt", id="tab-andel-overview"):
+            with TabPane(i18n.t("Overview"), id="tab-andel-overview"):
                 yield VerticalScroll(id="andel-overview")
-            with TabPane("Hæftelser", id="tab-andel-haeftelser"):
+            with TabPane(i18n.t("Charges"), id="tab-andel-haeftelser"):
                 yield DataTable(
                     id="table-andel-haeftelser", cursor_type="row", zebra_stripes=True
                 )
-            with TabPane("Meddelelser", id="tab-andel-meddelelser"):
+            with TabPane(i18n.t("Notices"), id="tab-andel-meddelelser"):
                 yield DataTable(
                     id="table-andel-meddelelser", cursor_type="row", zebra_stripes=True
                 )
@@ -115,7 +115,7 @@ class AndelScreen(YayboScreen):
         ):
             table = self.query_one(identifier, DataTable)
             for label, _, _, width in spec:
-                table.add_column(label, width=width)
+                table.add_column(i18n.t(label), width=width)
         self.action_refresh()
 
     # ── loading ─────────────────────────────────────────────────────────
@@ -133,14 +133,17 @@ class AndelScreen(YayboScreen):
         row = self.andel_row
         if not row:
             self.query_one("#andel-title", Static).update(
-                "That andel is no longer in the database."
+                i18n.t("That share is no longer in the database.")
             )
             return
 
         title = Text()
         title.append(display.text(row.get("adresse")), style="bold")
-        title.append("   andel", style="dim")
-        title.append(f"   fetched {display.ago(row.get('hentet'))}", style="dim")
+        title.append("   " + i18n.t("share"), style="dim")
+        title.append(
+            "   " + i18n.t("fetched {when}", when=display.ago(row.get("hentet"))),
+            style="dim",
+        )
         self.query_one("#andel-title", Static).update(title)
 
         self._fill_overview(row)
@@ -171,7 +174,8 @@ class AndelScreen(YayboScreen):
                 tab = tabs.get_tab(identifier)
             except Exception:  # noqa: BLE001 - a missing tab is not worth raising
                 continue
-            tab.label = f"{label} {count}" if count else label
+            shown = i18n.t(label)
+            tab.label = f"{shown} {count}" if count else shown
 
     def _fill_overview(self, row: dict) -> None:
         panel = self.query_one("#andel-overview", VerticalScroll)
@@ -192,51 +196,62 @@ class AndelScreen(YayboScreen):
 
         sections = [
             (
-                "Andelsboligen",
+                i18n.t("The share"),
                 [
-                    ("Adresse", display.text(row.get("adresse"))),
-                    ("Etage/dør", display.text(row.get("lejlighed"))),
-                    ("Kommunekode", display.text(row.get("kommunekode"))),
-                    ("Vejkode", display.text(row.get("vejkode"))),
-                    ("Boligareal", display.area(row.get("boligareal_m2"))),
-                    ("Boligtype", display.text(row.get("boligtype"))),
-                    ("Til salg", display.text(row.get("til_salg"))),
+                    (i18n.t("Address"), display.text(row.get("adresse"))),
+                    (i18n.t("Floor/door"), display.text(row.get("lejlighed"))),
+                    (i18n.t("Municipality code"),
+                     display.text(row.get("kommunekode"))),
+                    (i18n.t("Street code"), display.text(row.get("vejkode"))),
+                    (i18n.t("Living area"), display.area(row.get("boligareal_m2"))),
+                    (i18n.t("Property type"), display.text(row.get("boligtype"))),
+                    (i18n.t("For sale"), display.text(row.get("til_salg"))),
                 ],
             ),
             (
-                "Hæftelser på andelen",
+                i18n.t("Charges on the share"),
                 [
-                    ("Antal", display.number(len(charges))),
-                    ("Samlet gæld", display.kr(row.get("samlet_gaeld_dkk"), unit="kr.")),
-                    ("Meddelelser", display.number(len(notices))),
+                    (i18n.t("Count"), display.number(len(charges))),
+                    (i18n.t("Total debt"),
+                     display.kr(row.get("samlet_gaeld_dkk"), unit="kr.")),
+                    (i18n.t("Notices"), display.number(len(notices))),
                 ],
             ),
             (
-                "Foreningens ejendom",
+                i18n.t("The association's property"),
                 [
-                    ("Adresse", display.text(row.get("bygning_adresse"))),
-                    ("Ejendom", display.text(row.get("ejendom_uuid"))),
+                    (i18n.t("Address"), display.text(row.get("bygning_adresse"))),
+                    (i18n.t("Property"), display.text(row.get("ejendom_uuid"))),
                 ],
             ),
         ]
         if issued:
-            sections.append(("Udstedt ejerpantebrev til", [("Navn", issued)]))
+            sections.append(
+                (i18n.t("Ejerpantebrev issued to"), [(i18n.t("Name"), issued)])
+            )
 
         for heading, pairs in sections:
             panel.mount(Static(heading, classes="section-heading"))
             panel.mount(Static(_facts(pairs), classes="facts"))
 
-        panel.mount(Static("Hvad bogen ikke har", classes="section-heading"))
+        panel.mount(
+            Static(i18n.t("What the book does not hold"),
+                   classes="section-heading")
+        )
         panel.mount(
             Static(
-                "An andel is not real property, so the andelsboligbog records no "
-                "valuation, no matrikel, no area and no easements for it, and no "
-                "owner: it registers rights over a share, not title to one. Who "
-                "holds it is the association's record.\n\n"
-                "Samlet gæld above is what is charged against this share alone. "
-                "It is not what living here owes - an andelshaver also owes a "
-                "portion of the association's own mortgage, which is registered "
-                "against the building. Press g for that.",
+                i18n.t(
+                    "An andel is not real property, so the andelsboligbog "
+                    "records no valuation, no matrikel, no area and no "
+                    "easements for it, and no owner: it registers rights over "
+                    "a share, not title to one. Who holds it is the "
+                    "association's record.\n\n"
+                    "The total debt above is what is charged against this "
+                    "share alone. It is not what living here owes - an "
+                    "andelshaver also owes a portion of the association's own "
+                    "mortgage, which is registered against the building. "
+                    "Press g for that."
+                ),
                 classes="facts",
             )
         )
@@ -249,7 +264,8 @@ class AndelScreen(YayboScreen):
     def action_building(self) -> None:
         building = display.text(self.andel_row.get("bygning_adresse"), "")
         if not building:
-            self.notify("No building recorded for this andel.", severity="warning")
+            self.notify(i18n.t("No building recorded for this share."),
+                        severity="warning")
             return
         self.app.library_for(building)
 
@@ -258,13 +274,13 @@ class AndelScreen(YayboScreen):
         from yaybo.widgets.export_dialog import ExportDialog
 
         if not self.tables:
-            self.notify("Nothing stored for this andel yet.")
+            self.notify(i18n.t("Nothing stored for this share yet."))
             return
         await self.app.push_screen_wait(
             ExportDialog(
                 self.tables,
                 display.text(self.andel_row.get("adresse"), "andel"),
-                title="Export this andel",
+                title=i18n.t("Export this share"),
             )
         )
 
@@ -272,7 +288,7 @@ class AndelScreen(YayboScreen):
         address = self.andel_row.get("adresse")
         if not address:
             return
-        self.notify(f"Re-fetching {address}…")
+        self.notify(i18n.t("Re-fetching {address}…", address=address))
         self._refetch(address)
 
     @work(thread=True, exclusive=True, group="refetch")
@@ -284,10 +300,11 @@ class AndelScreen(YayboScreen):
             store.save(self.app.database, bundle.tables)
         except Exception as error:  # noqa: BLE001 - shown to the user verbatim
             self.app.call_from_thread(
-                self.notify, f"Could not re-fetch: {error}", severity="error"
+                self.notify, i18n.t("Could not re-fetch: {error}", error=error),
+                severity="error",
             )
             return
-        self.app.call_from_thread(self.notify, "Re-fetched.")
+        self.app.call_from_thread(self.notify, i18n.t("Re-fetched."))
         self.app.call_from_thread(self.action_refresh)
 
 

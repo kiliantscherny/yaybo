@@ -206,10 +206,10 @@ def _median(values: list[float]) -> float | None:
 def overview(scope: Scope) -> list[tuple[str, list[tuple[str, str, object]]]]:
     """Every headline figure, in named sections, for the Oversigt analysis."""
     return [
-        ("Ejendomme", summary(scope)),
-        ("Ejere", owner_figures(scope)),
-        ("Hæftelser", loan_figures(scope)),
-        ("Bygninger", building_figures(scope)),
+        ("Properties", summary(scope)),
+        ("Owners", owner_figures(scope)),
+        ("Charges", loan_figures(scope)),
+        ("Buildings", building_figures(scope)),
     ]
 
 
@@ -234,16 +234,16 @@ def summary(scope: Scope) -> list[tuple[str, str, object]]:
     incomplete = sum(1 for row in properties if not row.get("beriget"))
 
     return [
-        ("Ejendomme", "count", len(properties)),
-        ("Bygninger", "count", len(buildings)),
-        ("Uden MitID-data", "count", incomplete),
-        ("Areal, median", "m2", _median(areas)),
-        ("Vurdering, median", "kr", _median(valuations)),
-        ("Vurdering pr. m²", "kr", _median(per_m2)),
-        ("Gæld, median", "kr", _median(debts)),
-        ("Friværdi, median", "kr", _median(equity)),
-        ("Belåningsgrad, median", "pct", _median(ltv)),
-        ("Belåningsgrad, gennemsnit", "pct", _mean(ltv)),
+        ("Properties", "count", len(properties)),
+        ("Buildings", "count", len(buildings)),
+        ("Without MitID data", "count", incomplete),
+        ("Area, median", "m2", _median(areas)),
+        ("Valuation, median", "kr", _median(valuations)),
+        ("Valuation per m²", "kr", _median(per_m2)),
+        ("Debt, median", "kr", _median(debts)),
+        ("Equity, median", "kr", _median(equity)),
+        ("Loan-to-value, median", "pct", _median(ltv)),
+        ("Loan-to-value, mean", "pct", _mean(ltv)),
     ]
 
 
@@ -266,13 +266,13 @@ def owner_figures(scope: Scope) -> list[tuple[str, str, object]]:
 
     counts = [float(n) for n in per_property.values()]
     return [
-        ("Ejere i alt", "count", len(scope.owners)),
-        ("Ejere pr. ejendom", "num", _mean(counts)),
-        ("Heraf selskaber", "count", companies),
-        ("Alder, gennemsnit", "num", _mean(ages)),
-        ("Alder, median", "num", _median(ages)),
-        ("Yngste ejer", "num", min(ages) if ages else None),
-        ("Ældste ejer", "num", max(ages) if ages else None),
+        ("Owners in total", "count", len(scope.owners)),
+        ("Owners per property", "num", _mean(counts)),
+        ("Of those, companies", "count", companies),
+        ("Age, mean", "num", _mean(ages)),
+        ("Age, median", "num", _median(ages)),
+        ("Youngest owner", "num", min(ages) if ages else None),
+        ("Oldest owner", "num", max(ages) if ages else None),
     ]
 
 
@@ -291,17 +291,17 @@ def loan_figures(scope: Scope) -> list[tuple[str, str, object]]:
     )
 
     return [
-        ("Hæftelser i alt", "count", len(scope.charges)),
-        ("Ejendomme med hæftelse", "count", with_charges),
+        ("Charges in total", "count", len(scope.charges)),
+        ("Properties with a charge", "count", with_charges),
         (
-            "Hæftelser pr. ejendom",
+            "Charges per property",
             "num",
             len(scope.charges) / len(scope.properties) if scope.properties else None,
         ),
-        ("Hovedstol, median", "kr", _median(principals)),
-        ("Hovedstol i alt", "kr", sum(principals) if principals else None),
-        ("Rentesats, median", "pct", _median(rates)),
-        ("Hyppigste låntype", "text", commonest),
+        ("Principal, median", "kr", _median(principals)),
+        ("Principal in total", "kr", sum(principals) if principals else None),
+        ("Interest rate, median", "pct", _median(rates)),
+        ("Most common loan type", "text", commonest),
     ]
 
 
@@ -310,10 +310,10 @@ def building_figures(scope: Scope) -> list[tuple[str, str, object]]:
     years = _numbers(scope.buildings, "opfoerelsesaar")
     rooms = _numbers(scope.buildings, "vaerelser")
     return [
-        ("Opført, median", "year", _median(years)),
-        ("Ældste", "year", min(years) if years else None),
-        ("Nyeste", "year", max(years) if years else None),
-        ("Værelser, gennemsnit", "num", _mean(rooms)),
+        ("Built, median", "year", _median(years)),
+        ("Oldest", "year", min(years) if years else None),
+        ("Newest", "year", max(years) if years else None),
+        ("Rooms, mean", "num", _mean(rooms)),
     ]
 
 
@@ -374,50 +374,50 @@ def _age(row: dict) -> float | None:
 
 
 MEASURES: tuple[Measure, ...] = (
-    Measure("vurdering_m2", "Vurdering pr. m²", "kr", "property", _per_m2),
-    Measure("vurdering", "Vurdering", "kr", "property",
+    Measure("vurdering_m2", "Valuation per m²", "kr", "property", _per_m2),
+    Measure("vurdering", "Valuation", "kr", "property",
             _get("ejendomsvurdering_dkk")),
-    Measure("areal", "Areal", "m2", "property", _get("_areal")),
-    Measure("gaeld", "Gæld", "kr", "property", _get("samlet_gaeld_dkk")),
-    Measure("frivaerdi", "Friværdi", "kr", "property", _get("frivaerdi_dkk")),
-    Measure("belaant", "Belåningsgrad", "pct", "property",
+    Measure("areal", "Area", "m2", "property", _get("_areal")),
+    Measure("gaeld", "Debt", "kr", "property", _get("samlet_gaeld_dkk")),
+    Measure("frivaerdi", "Equity", "kr", "property", _get("frivaerdi_dkk")),
+    Measure("belaant", "Loan-to-value", "pct", "property",
             _get("belaaningsgrad_pct")),
-    Measure("salg_m2", "Salgspris pr. m²", "kr", "trade", _get("pris_pr_m2")),
-    Measure("salg", "Salgspris", "kr", "trade", _get("beloeb_dkk")),
-    Measure("handler", "Antal handler", "count", "trade", lambda row: 1.0,
+    Measure("salg_m2", "Sale price per m²", "kr", "trade", _get("pris_pr_m2")),
+    Measure("salg", "Sale price", "kr", "trade", _get("beloeb_dkk")),
+    Measure("handler", "Number of sales", "count", "trade", lambda row: 1.0,
             default="sum"),
-    Measure("alder", "Ejernes alder", "num", "owner", _age),
-    Measure("ejere", "Ejere pr. ejendom", "num", "owner", lambda row: 1.0,
+    Measure("alder", "Owners' age", "num", "owner", _age),
+    Measure("ejere", "Owners per property", "num", "owner", lambda row: 1.0,
             default="per_property"),
-    Measure("hovedstol", "Hovedstol", "kr", "charge", _get("hovedstol_dkk")),
-    Measure("rente", "Rentesats", "pct", "charge", _get("rentesats_pct")),
-    Measure("haeftelser", "Hæftelser pr. ejendom", "num", "charge",
+    Measure("hovedstol", "Principal", "kr", "charge", _get("hovedstol_dkk")),
+    Measure("rente", "Interest rate", "pct", "charge", _get("rentesats_pct")),
+    Measure("haeftelser", "Charges per property", "num", "charge",
             lambda row: 1.0, default="per_property"),
-    Measure("opfoert", "Opførelsesår", "year", "building",
+    Measure("opfoert", "Year built", "year", "building",
             _get("opfoerelsesaar")),
-    Measure("vaerelser", "Værelser", "num", "building", _get("vaerelser")),
+    Measure("vaerelser", "Rooms", "num", "building", _get("vaerelser")),
 )
 BY_KEY = {measure.key: measure for measure in MEASURES}
 
 # How a set of values becomes one number.
 HOWS = (
     ("Median", "median"),
-    ("Gennemsnit", "mean"),
-    ("I alt", "sum"),
-    ("Antal", "count"),
-    ("Pr. ejendom", "per_property"),
+    ("Mean", "mean"),
+    ("Total", "sum"),
+    ("Count", "count"),
+    ("Per property", "per_property"),
 )
 
 # What a set can be broken down by. `_etage` first because comparing floors of
 # one building is the question this screen was built to answer.
 GROUPS = (
-    ("Etage", "_etage"),
-    ("Bygning", "_bygning"),
-    ("Vej", "_vej"),
-    ("Postnummer", "_postnr"),
-    ("By", "_by"),
-    ("Boligtype", "_type"),
-    ("MitID-data", "_mitid"),
+    ("Floor", "_etage"),
+    ("Building", "_bygning"),
+    ("Street", "_vej"),
+    ("Postcode", "_postnr"),
+    ("Town", "_by"),
+    ("Property type", "_type"),
+    ("MitID data", "_mitid"),
 )
 
 
@@ -434,41 +434,41 @@ class Analysis:
 
 ANALYSES: tuple[Analysis, ...] = (
     Analysis(
-        "oversigt", "Oversigt",
+        "oversigt", "Overview",
         "The headline numbers for this selection, all on one page.",
         "summary", (),
     ),
     Analysis(
-        "priser", "Priser over tid",
+        "priser", "Prices over time",
         "What a square metre has cost, year by year, from the recorded sales.",
         "time", ("salg_m2", "salg", "handler"),
     ),
     Analysis(
-        "sammenlign", "Sammenlign grupper",
+        "sammenlign", "Compare groups",
         "The same figure side by side - floor against floor, or street "
         "against street.",
         "group", ("vurdering_m2", "salg_m2", "vurdering", "areal", "gaeld",
                   "frivaerdi", "belaant"),
     ),
     Analysis(
-        "gaeld", "Gæld og friværdi",
+        "gaeld", "Debt and equity",
         "What is owed against these, what is left over, and how heavily "
         "they are borrowed against.",
         "group", ("belaant", "gaeld", "frivaerdi", "hovedstol", "rente",
                   "haeftelser"),
     ),
     Analysis(
-        "ejere", "Ejerne",
+        "ejere", "The owners",
         "How many people own each of these, and how old they are.",
         "group", ("ejere", "alder"),
     ),
     Analysis(
-        "bygninger", "Bygningerne",
+        "bygninger", "The buildings",
         "When they were built and how many rooms they hold.",
         "group", ("opfoert", "vaerelser", "areal"),
     ),
     Analysis(
-        "udvikling", "Værdi over tid",
+        "udvikling", "Value over time",
         "Sale prices as a series, for one building or a whole postcode.",
         "time", ("salg", "salg_m2"),
     ),

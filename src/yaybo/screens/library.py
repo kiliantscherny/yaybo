@@ -37,7 +37,7 @@ from textual.widgets import (
     Static,
 )
 
-from yaybo import display, stats, store
+from yaybo import display, i18n, stats, store
 from yaybo.register.address import split_postcode
 from yaybo.register.fields import normalise
 from yaybo.screens.base import YayboScreen
@@ -112,26 +112,26 @@ def _postcode(row: dict) -> str:
 # narrow terminal cuts off - which is exactly the wrong column to lose.
 COLUMNS: tuple[Column, ...] = (
     Column("MitID", 7, "mitid", lambda r: r.get("beriget"), field="beriget"),
-    Column("Adresse", 34, "adresse", lambda r: display.shorten(r.get("adresse"), 34),
+    Column("Address", 34, "adresse", lambda r: display.shorten(r.get("adresse"), 34),
            field="adresse"),
-    Column("Postnr", 6, "postnr", _postcode),
+    Column("Postcode", 6, "postnr", _postcode),
     Column("Type", 12, "type", lambda r: display.shorten(_kind(r), 12),
            text=_kind),
-    Column("Areal", 6, "areal",
+    Column("Area", 6, "areal",
            lambda r: display.area(r.get("boligareal_m2") or r.get("areal_m2")),
            field="boligareal_m2"),
-    Column("Vurdering", 10, "vurdering",
+    Column("Valuation", 10, "vurdering",
            lambda r: display.compact_kr(r.get("ejendomsvurdering_dkk")),
            field="ejendomsvurdering_dkk"),
-    Column("Gæld", 10, "gaeld",
+    Column("Debt", 10, "gaeld",
            lambda r: display.compact_kr(r.get("samlet_gaeld_dkk")),
            field="samlet_gaeld_dkk"),
-    Column("Belånt", 6, "belaant",
+    Column("LTV", 6, "belaant",
            lambda r: display.pct(r.get("belaaningsgrad_pct"), 0),
            field="belaaningsgrad_pct"),
-    Column("Ejere", 16, "ejer", lambda r: display.shorten(r.get("ejere"), 16),
+    Column("Owners", 16, "ejer", lambda r: display.shorten(r.get("ejere"), 16),
            field="ejere"),
-    Column("Hentet", 9, "hentet", lambda r: display.ago(r.get("hentet")),
+    Column("Fetched", 9, "hentet", lambda r: display.ago(r.get("hentet")),
            field="hentet"),
 )
 MITID = next(index for index, column in enumerate(COLUMNS) if column.name == "mitid")
@@ -141,8 +141,8 @@ BY_NAME = {column.name: column for column in COLUMNS}
 # beats a filter grammar for these: nobody should have to know that the field
 # is spelled `_postnr`, or guess which spellings of a boligtype are in there.
 FACETS = (
-    ("facet-by", "By", "_by"),
-    ("facet-postnr", "Postnr", "_postnr"),
+    ("facet-by", "Town", "_by"),
+    ("facet-postnr", "Postcode", "_postnr"),
     ("facet-type", "Type", "_type"),
     ("facet-mitid", "MitID", "_mitid"),
 )
@@ -192,14 +192,15 @@ class LibraryScreen(YayboScreen):
         # request. Labelling the box "Filter" and giving the other its own
         # button is what stops the box reading as a way to find new addresses.
         with Horizontal(id="library-bar"):
-            yield Static("Søg", id="library-filter-label")
-            yield Input(placeholder="address or owner", id="library-filter")
+            yield Static(i18n.t("Filter"), id="library-filter-label")
+            yield Input(placeholder=i18n.t("address or owner"), id="library-filter")
             yield Static("", id="library-count")
-            yield Button("＋ Find new property", id="library-new", variant="primary")
+            yield Button(i18n.t("＋ Find new property"), id="library-new",
+                         variant="primary")
         with Horizontal(id="library-facets"):
             for widget_id, label, _ in FACETS:
-                yield Static(label, classes="facet-label")
-                yield Select([], prompt="alle", id=widget_id,
+                yield Static(i18n.t(label), classes="facet-label")
+                yield Select([], prompt=i18n.t("all"), id=widget_id,
                              classes="facet-select")
         yield Static("", id="library-scope")
         yield DataTable(id="library-table", cursor_type="row", zebra_stripes=True)
@@ -211,7 +212,7 @@ class LibraryScreen(YayboScreen):
         table = self.query_one("#library-table", DataTable)
         table.add_column("", width=3)
         for column in COLUMNS:
-            table.add_column(column.label, width=column.width)
+            table.add_column(i18n.t(column.label), width=column.width)
         self.action_refresh()
 
     # ── loading ─────────────────────────────────────────────────────────
@@ -304,7 +305,8 @@ class LibraryScreen(YayboScreen):
     def action_sort_next(self) -> None:
         self.sort_by = (self.sort_by + 1) % len(COLUMNS)
         self._sort()
-        self.notify(f"Sorted by {COLUMNS[self.sort_by].label}.")
+        self.notify(i18n.t("Sorted by {name}.",
+                            name=i18n.t(COLUMNS[self.sort_by].label)))
 
     def action_sort_invert(self) -> None:
         self.descending = not self.descending
@@ -351,30 +353,39 @@ class LibraryScreen(YayboScreen):
         if beriget is None:
             return Text("–", style="dim")
         if beriget:
-            return Text("✓ ja", style=f"bold {theme.success or 'green'}")
-        return Text("✗ nej", style=f"bold {theme.warning or 'yellow'}")
+            return Text(i18n.t("✓ yes"), style=f"bold {theme.success or 'green'}")
+        return Text(i18n.t("✗ no"), style=f"bold {theme.warning or 'yellow'}")
 
     def _describe(self) -> None:
         column = COLUMNS[self.sort_by]
         arrow = "↓" if self.descending else "↑"
         count = self.query_one("#library-count", Static)
         held, shown = len(self.held), len(self.shown)
-        ticked = f"{len(self.ticked)} ticked · " if self.ticked else ""
+        ticked = (
+            i18n.t("{n} ticked · ", n=len(self.ticked)) if self.ticked else ""
+        )
         if held:
+            whole = (
+                i18n.t("{n} property", n=held) if held == 1
+                else i18n.t("{n} properties", n=held)
+            )
             count.update(
-                f"{ticked}{shown} of {held}" if shown != held
-                else f"{ticked}{held} propert{'y' if held == 1 else 'ies'}"
+                f"{ticked}" + (i18n.t("{shown} of {held}", shown=shown, held=held)
+                               if shown != held else whole)
             )
         else:
             count.update("")
         chosen = "  ·  ".join(
-            f"{label}: {self.chosen[field]}"
+            f"{i18n.t(label)}: {self.chosen[field]}"
             for _, label, field in FACETS
             if self.chosen.get(field)
         )
         self.query_one("#library-scope", Static).update(
-            f"Already fetched — searching here never leaves the database. "
-            f"Sorted by {column.label} {arrow} (o, i) · ＋ for a new address."
+            i18n.t(
+                "Already fetched — searching here never leaves the database. "
+                "Sorted by {name} {arrow} (o, i) · ＋ for a new address.",
+                name=i18n.t(column.label), arrow=arrow,
+            )
             + (f"\n{chosen}" if chosen else "")
         )
 
@@ -385,20 +396,26 @@ class LibraryScreen(YayboScreen):
         typed = self.query_one("#library-filter", Input).value.strip()
         if not self.held:
             empty.update(
-                "Nothing fetched yet.\n\nPress / to look an address up, "
-                f"or b for the queue.\n\n{self.app.database} does not exist."
+                i18n.t(
+                    "Nothing fetched yet.\n\nPress / to look an address up, "
+                    "or b for the queue.\n\n{path} does not exist.",
+                    path=self.app.database,
+                )
             )
         elif typed:
             # The most useful thing to say to someone whose filter found
             # nothing is that the register might still have it - and that
             # enter, right here, is how to go and ask.
             empty.update(
-                f"Nothing in your library matches {typed!r}.\n\n"
-                "Press enter to search the register for it,\n"
-                "or escape to clear the filter."
+                i18n.t(
+                    "Nothing in your library matches {typed!r}.\n\n"
+                    "Press enter to search the register for it,\n"
+                    "or escape to clear the filter.",
+                    typed=typed,
+                )
             )
         else:
-            empty.update("Nothing matches that filter.")
+            empty.update(i18n.t("Nothing matches that filter."))
 
     @on(Input.Changed, "#library-filter")
     def _filtered(self, event: Input.Changed) -> None:
@@ -530,16 +547,18 @@ class LibraryScreen(YayboScreen):
         """
         chosen = self._chosen()
         if not chosen:
-            self.notify("Nothing to re-fetch.")
+            self.notify(i18n.t("Nothing to re-fetch."))
             return
         added = self.app.enqueue_refetch([row["adresse"] for row in chosen])
         self.ticked.clear()
         self._repaint_ticks()
-        held = "property" if added == 1 else "properties"
         self.notify(
-            f"Queued {added} {held} to re-fetch. {self.app.queued_note()}"
+            i18n.t("Queued {n} to re-fetch. {note}",
+                   n=(i18n.t("{n} property", n=added) if added == 1
+                      else i18n.t("{n} properties", n=added)),
+                   note=self.app.queued_note())
             if added
-            else "Those are already in the queue."
+            else i18n.t("Those are already in the queue.")
         )
 
     @work
@@ -552,16 +571,18 @@ class LibraryScreen(YayboScreen):
             tables = await asyncio.to_thread(
                 store.tables_for, self.app.database, uuids
             )
-            title = f"Export {len(uuids)} ticked propert" + (
-                "y" if len(uuids) == 1 else "ies"
+            title = i18n.t(
+                "Export {n} ticked",
+                n=(i18n.t("{n} property", n=len(uuids)) if len(uuids) == 1
+                   else i18n.t("{n} properties", n=len(uuids))),
             )
         else:
             # Reading the whole database can take a moment on a big one, and the
             # dialog has nothing to show until it is read.
             tables = await asyncio.to_thread(store.everything, self.app.database)
-            title = "Export the whole database"
+            title = i18n.t("Export the whole database")
         if not tables:
-            self.notify("There is nothing to export yet.")
+            self.notify(i18n.t("There is nothing to export yet."))
             return
         await self.app.push_screen_wait(
             ExportDialog(tables, "yaybo-library", title=title)

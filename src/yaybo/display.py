@@ -15,6 +15,8 @@ from __future__ import annotations
 
 from datetime import date, datetime
 
+from yaybo import i18n
+
 NOTHING = "–"
 
 
@@ -86,37 +88,40 @@ def ago(value) -> str:
 
     seconds = (datetime.now() - moment).total_seconds()
     if seconds < 90:
-        return "just now"
+        return i18n.t("just now")
     minutes = seconds / 60
     if minutes < 90:
-        return f"{minutes:.0f} min ago"
+        return i18n.t("{n} min ago", n=f"{minutes:.0f}")
     hours = minutes / 60
     if hours < 36:
-        return f"{hours:.0f} h ago"
+        return i18n.t("{n} h ago", n=f"{hours:.0f}")
     days = hours / 24
     if days < 14:
-        return f"{days:.0f} d ago"
+        return i18n.t("{n} d ago", n=f"{days:.0f}")
     if days < 60:
-        return f"{days / 7:.0f} w ago"
+        return i18n.t("{n} w ago", n=f"{days / 7:.0f}")
     if days < 730:
-        return f"{days / 30:.0f} mo ago"
-    return f"{days / 365:.0f} y ago"
+        return i18n.t("{n} mo ago", n=f"{days / 30:.0f}")
+    return i18n.t("{n} y ago", n=f"{days / 365:.0f}")
 
 
 # Boligsiden answers in English. The stored value stays as it arrived, because
 # that is what the API said; this is only how it is written on screen.
+# Boligsiden's own keys, given a name a person would use. English here and
+# translated where drawn, like every other label: these are a fixed set of
+# categories rather than anything the register wrote.
 BOLIGTYPER = {
-    "condo": "Ejerlejlighed",
-    "villa": "Villa",
-    "villa apartment": "Villalejlighed",
-    "terraced house": "Rækkehus",
-    "cooperative": "Andelsbolig",
-    "holiday house": "Sommerhus",
-    "holiday plot": "Sommerhusgrund",
-    "full year plot": "Helårsgrund",
-    "farm": "Landejendom",
-    "hobby farm": "Hobbylandbrug",
-    "houseboat": "Husbåd",
+    "condo": "Owner-occupied flat",
+    "villa": "House",
+    "villa apartment": "Villa flat",
+    "terraced house": "Terraced house",
+    "cooperative": "Co-op flat",
+    "holiday house": "Holiday house",
+    "holiday plot": "Holiday plot",
+    "full year plot": "Building plot",
+    "farm": "Farm",
+    "hobby farm": "Hobby farm",
+    "houseboat": "Houseboat",
 }
 
 
@@ -144,7 +149,7 @@ def boligtype(value) -> str:
     """"condo" becomes "Ejerlejlighed"; anything unmapped is left as it is."""
     if value in (None, ""):
         return ""
-    return BOLIGTYPER.get(str(value).strip().lower(), str(value))
+    return i18n.t(BOLIGTYPER.get(str(value).strip().lower(), str(value)))
 
 
 def yes_no(value) -> str:
@@ -152,7 +157,7 @@ def yes_no(value) -> str:
         return NOTHING
     if isinstance(value, str):
         value = value.lower() in ("true", "ja", "yes", "1")
-    return "ja" if value else "nej"
+    return i18n.t("yes") if value else i18n.t("no")
 
 
 def text(value, empty: str = NOTHING) -> str:
