@@ -972,6 +972,11 @@ def test_a_database_without_the_second_book_still_opens_the_tab(library):
     async def walk() -> None:
         app = YayboApp(database=library)
         async with app.run_test(size=(160, 48)) as pilot:
+            # Let the app finish mounting its first screen before navigating.
+            # Switching screens mid-mount races the widgets the Library is
+            # still composing, and the failure surfaces somewhere else
+            # entirely - in Header, or in Tabs - which is a hard bug to read.
+            await pilot.pause()
             app.action_andele()
             await pilot.pause(0.5)
             assert isinstance(app.screen, AndeleScreen)
@@ -1010,6 +1015,7 @@ def test_the_andele_tab_opens_on_a_database_from_before_a_column_existed(tmp_pat
     async def walk() -> None:
         app = YayboApp(database=path)
         async with app.run_test(size=(160, 48)) as pilot:
+            await pilot.pause()          # mount first, then navigate
             app.action_andele()
             await pilot.pause(0.5)
             assert isinstance(app.screen, AndeleScreen)
@@ -1035,6 +1041,37 @@ def test_every_tab_names_a_place_that_exists(library):
                 await pilot.pause(0.5)
                 tabs = app.screen.query_one(NavTabs)
                 assert tabs.active == key, f"{action} should sit on the {key} tab"
+
+    asyncio.run(walk())
+
+
+def test_activating_another_tab_navigates(library):
+    """The other half of the tab bar: it marks where you are, and going
+    somewhere else takes you there.
+
+    test_every_tab_names_a_place_that_exists covers the marking. This covers
+    the handler, which is guarded against the activation a Tabs raises for its
+    own tab on mount and could swallow a real one by mistake.
+    """
+    from yaybo.app import YayboApp
+    from yaybo.screens.andele import AndeleScreen
+    from yaybo.screens.queue import QueueScreen
+    from yaybo.widgets.nav import NavTabs
+
+    async def walk() -> None:
+        app = YayboApp(database=library)
+        async with app.run_test(size=(160, 48)) as pilot:
+            await pilot.pause(0.3)
+            app.action_andele()
+            await pilot.pause(0.5)
+            assert isinstance(app.screen, AndeleScreen)
+
+            tabs = app.screen.query_one(NavTabs)
+            assert tabs.active == "andele"
+
+            tabs.active = "koe"
+            await pilot.pause(0.5)
+            assert isinstance(app.screen, QueueScreen)
 
     asyncio.run(walk())
 
