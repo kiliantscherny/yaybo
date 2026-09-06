@@ -14,11 +14,11 @@ versions follow [semantic versioning](https://semver.org/).
   to the andelsboligbog the same block is one entry per flat. Looking an
   address up asks both, and reports what it found as "1 property and 10 co-op
   shares" rather than pretending they are the same kind of thing.
-- Two tables, `andele` and `andel_haeftelser`, joined to the building by
-  `andele.ejendom_uuid`. They are separate from `ejendomme` because a share is
-  not real property: it has no valuation, no matrikel, no registered area, no
-  easements and no named owner, so the derived columns a property carries have
-  nothing to divide by.
+- Three tables - `andele`, `andel_haeftelser` and `andel_meddelelser` - joined
+  to the building by `andele.ejendom_uuid`. They are separate from `ejendomme`
+  because a share is not real property: it has no valuation, no matrikel, no
+  registered area, no easements and no owner of record, so the derived columns
+  a property carries have nothing to divide by.
 - **Andele**, a tab for them beside Ejendomme, and a screen for one share:
   its address and municipality codes, its charges with everyone named on each,
   and its notices. Enter opens a share, g opens the association's building -
@@ -37,7 +37,6 @@ versions follow [semantic versioning](https://semver.org/).
   `andel_haeftelser.kreditorer`, which for an ejerpantebrev is the owner
   issuing to themselves, and `andel_meddelelser.debitorer`. Neither carries a
   date of birth.
-
 - `andele.samlet_gaeld_dkk` totals what is charged against one share. It is
   not what living there owes: an andelshaver also owes a portion of the
   association's own mortgage, which is registered against the building and is
@@ -49,7 +48,7 @@ versions follow [semantic versioning](https://semver.org/).
   `ejendomme` row.
 - A flat absent from `andele` is not evidence it is not an andel. A share only
   enters the book once something is registered against it.
-- `yaybo backfill` does not rebuild the two new tables and does not touch
+- `yaybo backfill` does not rebuild the three new tables and does not touch
   them. The register stores no signed document for a share, so there is
   nothing to re-derive them from.
 
