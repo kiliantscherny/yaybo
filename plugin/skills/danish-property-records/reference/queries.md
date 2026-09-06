@@ -34,8 +34,7 @@ UNION ALL SELECT 'andel_haeftelser', count(*) FROM andel_haeftelser
 UNION ALL SELECT 'andel_meddelelser', count(*) FROM andel_meddelelser;
 ```
 
-`andele` and `andel_haeftelser` may not exist at all in a database written
-before they did, or fetched with `--no-andele`. Check before querying them:
+`andele` and `andel_haeftelser` may not exist at all in a database written before they did, or fetched with `--no-andele`. Check before querying them:
 
 ```sql
 SELECT table_name FROM duckdb_tables() WHERE table_name LIKE 'andel%';
@@ -81,8 +80,7 @@ SELECT dato_loebenummer, dokumenttype, tekst, paataleberettigede
 FROM servitutter WHERE ejendom_uuid = ? ORDER BY tinglysningsdato;
 ```
 
-Everything that ever happened to it, on one timeline. The register keeps these
-as separate lists, and merging them is what makes the story readable:
+Everything that ever happened to it, on one timeline. The register keeps these as separate lists, and merging them is what makes the story readable:
 
 ```sql
 SELECT dato, art, beloeb, detalje FROM (
@@ -117,8 +115,7 @@ GROUP BY 1 HAVING count(*) >= 3
 ORDER BY median_pris_m2 DESC;
 ```
 
-By building — the address with the flat taken off it, which is how the figures
-screen groups them too:
+By building — the address with the flat taken off it, which is how the figures screen groups them too:
 
 ```sql
 SELECT regexp_replace(adresse, ',\s*[^,]*\.\s*[^,]*,', ',') AS bygning,
@@ -180,8 +177,7 @@ ORDER BY maaned, laantype;
 
 ## People (needs a login)
 
-Everyone named on one property's documents. Filter on `dokumentart` when
-joining, or rows multiply:
+Everyone named on one property's documents. Filter on `dokumentart` when joining, or rows multiply:
 
 ```sql
 SELECT p.dokumentart, p.rolle, p.nummer, p.navn, p.foedselsdato, p.cvr
@@ -251,9 +247,7 @@ ORDER BY b.opfoerelsesaar NULLS LAST;
 
 ## Andelsboliger
 
-A co-op share and the building its association owns are rows in two different
-registers. This is the join, and the honest version of "what does this flat
-owe":
+A co-op share and the building its association owns are rows in two different registers. This is the join, and the honest version of "what does this flat owe":
 
 ```sql
 SELECT a.adresse,
@@ -268,10 +262,7 @@ LEFT JOIN ejendomme e ON e.uuid = a.ejendom_uuid
 ORDER BY a.adresse;
 ```
 
-`paa_andelen` is what is charged against that one share. `paa_bygningen` is the
-association's own mortgage, which every andelshaver owes a portion of — the
-portion is set by the association's accounts and is in no register, so the two
-columns must not be added together.
+`paa_andelen` is what is charged against that one share. `paa_bygningen` is the association's own mortgage, which every andelshaver owes a portion of — the portion is set by the association's accounts and is in no register, so the two columns must not be added together.
 
 What is charged against each share:
 
@@ -283,8 +274,7 @@ JOIN andele a ON a.uuid = h.andel_uuid
 ORDER BY a.adresse, h.prioritet;
 ```
 
-Debt per square metre across a co-op block — one of the few comparisons this
-data supports, since there are no sale prices to compare:
+Debt per square metre across a co-op block — one of the few comparisons this data supports, since there are no sale prices to compare:
 
 ```sql
 SELECT a.bygning_adresse,
@@ -298,17 +288,14 @@ GROUP BY 1 HAVING count(*) > 2
 ORDER BY gaeld_pr_m2 DESC;
 ```
 
-Shares with nothing registered against them — in the book, but unencumbered.
-Note this is not every unencumbered flat: one that has never had a charge is
-absent from the book entirely rather than present with zero.
+Shares with nothing registered against them — in the book, but unencumbered. Note this is not every unencumbered flat: one that has never had a charge is absent from the book entirely rather than present with zero.
 
 ```sql
 SELECT adresse, boligareal_m2, hentet
 FROM andele WHERE antal_haeftelser = 0 ORDER BY adresse;
 ```
 
-Who the book names. There is no owner of record, so this is as close as it
-gets — and the two halves mean different things:
+Who the book names. There is no owner of record, so this is as close as it gets — and the two halves mean different things:
 
 ```sql
 -- The creditor on an ejerpantebrev is the owner issuing to themselves, so
@@ -337,9 +324,7 @@ FROM andele GROUP BY 1 ORDER BY andele DESC;
 
 ## Inside the signed document
 
-The JSON is the register's own OIO structure: PascalCase, and deeper than you
-would guess. A wrong path returns `NULL` rather than an error, so check that a
-path resolves before drawing a conclusion from it.
+The JSON is the register's own OIO structure: PascalCase, and deeper than you would guess. A wrong path returns `NULL` rather than an error, so check that a path resolves before drawing a conclusion from it.
 
 ```sql
 SELECT adresse,

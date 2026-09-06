@@ -20,8 +20,7 @@ uv tool install yaybo                           # or install once
 
 Requires Python 3.10+. `uvx` needs [uv](https://docs.astral.sh/uv/).
 
-**Never run bare `yaybo`** in a non-interactive session — it opens the TUI and
-will hang. Always give a subcommand.
+**Never run bare `yaybo`** in a non-interactive session — it opens the TUI and will hang. Always give a subcommand.
 
 ## `yaybo fetch` — look addresses up
 
@@ -29,8 +28,7 @@ will hang. Always give a subcommand.
 yaybo fetch ADDRESS [ADDRESS ...]
 ```
 
-Takes one or more addresses, pauses between them, and writes into
-`out/tinglysning.duckdb`. Re-fetching an address replaces its rows.
+Takes one or more addresses, pauses between them, and writes into `out/tinglysning.duckdb`. Re-fetching an address replaces its rows.
 
 | option | default | what it does |
 | --- | --- | --- |
@@ -48,13 +46,9 @@ Takes one or more addresses, pauses between them, and writes into
 | `--keepalive [MIN]` | `60` | hold the session open afterwards |
 | `--dump PATH` | — | write the first raw record as JSON, for debugging |
 
-**Address format**: `"Street Number, Postcode Town"`, with an optional unit:
-`"Prøvegade 1, 3. tv, 9999 Prøveby"`. Addresses are resolved through DAWA, so
-minor spelling differences are usually tolerated.
+**Address format**: `"Street Number, Postcode Town"`, with an optional unit: `"Prøvegade 1, 3. tv, 9999 Prøveby"`. Addresses are resolved through DAWA, so minor spelling differences are usually tolerated.
 
-**One address can mean many properties.** A block of owner-occupied flats has
-one registered property per flat, and `--limit` caps how many are fetched.
-A building with 118 flats hits the default limit of 25.
+**One address can mean many properties.** A block of owner-occupied flats has one registered property per flat, and `--limit` caps how many are fetched. A building with 118 flats hits the default limit of 25.
 
 Examples:
 
@@ -75,8 +69,7 @@ yaybo fetch "Prøvegade 1, 9999 Prøveby" --limit 0 --format duckdb,xlsx
 yaybo export [--format LIST] [--query SQL | --query-file PATH] [--name STEM]
 ```
 
-Exports what is **already stored**, unlike `fetch --format`, which exports only
-what it has just fetched.
+Exports what is **already stored**, unlike `fetch --format`, which exports only what it has just fetched.
 
 | option | default | what it does |
 | --- | --- | --- |
@@ -92,9 +85,7 @@ The written path goes to **stdout**; progress goes to stderr. So:
 file=$(yaybo export --name rapport)
 ```
 
-Excel gets one sheet per table with the header row frozen. `attester` is left
-out of `csv` and `xlsx` because a signed document is hundreds of kilobytes and
-Excel refuses a cell over 32767 characters; a `duckdb` export keeps it.
+Excel gets one sheet per table with the header row frozen. `attester` is left out of `csv` and `xlsx` because a signed document is hundreds of kilobytes and Excel refuses a cell over 32767 characters; a `duckdb` export keeps it.
 
 Examples:
 
@@ -109,9 +100,7 @@ yaybo export --format csv,xlsx --query-file report.sql --name rapport
 
 ## MitID login
 
-**Interactive. Do not run these in a background or non-interactive shell.**
-`yaybo login` waits for the user to approve a push notification in the MitID
-app, or to scan a QR code. It will hang.
+**Interactive. Do not run these in a background or non-interactive shell.** `yaybo login` waits for the user to approve a push notification in the MitID app, or to scan a QR code. It will hang.
 
 Ask the user to run it themselves. In Claude Code they can type:
 
@@ -126,18 +115,15 @@ Ask the user to run it themselves. In Claude Code they can type:
 | `yaybo keepalive [MIN]` | no (blocks) | hold a session open, default 60 min |
 | `yaybo logout` | no | end the session and forget the cookies |
 
-`yaybo status` is the one to run before and after. It exits `0` when a session
-is live and `1` when there is none or it has lapsed, so it works in a condition:
+`yaybo status` is the one to run before and after. It exits `0` when a session is live and `1` when there is none or it has lapsed, so it works in a condition:
 
 ```bash
 if yaybo status >/dev/null 2>&1; then echo "logged in"; fi
 ```
 
-The MitID **user ID** is not a CPR number. It is remembered after the first
-login, so `yaybo login` alone works afterwards.
+The MitID **user ID** is not a CPR number. It is remembered after the first login, so `yaybo login` alone works afterwards.
 
-`--method TOKEN` with `--password` uses a code-display token instead of the
-app. Still interactive.
+`--method TOKEN` with `--password` uses a code-display token instead of the app. Still interactive.
 
 ## `yaybo backfill` — rebuild derived tables
 
@@ -145,18 +131,13 @@ app. Still interactive.
 yaybo backfill [--dry-run] [--skip-boligsiden] [--skip-laantype]
 ```
 
-Re-derives every table that comes from a stored document — charges, easements,
-the people named on them, previous owners — with **no login and no requests to
-the register**. Run it after upgrading yaybo, when a parser has improved.
+Re-derives every table that comes from a stored document — charges, easements, the people named on them, previous owners — with **no login and no requests to the register**. Run it after upgrading yaybo, when a parser has improved.
 
 `--skip-boligsiden --skip-laantype` makes it fully offline.
 
-It does **not** rebuild `andele` or `andel_haeftelser`, and does not touch
-them. The andelsboligbog stores no signed document for a share, so there is
-nothing to re-derive them from — re-fetching the address is the only way.
+It does **not** rebuild `andele` or `andel_haeftelser`, and does not touch them. The andelsboligbog stores no signed document for a share, so there is nothing to re-derive them from — re-fetching the address is the only way.
 
-It also gives older databases their primary keys, which is why it is the fix
-when a table reports as unkeyed.
+It also gives older databases their primary keys, which is why it is the fix when a table reports as unkeyed.
 
 ## Global options
 
@@ -170,12 +151,9 @@ Work before or after the subcommand:
 
 ## Exit codes and output streams
 
-- `0` success; `1` failure. `fetch` returns `1` if **any** address failed, and
-  names the failures in its summary.
-- Progress and warnings go to **stderr**. `yaybo export` prints the written
-  file path to **stdout**, and nothing else, so it can be captured.
-- Warnings worth reading: a row dropped for an incomplete key, or a table left
-  unkeyed. Both are printed even without `--debug`.
+- `0` success; `1` failure. `fetch` returns `1` if **any** address failed, and names the failures in its summary.
+- Progress and warnings go to **stderr**. `yaybo export` prints the written file path to **stdout**, and nothing else, so it can be captured.
+- Warnings worth reading: a row dropped for an incomplete key, or a table left unkeyed. Both are printed even without `--debug`.
 
 ## Troubleshooting
 

@@ -21,15 +21,13 @@ uv sync
 uv run yaybo
 ```
 
-Optionally, install the pre-commit hooks with
-[prek](https://github.com/j178/prek):
+Optionally, install the pre-commit hooks with [prek](https://github.com/j178/prek):
 
 ```sh
 prek install
 ```
 
-That runs ruff, ty and `uv lock --check` before each commit, which is most of
-what CI would have told you a few minutes later.
+That runs ruff, ty and `uv lock --check` before each commit, which is most of what CI would have told you a few minutes later.
 
 ## Running the checks
 
@@ -40,14 +38,9 @@ uvx ruff check      # lint
 uvx ty@0.0.37 check # types
 ```
 
-`.python-version` pins local development to **3.10**, the oldest version the
-package supports. Working there means syntax or stdlib calls that need
-something newer fail immediately, rather than passing locally and breaking for
-someone on the version you claim to support.
+`.python-version` pins local development to **3.10**, the oldest version the package supports. Working there means syntax or stdlib calls that need something newer fail immediately, rather than passing locally and breaking for someone on the version you claim to support.
 
-For the TUI, `uv run textual console` in one terminal and
-`uv run textual run --dev yaybo.app:YayboApp` in another gives you logs and
-live CSS reloading.
+For the TUI, `uv run textual console` in one terminal and `uv run textual run --dev yaybo.app:YayboApp` in another gives you logs and live CSS reloading.
 
 ## Layout
 
@@ -91,35 +84,19 @@ plugin/                the Claude Code plugin: manifest and the skill for
 
 ## What goes where
 
-**A new column** starts in `store.TABLES`, which is the schema and the column
-order for every export at once. Fill it in `register/rows.py` if it comes out
-of the attest, or in `enrich/` if it comes from outside.
+**A new column** starts in `store.TABLES`, which is the schema and the column order for every export at once. Fill it in `register/rows.py` if it comes out of the attest, or in `enrich/` if it comes from outside.
 
-**A derived column** - anything worked out rather than recorded - belongs in
-`register/rows.py` next to the others, and needs a line in the README's warning
-about them. `laantype_estimat` is the worked example: it keeps the distance to
-the runner-up and the rate series it was read against, so the estimate can be
-argued with.
+**A derived column** - anything worked out rather than recorded - belongs in `register/rows.py` next to the others, and needs a line in the README's warning about them. `laantype_estimat` is the worked example: it keeps the distance to the runner-up and the rate series it was read against, so the estimate can be argued with.
 
-**A screen** goes in `screens/`, inherits `YayboScreen` so `self.app` is typed,
-and reads the database for itself rather than being handed rows. That is what
-makes a fetch on one screen show up on the next.
+**A screen** goes in `screens/`, inherits `YayboScreen` so `self.app` is typed, and reads the database for itself rather than being handed rows. That is what makes a fetch on one screen show up on the next.
 
-**Anything to do with logging in** belongs in
-[mitid-client](https://github.com/kiliantscherny/mitid-client), not here.
-`auth.py` is only the tinglysning-shaped part: which URL to start at, and what
-to do with the cookie that comes back.
+**Anything to do with logging in** belongs in [mitid-client](https://github.com/kiliantscherny/mitid-client), not here. `auth.py` is only the tinglysning-shaped part: which URL to start at, and what to do with the cookie that comes back.
 
 ## Tests
 
-`uv run pytest`. What is covered is the part that can be: parsing real
-documents, the derived columns, the store's round trip, and the TUI driven
-through `App.run_test()` with the network stubbed out. There is no coverage
-target and there shouldn't be - the registers themselves cannot be tested, so a
-percentage would only measure that.
+`uv run pytest`. What is covered is the part that can be: parsing real documents, the derived columns, the store's round trip, and the TUI driven through `App.run_test()` with the network stubbed out. There is no coverage target and there shouldn't be - the registers themselves cannot be tested, so a percentage would only measure that.
 
-New fixtures should be real documents with the people in them replaced. Don't
-add a fixture you would not want indexed.
+New fixtures should be real documents with the people in them replaced. Don't add a fixture you would not want indexed.
 
 > [!WARNING]
 > The registers are public services, not scraping targets. There is a pause
@@ -127,14 +104,20 @@ add a fixture you would not want indexed.
 > A change that removes a delay or widens a loop needs to say why in the pull
 > request.
 
+## Markdown
+
+Prose is not hard-wrapped: one line per paragraph, per bullet, per table row.
+
+GitHub renders files one way and release notes, pull requests and comments another: in the second, every newline becomes a `<br>`. `release.yml` lifts a section of `CHANGELOG.md` straight into the release, so a changelog wrapped at 80 columns publishes as ragged half-width lines. Leaving the wrapping to the renderer is what stops that.
+
+Code blocks, tables and `[label]: url` definitions keep their line breaks, because a newline means something in all three.
+
 ## Commits and releases
 
-Commit messages are plain prose, written in the imperative, explaining why
-rather than what. There is no conventional-commit or changelog automation here.
+Commit messages are plain prose, written in the imperative, explaining why rather than what. There is no conventional-commit or changelog automation here.
 
 Releases are cut by hand and published by CI. See [RELEASING.md](RELEASING.md).
 
 ## Licence
 
-By contributing you agree that your contributions are licensed under the MIT
-Licence, as in [LICENSE](LICENSE).
+By contributing you agree that your contributions are licensed under the MIT Licence, as in [LICENSE](LICENSE).
