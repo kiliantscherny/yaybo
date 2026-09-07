@@ -15,7 +15,9 @@ row against the page it came from.
 
 from __future__ import annotations
 
-from yaybo.register import historik
+from datetime import date
+
+from yaybo.register import attest_xml, historik
 from yaybo.register.address import unit_label
 from yaybo.register.fields import iso_date, normalise, plain_number
 
@@ -235,35 +237,95 @@ def dawa_row(entry: dict | None) -> dict:
 
 
 def handel_rows(
-    entries: list[dict], uuid: str, adresse: str, areal_m2=None, boligareal_m2=None
+    entries: list[dict],
+    uuid: str,
+    adresse: str,
+    areal_m2=None,
+    boligareal_m2=None,
+    current: dict | None = None,
 ) -> list[dict]:
-    """Every recorded transfer of the property, read as a sale.
+    """Every recorded transfer of the property, newest first, read as a sale.
 
-    The register's own adkomsthistorik is the source - the same list the site
-    shows as "historisk adkomst" - so `handelstype` carries the register's word
-    for the document that made the transfer, "Endeligt skoede" or
-    "Auktionsskoede", rather than a vocabulary invented here.
+    Two sources, because the register keeps the present and the past apart.
+    `entries` is the historisk adkomst, which lists **previous** owners only.
+    The transfer that put the current owner there is not in it - it is the
+    adkomst in force, on the property's own row - so `current` is that row and
+    without it every property is missing its most recent sale, which is the one
+    anybody actually wants.
+
+    `handelstype` is the register's own word for the document that made the
+    transfer, expanded from the code it states it as: "Endeligt skoede" reads
+    as "Endeligt skøde", the same way the attest reader already renders the
+    adkomst in force.
 
     Two prices per square metre, because there are two areas and they are not
     the same measure. `pris_pr_m2` divides by the BBR living area, which is
-    what a listing quotes and what every figure defaults to;
-    `pris_pr_m2_tinglyst` divides by the register's own tinglyste areal, which
-    is the only one available without a BBR key. Either is empty when its area
-    is, rather than being computed against the other one and quietly answering
-    a different question.
+    what a listing quotes; `pris_pr_m2_tinglyst` by the register's own
+    tinglyste areal. Either is empty when its area is, rather than being
+    computed against the other one and quietly answering a different question.
 
-    Needs a login, because the history it reads does.
+    Needs a login, because both halves of it do.
     """
     tinglyst, bolig = _amount(areal_m2), _amount(boligareal_m2)
-    return [
+    sales = [
         _sale(entry, uuid, adresse, tinglyst, bolig)
         for entry in entries
         if entry.get("dato") or entry.get("koebesum_dkk")
     ]
+    now = _current_sale(current or {}, uuid, adresse, tinglyst, bolig)
+    if now:
+        sales.append(now)
+    # Newest first, and anything undated sinks rather than being dropped.
+    sales.sort(key=lambda sale: sale.get("dato") or "", reverse=True)
+    return sales
+
+
+def _current_sale(row: dict, uuid: str, adresse: str, tinglyst, bolig) -> dict | None:
+    """The adkomst in force, as a sale row, or None when it was not a purchase.
+
+    An adkomst with no price behind it - an inheritance, a division - is a
+    transfer but not a sale, and belongs in adkomsthistorik rather than here.
+    """
+    paid = _amount(row.get("koebesum_dkk"))
+    alias = str(row.get("adkomst_dato_loebenummer") or "")
+    dato = _alias_date(alias) or str(row.get("overtagelsesdato") or "")
+    if not paid or not dato:
+        return None
+    return {
+        "ejendom_uuid": uuid,
+        "adresse": adresse,
+        "dato": dato,
+        "beloeb_dkk": paid,
+        "areal_m2": tinglyst,
+        "boligareal_m2": bolig,
+        "pris_pr_m2": round(paid / bolig) if bolig and paid else None,
+        "pris_pr_m2_tinglyst": round(paid / tinglyst) if tinglyst and paid else None,
+        "handelstype": row.get("adkomst_dokumenttype") or "",
+        # The register's own identifier for the document, which is stable and
+        # cannot collide with the history's position numbers.
+        "registrering_id": alias or "aktuel",
+    }
+
+
+def _alias_date(alias: str) -> str:
+    """The date out of a "20260515-1017732059" document alias.
+
+    That leading eight is the day the document was registered, which is the
+    same thing adkomsthistorik dates its entries by - so the two halves of the
+    sales table are dated the same way rather than one by registration and one
+    by handover.
+    """
+    head = alias.split("-")[0]
+    if len(head) != 8 or not head.isdigit():
+        return ""
+    try:
+        return date(int(head[:4]), int(head[4:6]), int(head[6:])).isoformat()
+    except ValueError:
+        return ""
 
 
 def _sale(entry: dict, uuid: str, adresse: str, tinglyst, bolig) -> dict:
-    """One transfer as a sale row, priced against whichever areas are known."""
+    """One historical transfer as a sale row, priced against both areas."""
     paid = _amount(entry.get("koebesum_dkk"))
     return {
         "ejendom_uuid": uuid,
@@ -274,29 +336,28 @@ def _sale(entry: dict, uuid: str, adresse: str, tinglyst, bolig) -> dict:
         "boligareal_m2": bolig,
         "pris_pr_m2": round(paid / bolig) if bolig and paid else None,
         "pris_pr_m2_tinglyst": round(paid / tinglyst) if tinglyst and paid else None,
-        "handelstype": entry.get("dokumenttype", ""),
+        "handelstype": attest_xml.adkomst_type(entry.get("dokumenttype", "")),
         "registrering_id": str(entry.get("post_nummer", "")),
     }
 
 
-def latest_sale_row(entries: list[dict], areal_m2=None, boligareal_m2=None) -> dict:
-    """The newest transfer, flattened onto the property's own row.
+def latest_sale_row(sales: list[dict]) -> dict:
+    """The newest of the sales already built, flattened onto the property row.
 
-    Same two measures as `handel_rows`, and the same reason for both.
+    Takes the rows rather than the raw history, so the adkomst in force is
+    considered too - it is normally the newest sale there is, and leaving it
+    out was what made seneste_salg_* the second-newest for nearly every
+    property.
     """
-    dated = [entry for entry in entries if entry.get("dato")]
+    dated = [sale for sale in sales if sale.get("dato")]
     if not dated:
         return {}
-    latest = max(dated, key=lambda entry: entry["dato"])
-    paid = _amount(latest.get("koebesum_dkk"))
-    tinglyst, bolig = _amount(areal_m2), _amount(boligareal_m2)
+    latest = max(dated, key=lambda sale: sale["dato"])
     return {
         "seneste_salg_dato": latest.get("dato", ""),
-        "seneste_salg_dkk": latest.get("koebesum_dkk"),
-        "seneste_salg_pris_m2": round(paid / bolig) if bolig and paid else None,
-        "seneste_salg_pris_m2_tinglyst": (
-            round(paid / tinglyst) if tinglyst and paid else None
-        ),
+        "seneste_salg_dkk": latest.get("beloeb_dkk"),
+        "seneste_salg_pris_m2": latest.get("pris_pr_m2"),
+        "seneste_salg_pris_m2_tinglyst": latest.get("pris_pr_m2_tinglyst"),
     }
 
 

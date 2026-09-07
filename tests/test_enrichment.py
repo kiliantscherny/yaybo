@@ -68,13 +68,72 @@ def test_each_price_is_empty_when_its_own_area_is():
     assert text_area["pris_pr_m2_tinglyst"] == 50000
 
 
-def test_the_property_row_takes_the_newest_transfer():
-    row = build.latest_sale_row(ENTRIES, 80, 100)
+def test_the_property_row_takes_the_newest_sale():
+    sales = build.handel_rows(ENTRIES, "u1", "a", 80, 100)
+    row = build.latest_sale_row(sales)
     assert row["seneste_salg_dato"] == "2026-06-19"
     assert row["seneste_salg_dkk"] == 4000000
     assert row["seneste_salg_pris_m2"] == 40000
     assert row["seneste_salg_pris_m2_tinglyst"] == 50000
-    assert build.latest_sale_row(ENTRIES)["seneste_salg_pris_m2"] is None
+    assert build.latest_sale_row([]) == {}
+
+
+# The historisk adkomst lists previous owners only. The transfer that put the
+# current owner there is on the property's own row, and leaving it out made
+# every property miss its most recent sale - the one anybody actually wants.
+# Dated after everything in ENTRIES, which is what the register guarantees:
+# the history is who owned it *before* the owner this document put there.
+CURRENT = {
+    "koebesum_dkk": 4449000,
+    "adkomst_dato_loebenummer": "20260715-1017732059",
+    "adkomst_dokumenttype": "Skøde",
+    "overtagelsesdato": "2026-09-15",
+}
+
+
+def test_the_adkomst_in_force_is_the_newest_sale():
+    sales = build.handel_rows(ENTRIES, "u1", "a", 80, 100, current=CURRENT)
+    assert len(sales) == len(ENTRIES) + 1
+    newest = sales[0]
+    # Dated by registration, as the history is - not by the handover date.
+    assert newest["dato"] == "2026-07-15"
+    assert newest["beloeb_dkk"] == 4449000
+    assert newest["handelstype"] == "Skøde"
+    assert newest["registrering_id"] == "20260715-1017732059"
+    assert build.latest_sale_row(sales)["seneste_salg_dkk"] == 4449000
+
+
+def test_an_adkomst_that_was_not_a_purchase_is_not_a_sale():
+    """An inheritance or a division transfers without a price. It belongs in
+    adkomsthistorik, and putting it here would invent a sale of nothing."""
+    for missing in ({"koebesum_dkk": None}, {"koebesum_dkk": 0},
+                    {"koebesum_dkk": 4449000}):
+        assert build.handel_rows(ENTRIES, "u1", "a", current=missing) == \
+            build.handel_rows(ENTRIES, "u1", "a")
+
+
+def test_the_registers_document_codes_are_read_the_same_way_on_both_sides():
+    """The attest says `endeligtskoede`, the history says `ENDELIGTSKOEDE`,
+    and an auction comes back with an ø where the map spells oe."""
+    sales = build.handel_rows(
+        [{"dato": "2020-01-01", "dokumenttype": "ENDELIGTSKOEDE",
+          "koebesum_dkk": 1, "post_nummer": 1},
+         {"dato": "2019-01-01", "dokumenttype": "AUKTIONSSKØDE",
+          "koebesum_dkk": 1, "post_nummer": 2},
+         {"dato": "2018-01-01", "dokumenttype": "SKIFTERETSATTEST",
+          "koebesum_dkk": 1, "post_nummer": 3}],
+        "u1", "a",
+    )
+    assert [s["handelstype"] for s in sales] == [
+        "Endeligt skøde", "Auktionsskøde", "Skifteretsattest"
+    ]
+    # A code with no expansion is left exactly as it came, rather than guessed
+    # at: word boundaries are not recoverable from ENDELIGTSKOEDE.
+    unknown = build.handel_rows(
+        [{"dato": "2020-01-01", "dokumenttype": "NOGETNYT",
+          "koebesum_dkk": 1, "post_nummer": 1}], "u1", "a",
+    )
+    assert unknown[0]["handelstype"] == "NOGETNYT"
 
 
 def test_bbr_fills_the_flats_own_area_and_type():

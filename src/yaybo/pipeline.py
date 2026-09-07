@@ -327,11 +327,19 @@ def fetch(
         boligareal_m2 = bolig.get("boligareal_m2")
         gathered["bygninger"] += rows.bygning_rows(bolig, uuid, adresse)
 
+        # Built before the property row is written, because the newest of them
+        # is what its seneste_salg_* columns are - and the newest is normally
+        # the adkomst in force, which only the property row knows about.
+        sales = rows.handel_rows(
+            entries, uuid, adresse, areal_m2, boligareal_m2, current=property_row
+        )
+        gathered["handelshistorik"] += sales
+
         gathered["ejendomme"].append(
             {
                 **property_row,
                 **rows.bbr_row(bolig),
-                **rows.latest_sale_row(entries, areal_m2, boligareal_m2),
+                **rows.latest_sale_row(sales),
                 **rows.dawa_row(entry),
                 # Per property, not per run. A session that lapses halfway
                 # leaves a database where some rows have owners' dates of birth
@@ -347,9 +355,6 @@ def fetch(
         gathered["underpant"] += rows.underpant_rows(parsed, uuid)
         gathered["adkomsthistorik"] += entries
         gathered["adkomsthistorik_ejere"] += owners
-        gathered["handelshistorik"] += rows.handel_rows(
-            entries, uuid, adresse, areal_m2, boligareal_m2
-        )
 
         suffix, document = attest.attest_document(details)
         if document:

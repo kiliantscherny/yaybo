@@ -149,21 +149,22 @@ def enrich(tables: dict, properties: list[dict], *, laantype_on: bool,
             row.get("uuid", ""): (row.get("areal_m2"), row.get("boligareal_m2"))
             for row in properties
         }
+        built: list[dict] = []
         for row in properties:
-            tinglyst, bolig = areas.get(row.get("uuid", ""), (None, None))
-            row.update(
-                build.latest_sale_row(
-                    sales.get(row.get("uuid", "")) or [], tinglyst, bolig
-                )
+            uuid = row.get("uuid", "")
+            tinglyst, bolig = areas.get(uuid, (None, None))
+            entries = sales.get(uuid) or []
+            made = build.handel_rows(
+                entries,
+                uuid,
+                row.get("adresse") or "",
+                tinglyst,
+                bolig,
+                current=row,
             )
-        tables["handelshistorik"] = [
-            made
-            for uuid, entries in sales.items()
-            for made in build.handel_rows(
-                entries, uuid, (entries[0].get("adresse") if entries else "") or "",
-                *areas.get(uuid, (None, None)),
-            )
-        ]
+            built += made
+            row.update(build.latest_sale_row(made))
+        tables["handelshistorik"] = built
 
     if properties:
         # Group the flats by the building they are in, so one DAWA lookup
