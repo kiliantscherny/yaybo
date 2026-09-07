@@ -6,6 +6,8 @@
 
 What counts as breaking: the `yaybo` command's arguments, the exported file formats, and the table and column names in `store.TABLES`. Adding a column or a subcommand is not breaking; renaming or removing one is. A database written by one version should still be readable by the next, and `yaybo backfill` should be able to bring it forward - a major version is not a licence to break that, only to change what the command line and the exports look like.
 
+One carve-out, added in 1.2.0 when Boligsiden was dropped: **a column and its flag go together with the source that filled them.** When a source is removed, the columns only it ever wrote and the flag that only ever turned it off go with it, and that is a minor rather than a major. Nothing that was ever populated is deleted - `store.save` adds columns and never drops them, so an older database keeps its data and merely stops gaining more - and the tables that survive keep their names and their meanings. Removing a column that another source still fills is breaking as before.
+
 The registers change their own markup and their own APIs without warning. Following them is a patch here even when the diff is large, as long as the tables come out the same shape.
 
 ## Cutting one
