@@ -41,7 +41,7 @@ Tinglysning is four books. Two are here, and they disagree about what a co-op bu
 - The **tingbog** records real property. A co-op block is **one** property, owned by the association, however many doors it has. That is `ejendomme`.
 - The **andelsboligbog** records shares. The same block is **one entry per flat**. That is `andele`, joined back by `andele.ejendom_uuid`.
 
-A share is not land, so `andele` has **no valuation, no matrikel, no registered area and no easements** — only an address, its charges and any notices. `boligareal_m2`, the coordinates and `til_salg` come from Boligsiden, not from the register.
+A share is not land, so `andele` has **no valuation, no matrikel, no registered area and no easements** — only an address, its charges and any notices. `boligareal_m2` comes from BBR and the coordinates from DAWA, not from the register.
 
 ### Who lives there
 
@@ -110,10 +110,10 @@ SELECT beriget, count(*) FROM ejendomme GROUP BY 1;
 
 | pair | difference |
 | --- | --- |
-| `areal_m2` vs `boligareal_m2` | register's tinglyste areal vs BBR living area. Price per m² normally wants the second |
-| `ejendomsvurdering_dkk` vs `boligsiden_vurdering_dkk` | public valuation vs Boligsiden's estimate |
-| `koebesum_dkk` vs `seneste_salg_dkk` | the register's recorded transfer sum vs Boligsiden's last sale |
-| `handelshistorik` vs `adkomsthistorik` | Boligsiden's sales vs the register's transfers. They overlap and neither is a superset: the register knows transfers that were never sales, Boligsiden knows the price per m² |
+| `areal_m2` vs `boligareal_m2` | register's tinglyste areal vs BBR living area, and they can differ a lot |
+| `pris_pr_m2` vs `pris_pr_m2_tinglyst` | the same sale over each of those two areas. The plain one is BBR's and needs a Datafordeler API key; the `_tinglyst` one is the register's and needs none |
+| `koebesum_dkk` vs `seneste_salg_dkk` | one transfer's sum in `adkomsthistorik` vs the newest of them, copied onto the property row |
+| `handelshistorik` vs `adkomsthistorik` | the same register transfers read two ways: `handelshistorik` is the money, `adkomsthistorik` is the people. Both need a login |
 | `hovedstol_dkk` vs `beloeb_dkk` | a charge's principal vs a sub-pledge's amount |
 | `andele.uuid` vs `ejendomme.uuid` | different registers. They never match, and joining them returns nothing rather than erroring |
 | `andele.samlet_gaeld_dkk` vs `ejendomme.samlet_gaeld_dkk` | one share's charges vs the whole association building's. Not parts of one total |

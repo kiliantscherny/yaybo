@@ -4,7 +4,7 @@ A share is not a property and this is not the Ejendomme tab with a filter on
 it. The register keeps them in a different book, and that book records far
 less: no valuation, no matrikel, no area, no easements, nobody's name. What it
 does record is what is charged against the share, which is the one figure here
-that comes from the register at all - the area beside it is Boligsiden's, and
+that comes from the register at all - the area beside it wants BBR, and
 the valuation is the association's building rather than the flat.
 
 Hence the two columns on the right. `Debt` is what this share owes;

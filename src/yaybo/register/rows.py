@@ -148,7 +148,7 @@ def owner_rows(record: dict, uuid: str, attest: dict | None = None) -> list[dict
 
 
 def property_fields(
-    max_owners: int, *, with_attest: bool = False, with_bolig: bool = False
+    max_owners: int, *, with_attest: bool = False, with_afledt: bool = False
 ) -> list[str]:
     """Column order, widened to however many co-owners the run actually found.
 
@@ -195,61 +195,120 @@ def property_fields(
         "kommune",
         "antal_haeftelser",
         "antal_servitutter",
-        *(BOLIG_FIELDS if with_bolig else []),
+        *(AFLEDT_FIELDS if with_afledt else []),
         "uuid",
     ]
 
 
-# What Boligsiden adds to a property row, plus the three worked out from it
-# and the charges. Kept together so the CSV and the database agree on them.
-BOLIG_FIELDS = [
-    "boligtype", "boligareal_m2", "boligsiden_vurdering_dkk", "til_salg",
+# What is worked out for a property rather than read off it: the totals
+# against the charges, the newest transfer lifted off the history, and where
+# DAWA says the address is. Kept together so the CSV and the database agree.
+AFLEDT_FIELDS = [
+    "boligtype", "boligareal_m2",
     "seneste_salg_dato", "seneste_salg_dkk", "seneste_salg_pris_m2",
     "samlet_gaeld_dkk", "frivaerdi_dkk", "belaaningsgrad_pct",
-    "breddegrad", "laengdegrad", "boligsiden_url", "adresse_uuid",
+    "breddegrad", "laengdegrad", "adresse_uuid",
 ]
 RENTE_FIELDS = [
     "maaned", "laantype", "rentfix_kode", "effektiv_rente_pct", "bidrag_pct",
     "kupon_pct",
 ]
 HANDEL_FIELDS = [
-    "adresse", "dato", "beloeb_dkk", "areal_m2", "pris_pr_m2", "handelstype",
-    "handelstype_kode", "registrering_id", "ejendom_uuid",
-]
-BYGNING_FIELDS = [
-    "adresse", "bygning_nr", "bygningstype", "opfoerelsesaar", "ombygningsaar",
-    "etager", "vaerelser", "badevaerelser", "toiletter", "boligareal_m2",
-    "kaelderareal_m2", "erhvervsareal_m2", "andet_areal_m2", "samlet_areal_m2",
-    "ydervaeg", "tagdaekning", "varmeinstallation", "supplerende_varme",
-    "koekken", "badeforhold", "toiletforhold", "ejendom_uuid",
+    "adresse", "dato", "beloeb_dkk", "areal_m2", "boligareal_m2", "pris_pr_m2",
+    "pris_pr_m2_tinglyst", "handelstype", "registrering_id", "ejendom_uuid",
 ]
 
-def bolig_row(bolig: dict) -> dict:
-    """The Boligsiden fields that belong on the property's own row."""
-    if not bolig:
+def dawa_row(entry: dict | None) -> dict:
+    """Where DAWA says the address is, for a property or a share alike.
+
+    Written with the empties left out, so an address DAWA has no adgangspunkt
+    for leaves the row alone rather than blanking it.
+    """
+    if not entry:
         return {}
-    latest = (bolig.get("salg") or [{}])[0]
+    found = {
+        "adresse_uuid": entry.get("uuid", ""),
+        "breddegrad": entry.get("breddegrad"),
+        "laengdegrad": entry.get("laengdegrad"),
+    }
+    return {key: value for key, value in found.items() if value not in (None, "")}
+
+
+def handel_rows(
+    entries: list[dict], uuid: str, adresse: str, areal_m2=None, boligareal_m2=None
+) -> list[dict]:
+    """Every recorded transfer of the property, read as a sale.
+
+    The register's own adkomsthistorik is the source - the same list the site
+    shows as "historisk adkomst" - so `handelstype` carries the register's word
+    for the document that made the transfer, "Endeligt skoede" or
+    "Auktionsskoede", rather than a vocabulary invented here.
+
+    Two prices per square metre, because there are two areas and they are not
+    the same measure. `pris_pr_m2` divides by the BBR living area, which is
+    what a listing quotes and what every figure defaults to;
+    `pris_pr_m2_tinglyst` divides by the register's own tinglyste areal, which
+    is the only one available without a BBR key. Either is empty when its area
+    is, rather than being computed against the other one and quietly answering
+    a different question.
+
+    Needs a login, because the history it reads does.
+    """
+    tinglyst, bolig = _amount(areal_m2), _amount(boligareal_m2)
+    return [
+        _sale(entry, uuid, adresse, tinglyst, bolig)
+        for entry in entries
+        if entry.get("dato") or entry.get("koebesum_dkk")
+    ]
+
+
+def _sale(entry: dict, uuid: str, adresse: str, tinglyst, bolig) -> dict:
+    """One transfer as a sale row, priced against whichever areas are known."""
+    paid = _amount(entry.get("koebesum_dkk"))
     return {
-        "adresse_uuid": bolig.get("adresse_uuid", ""),
-        "boligtype": bolig.get("boligtype") or "",
-        "boligareal_m2": bolig.get("boligareal_m2"),
-        "boligsiden_vurdering_dkk": bolig.get("boligsiden_vurdering_dkk"),
-        "til_salg": bolig.get("til_salg", ""),
-        "boligsiden_url": bolig.get("boligsiden_url", ""),
-        "breddegrad": bolig.get("breddegrad"),
-        "laengdegrad": bolig.get("laengdegrad"),
-        "seneste_salg_dato": latest.get("dato", ""),
-        "seneste_salg_dkk": latest.get("beloeb_dkk"),
-        "seneste_salg_pris_m2": latest.get("pris_pr_m2"),
+        "ejendom_uuid": uuid,
+        "adresse": adresse,
+        "dato": entry.get("dato", ""),
+        "beloeb_dkk": entry.get("koebesum_dkk"),
+        "areal_m2": tinglyst,
+        "boligareal_m2": bolig,
+        "pris_pr_m2": round(paid / bolig) if bolig and paid else None,
+        "pris_pr_m2_tinglyst": round(paid / tinglyst) if tinglyst and paid else None,
+        "handelstype": entry.get("dokumenttype", ""),
+        "registrering_id": str(entry.get("post_nummer", "")),
     }
 
 
-def handel_rows(bolig: dict, uuid: str, adresse: str) -> list[dict]:
-    """Every recorded sale of the address, one row each."""
-    return [
-        {"ejendom_uuid": uuid, "adresse": adresse, **sale}
-        for sale in (bolig or {}).get("salg") or []
-    ]
+def latest_sale_row(entries: list[dict], areal_m2=None, boligareal_m2=None) -> dict:
+    """The newest transfer, flattened onto the property's own row.
+
+    Same two measures as `handel_rows`, and the same reason for both.
+    """
+    dated = [entry for entry in entries if entry.get("dato")]
+    if not dated:
+        return {}
+    latest = max(dated, key=lambda entry: entry["dato"])
+    paid = _amount(latest.get("koebesum_dkk"))
+    tinglyst, bolig = _amount(areal_m2), _amount(boligareal_m2)
+    return {
+        "seneste_salg_dato": latest.get("dato", ""),
+        "seneste_salg_dkk": latest.get("koebesum_dkk"),
+        "seneste_salg_pris_m2": round(paid / bolig) if bolig and paid else None,
+        "seneste_salg_pris_m2_tinglyst": (
+            round(paid / tinglyst) if tinglyst and paid else None
+        ),
+    }
+
+
+def bbr_row(bolig: dict) -> dict:
+    """What BBR adds to the property's own row: the flat's area and its type."""
+    if not bolig:
+        return {}
+    found = {
+        "boligareal_m2": bolig.get("boligareal_m2"),
+        "boligtype": bolig.get("boligtype") or "",
+    }
+    return {key: value for key, value in found.items() if value not in (None, "")}
 
 
 def bygning_rows(bolig: dict, uuid: str, adresse: str) -> list[dict]:
@@ -512,19 +571,6 @@ def andel_row(
         "antal_haeftelser": len(record.get("haeftelser") or []),
         "antal_meddelelser": len(record.get("meddelelser") or []),
     }
-
-
-# What Boligsiden says that is genuinely about the flat. Its sale
-# registrations are not: see the note on `andele` in store.TABLES.
-ANDEL_BOLIG_FIELDS = (
-    "adresse_uuid", "boligtype", "boligareal_m2", "boligsiden_vurdering_dkk",
-    "til_salg", "boligsiden_url", "breddegrad", "laengdegrad",
-)
-
-
-def andel_bolig_row(bolig: dict) -> dict:
-    """The Boligsiden fields that describe the flat rather than the block."""
-    return {k: v for k, v in bolig_row(bolig).items() if k in ANDEL_BOLIG_FIELDS}
 
 
 def andel_haeftelse_rows(record: dict, uuid: str) -> list[dict]:

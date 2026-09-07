@@ -40,7 +40,7 @@ Takes one or more addresses, pauses between them, and writes into `out/tinglysni
 | `--anonymous` | — | ignore any cached session, public lookup only |
 | `--login` | — | log in with MitID first (interactive — avoid) |
 | `--no-andele` | — | skip the andelsboligbog; co-op blocks then give only the association's property |
-| `--no-boligsiden` | — | skip sale prices, BBR data and the equity columns |
+| `--no-bbr` | — | skip BBR; no building record, no price per m² over the living area |
 | `--no-laantype` | — | skip estimating loan types from DST rates |
 | `--no-dawa` | — | skip DAWA address cleaning |
 | `--keepalive [MIN]` | `60` | hold the session open afterwards |
@@ -128,12 +128,12 @@ The MitID **user ID** is not a CPR number. It is remembered after the first logi
 ## `yaybo backfill` — rebuild derived tables
 
 ```bash
-yaybo backfill [--dry-run] [--skip-boligsiden] [--skip-laantype]
+yaybo backfill [--dry-run] [--skip-bbr] [--skip-laantype]
 ```
 
-Re-derives every table that comes from a stored document — charges, easements, the people named on them, previous owners — with **no login and no requests to the register**. Run it after upgrading yaybo, when a parser has improved.
+Re-derives every table that comes from a stored document — charges, easements, the people named on them, previous owners, and the sale history read off those transfers — with **no login and no requests to the register**. Run it after upgrading yaybo, when a parser has improved.
 
-`--skip-boligsiden --skip-laantype` makes it fully offline.
+`--skip-laantype` leaves only the DAWA address lookup, which places each property.
 
 It does **not** rebuild `andele` or `andel_haeftelser`, and does not touch them. The andelsboligbog stores no signed document for a share, so there is nothing to re-derive them from — re-fetching the address is the only way.
 

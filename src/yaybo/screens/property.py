@@ -323,10 +323,6 @@ class PropertyScreen(YayboScreen):
                     (i18n.t("Land value"),
                      display.kr(row.get("grundvaerdi_dkk"), unit="kr.")),
                     (i18n.t("Valued on"), display.when(row.get("vurderingsdato"))),
-                    (
-                        i18n.t("Boligsiden estimate"),
-                        display.kr(row.get("boligsiden_vurdering_dkk"), unit="kr."),
-                    ),
                     (i18n.t("Total debt"),
                      display.kr(row.get("samlet_gaeld_dkk"), unit="kr.")),
                     (i18n.t("Equity (at least)"), equity),
@@ -346,11 +342,15 @@ class PropertyScreen(YayboScreen):
                         i18n.t("Price per m²"),
                         display.kr(row.get("seneste_salg_pris_m2"), unit="kr."),
                     ),
+                    (
+                        i18n.t("Price per m² (tinglyst areal)"),
+                        display.kr(
+                            row.get("seneste_salg_pris_m2_tinglyst"), unit="kr."
+                        ),
+                    ),
                     (i18n.t("Purchase sum (deed)"),
                      display.kr(row.get("koebesum_dkk"), unit="kr.")),
                     (i18n.t("Handover"), display.when(row.get("overtagelsesdato"))),
-                    (i18n.t("On the market"), display.yes_no(row.get("til_salg"))),
-                    ("Boligsiden", display.text(row.get("boligsiden_url"))),
                 ],
             ),
         ]
@@ -375,8 +375,9 @@ class PropertyScreen(YayboScreen):
         if not buildings:
             panel.mount(
                 Static(
-                    "No BBR record stored. It comes from Boligsiden, which does "
-                    "not answer for every address.",
+                    "No BBR record stored. It comes from BBR via Datafordeleren, "
+                    "which needs a free API key in DATAFORDELER_API_KEY - see the "
+                    "README. Everything else here fills without one.",
                     classes="empty-state",
                 )
             )
@@ -546,9 +547,9 @@ class PropertyScreen(YayboScreen):
             plot.display = False
             note.set_classes("empty-state")
             note.update(
-                "Not enough recorded sales to plot.\n\nBoligsiden knows the sales "
-                "an agent handled; a flat sold privately, or held for decades, has "
-                "none."
+                "Not enough recorded sales to plot.\n\nSale history is the "
+                "register's own historical access, which needs a login, and a "
+                "price per m\u00b2 also needs the registered area."
             )
             return
         plot.display = True

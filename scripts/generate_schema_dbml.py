@@ -50,11 +50,12 @@ TABLES = {
     "a MitID login: this is the table the login is really for.",
     "underpant": "A mortgage deed pledged on in its own right - a charge on a "
     "charge.",
-    "handelshistorik": "Recorded sales, from Boligsiden. Overlaps "
-    "adkomsthistorik without replacing it: the register knows transfers that "
-    "were never a sale, and Boligsiden knows the price per square metre.",
+    "handelshistorik": "Every recorded transfer read as a sale, out of the "
+    "register's own historisk adkomst. The same transfers as adkomsthistorik, "
+    "read for the money rather than the people. Needs a MitID login.",
     "bygninger": "The BBR record for the building: year built, rooms, walls, "
-    "heating. The land register says none of this.",
+    "heating. The land register says none of this. Filled from BBR via "
+    "Datafordeleren, which needs a free API key; empty without one.",
     "adkomsthistorik": "Past transfers of the property. Needs a MitID login.",
     "adkomsthistorik_ejere": "The people named in each past transfer. Needs a "
     "MitID login.",
@@ -78,8 +79,6 @@ TABLES = {
 NOTES = {
     ("ejendomme", "areal_m2"): "the register's tinglyste areal, not the BBR "
     "living area - see boligareal_m2",
-    ("ejendomme", "boligareal_m2"): "BBR living area, which is what a listing "
-    "quotes",
     ("ejendomme", "ejendomsvurdering_dkk"): "public valuation, which sits well "
     "below market",
     ("ejendomme", "samlet_gaeld_dkk"): "DERIVED: sum of the property's charges",
@@ -89,7 +88,6 @@ NOTES = {
     "valuation, so treat it as a ceiling",
     ("ejendomme", "beriget"): "whether this property was fetched by someone "
     "the register knew - per property, not per run",
-    ("ejendomme", "seneste_salg_pris_m2"): "DERIVED: last sale divided by area",
     ("haeftelser", "laantype_estimat"): "ESTIMATED from DST rates, not "
     "recorded. The register gives a rate and never the product",
     ("haeftelser", "laantype_afstand"): "distance to the runner-up loan type; "
@@ -109,10 +107,20 @@ NOTES = {
     "this share alone. NOT what living there owes - an andelshaver also owes "
     "a share of the association's own mortgage, which is against the building "
     "in the tingbog and is nowhere in this table",
-    ("andele", "boligareal_m2"): "BBR living area, from Boligsiden. The book "
-    "records no area at all",
-    ("andele", "boligtype"): "Boligsiden's word for it; reads 'cooperative' "
-    "for a share",
+    ("andele", "boligareal_m2"): "BBR living area, and the only area a share "
+    "has - the book records none. Needs a Datafordeler API key",
+    ("ejendomme", "boligareal_m2"): "BBR living area, which is what a listing "
+    "quotes. Not the same measure as areal_m2, the register's tinglyste areal. "
+    "Needs a Datafordeler API key",
+    ("ejendomme", "seneste_salg_pris_m2"): "DERIVED: the newest transfer over "
+    "the BBR living area. Empty without a Datafordeler API key",
+    ("ejendomme", "seneste_salg_pris_m2_tinglyst"): "DERIVED: the same transfer "
+    "over the register's own tinglyste areal, which needs no key",
+    ("handelshistorik", "pris_pr_m2"): "DERIVED over the BBR living area, which "
+    "is the measure a listing quotes. Empty without a Datafordeler API key",
+    ("handelshistorik", "pris_pr_m2_tinglyst"): "DERIVED over the register's "
+    "own tinglyste areal. The two are not the same measure and can differ a lot",
+    ("andele", "boligtype"): "what BBR calls it. Needs a Datafordeler API key",
     ("andel_meddelelser", "debitorer"): "the andelshaver the notice concerns. "
     "The andelsboligbog has no owner register, so this is the nearest it comes "
     "to naming who lives there",
@@ -176,8 +184,8 @@ def render() -> str:
         "Project yaybo {",
         "  database_type: 'DuckDB'",
         "  Note: '''",
-        "    Danish property records, fetched from tinglysning.dk and enriched",
-        "    from Boligsiden and Danmarks Statistik.",
+        "    Danish property records, fetched from tinglysning.dk, placed with",
+        "    DAWA and enriched from Danmarks Statistik.",
         "",
         "    Every table joins back to ejendomme.uuid. Primary keys are real and",
         "    enforced; the references below are documented but NOT enforced,",

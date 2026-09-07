@@ -28,13 +28,17 @@
 > about it is supported.**
 >
 > It is not affiliated with, endorsed by, or connected to tinglysning.dk,
-> Domstolsstyrelsen, MitID, NemLog-in, Boligsiden, Danmarks Statistik or
+> Domstolsstyrelsen, MitID, NemLog-in, Danmarks Statistik or
 > Dataforsyningen. Those names appear here only to say where the data comes
 > from.
 >
 > Provided as-is, with no warranty of any kind. **Use it at your own risk.** The
 > author accepts no liability for any loss, damage, or misuse arising from it,
 > and none of it is financial, legal or property advice.
+>
+> It fetches records about real, named people. What that obliges you to is in
+> [Legal and data protection](#legal-and-data-protection); read it before you
+> fetch anything you did not come here for.
 
 ## Install
 
@@ -58,12 +62,14 @@ Results go to `out/tinglysning.duckdb`. Looking the same address up again replac
 
 | source | what it provides | login needed |
 | --- | --- | --- |
-| **tinglysning.dk** | owners, mortgages and charges, easements, past transfers | partly |
-| **Boligsiden** | sale prices, price per m², and the BBR record (year built, rooms, walls, heating) | no |
+| **tinglysning.dk** | owners, mortgages and charges, easements, past transfers, sale history | partly |
 | **Danmarks Statistik** | what each kind of realkredit loan cost month by month, used to read a bare interest rate as an F3 or a fixed loan | no |
-| **DAWA** | address lookup and validation while you type | no |
+| **DAWA** | address lookup and validation while you type, and the official coordinates | no |
+| **BBR** (via Datafordeleren) | the building record — year built, rooms, walls, heating — and the living area a listing quotes | free API key |
 
 Most of it is available without logging in. Logging in with MitID adds owners' dates of birth, everyone named on each mortgage, and the history of previous owners.
+
+All four are public registers or open government APIs — see [Legal and data protection](#legal-and-data-protection). Sale history comes from the register itself, so it needs a login; the BBR record comes from Datafordeleren, which needs a free key — see [The BBR record](#the-bbr-record).
 
 > [!NOTE]
 > This tells you who **owns** a property, not who lives there. Resident data
@@ -152,7 +158,7 @@ Useful `fetch` options:
 | `--delay SECONDS` | pause between fetches (default 1.0) |
 | `--outdir DIR` | where results go (default `out/`, which is git-ignored) |
 | `--no-andele` | skip the andelsboligbog; co-op blocks give only the association's property |
-| `--no-boligsiden` | skip sale prices, BBR data and equity |
+| `--no-bbr` | skip BBR; no building record, and no price per m² over the living area |
 | `--no-laantype` | skip estimating each charge's loan type |
 | `--keepalive [MIN]` | hold the session open afterwards (default 60) |
 
@@ -282,7 +288,7 @@ erDiagram
         varchar uuid PK "andelsboligbogen"
         varchar adresse
         varchar ejendom_uuid FK "the association's building"
-        bigint boligareal_m2 "Boligsiden; the book records none"
+        bigint boligareal_m2 "wants BBR; the book records none"
         bigint samlet_gaeld_dkk "derived: this share only"
     }
     andel_haeftelser {
@@ -332,7 +338,7 @@ Tinglysning is four registers, not one, and two of them matter here. The **tingb
 
 Both are fetched, and `andele.ejendom_uuid` joins the second to the first. A lookup that finds shares says so: *found 1 property and 10 co-op shares*.
 
-What the second book actually holds is much less than the first. A share is not land, so it has **no valuation, no matrikel, no registered area and no easements** — only its address, whatever is charged against it, and any notices. The area and the coordinates on an `andele` row come from Boligsiden rather than the register.
+What the second book actually holds is much less than the first. A share is not land, so it has **no valuation, no matrikel, no registered area and no easements** — only its address, whatever is charged against it, and any notices. The area on an `andele` row comes from BBR rather than the register, and the coordinates from DAWA.
 
 **There is no owner of record.** The andelsboligbog registers rights *over* a share, not title *to* one; who holds an andel is the association's record, not the register's. Two places name people anyway:
 
@@ -345,7 +351,7 @@ Three things worth knowing before querying it:
 
 - **A flat missing from `andele` is not evidence it is not an andel.** A share only enters the book once something is registered against it.
 - **`andele.samlet_gaeld_dkk` is not what living there owes.** It totals what is charged against that share alone. An andelshaver also owes their portion of the association's own mortgage, which is registered against the *building* in the tingbog and is nowhere in this table.
-- **There is no sale price for a share, and this deliberately stores none.** Boligsiden reports the building's own sale against every door in the block — the same date and amount on all of them — and divides it by each flat's area into a price per m² that describes nothing. That sale is a fact about the building, and is stored as one, on the `ejendomme` row.
+- **There is no sale price for a share, and there is no table of them.** A share is not sold as real property, so the register records no transfer for one — the book holds rights *over* a share, not title *to* it. Any sale at a co-op address is the building's own, which is a fact about the building and is stored as one on the `ejendomme` row.
 
 One thing is known to exist and is **not** read here: a logged-in session can fetch a signed andelsboligbogsattest (`rest/andelsbolig/...`) and search the book by person name and date of birth. By analogy with the tingbog that attest would carry parties' CPR-derived birth dates. It is unverified and nothing here depends on it.
 
@@ -465,6 +471,70 @@ Either way the agent has:
 > queue is rate-limited for the same reason. Please leave it that way.
 
 Logging in means logging in as you, to a government register, with MitID.
+
+## Legal and data protection
+
+None of this is legal advice. It is where the project understands itself to stand, and what that leaves to you.
+
+### The register is public, with two conditions attached
+
+Anyone may look up any property in the tingbog – that is what a public register is for. Two rules govern what happens next, and both are about **disclosure** rather than access:
+
+- **`tinglysningsloven` § 50 c, stk. 1** – *"Oplysninger i edb-registrene om personnumre må ikke videregives."* CPR numbers may not be passed on.
+- **[Domstolsstyrelsen's own guidance](https://www.domstol.dk/tinglysningsretten/offentlighed/)** – data from Den Digitale Tingbog must not be stored *with a view to passing it to third parties*. Storing it for the internal use of whoever retrieved it is fine. If somebody else wants it, send them to the Tingbog.
+
+That is the shape this is built to: a database file on the machine of the person who logged in, publishing nothing and serving nothing. What is distributed here is a **tool**, not a **database**, and that difference is most of the answer.
+
+**A CPR number is never stored.** The attest prints `Cpr-nr.: 010195-****`, and only the first six digits – the birth date – are read out of it. `register/fields.py` drops the serial deliberately, on the reasoning that it should stay dropped even on the day the register stops masking it. `foedselsdato` is that birth date; no column anywhere holds a personnummer.
+
+> [!CAUTION]
+> **The signed attests are the sensitive thing here.** `attester.dokument` is
+> the register's own document as signed, and `yaybo fetch --format csv` or
+> `--format xlsx` writes each one out as its own file. It is a complete,
+> authenticated statement of a named person's position – the one output where
+> passing it on is squarely the thing the rules above prohibit. Leave it where
+> it lands.
+
+### Every source here is a public one
+
+All four are public registers or open government APIs, published to be read by programs: [DAWA](https://dawadocs.dataforsyningen.dk/) and Danmarks Statistik are documented open APIs, BBR is distributed by Datafordeleren, and the land register is public by statute.
+
+That is a rule rather than a coincidence, and it is what a new source has to clear. A private site's terms and its `robots.txt` are checked before a line is written against it, and an open endpoint is not the same as permission to use it — an API that answers without a key may still be one its owner has asked robots to leave alone.
+
+It is also why BBR is behind a credential here rather than scraped from somewhere easier. Every official distribution of BBR is gated: Datafordeleren's REST and GraphQL both refuse an anonymous request, BBR's own map component disallows robots outright, and OIS disallows the endpoints that serve a BBR-meddelelse. There is no permitted keyless route, so this asks for a key instead of going looking for a gap.
+
+Two consequences worth knowing when reading the data:
+
+- **Sale history comes from the register's own *historisk adkomst***, which is where the rest of the country's sale prices originate anyway — Vurderingsstyrelsen takes its price data from tinglysning. It **needs a login**.
+- **There are two prices per m², because there are two areas.** `pris_pr_m2` divides by the BBR living area, which is what a listing quotes; `pris_pr_m2_tinglyst` divides by the register's own tinglyste areal. They are not the same number and can differ by a third. Each is empty when its own area is, rather than falling back to the other.
+
+### The BBR record
+
+The land register says nothing about the building itself — no year of construction, no rooms, no heating, and no living area. That is BBR's job, and BBR is distributed by **Datafordeleren**, which needs a credential.
+
+It is free and it is optional. Create an account on [Datafordeler Administration](https://datafordeler.dk/) with an email address, generate an API key, and put it where yaybo will find it:
+
+```sh
+export DATAFORDELER_API_KEY=...        # or a .env file in the folder you work in
+```
+
+Without a key everything else fills exactly as it does now — owners, charges, easements, valuation, debt, equity, sale history — and only the BBR columns stay empty. `uvx yaybo` has to keep working for someone who has never heard of Datafordeleren, so nothing here depends on it.
+
+Two things worth knowing, both of which cost an afternoon to find out:
+
+- The key works on **GraphQL only**. Datafordeleren's REST services refuse it, and REST is being retired at the end of 2026 anyway.
+- A new key is **not live for about 15 minutes**. Until then the service answers `401 DAF-AUTH-0005`, which reads like a wrong key and is not.
+
+Why a key at all, when BBR is public data? Because every official distribution of it is behind either a credential or a robots rule — Datafordeleren's REST and GraphQL both refuse an anonymous request, BBR's own map component disallows robots outright, and OIS disallows the endpoints that serve a BBR-meddelelse. There is no keyless route, so this asks for a key rather than going looking for a gap.
+
+### What GDPR asks of you
+
+Article 2(2)(c) exempts processing "by a natural person in the course of a purely personal or household activity", and looking up the flat you are about to buy plausibly sits inside it. The exemption is read narrowly, and two things leave it behind:
+
+- Accumulating many named people's finances stops looking like a household activity, however local the file stays.
+- Using it for work – as an agent, a lender, a journalist, a researcher – leaves the exemption altogether, and makes you a controller with everything that carries.
+
+The code does not decide that. It is a local database, and what it is for is a question about you rather than about it.
 
 ## mitid-client
 

@@ -37,7 +37,6 @@ SAMPLE = {
             "ejendomsvurdering_dkk": 2000000,
             "grundvaerdi_dkk": 500000,
             "vurderingsdato": "2024-01-01",
-            "boligsiden_vurdering_dkk": 2900000,
             "samlet_gaeld_dkk": 1000000,
             "frivaerdi_dkk": 1000000,
             "belaaningsgrad_pct": 50.0,

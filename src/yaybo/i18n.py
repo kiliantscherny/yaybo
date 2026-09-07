@@ -369,13 +369,13 @@ DANISH: dict[str, str] = {
     "Every figure below is over the selection named above.":
         "Hvert tal nedenfor gælder det udvalg, der er nævnt ovenfor.",
     "Not enough recorded sales in this selection to plot. Sale "
-    "history comes from Boligsiden, which knows the sales an "
-    "agent handled; a flat sold privately, or held for "
-    "decades, has none.":
+    "history is the register's own historical access, which "
+    "needs a login, and a price per m\u00b2 also needs the "
+    "property's registered area.":
         "For få tinglyste handler i dette udvalg til at tegne en kurve. "
-        "Handelshistorikken kommer fra Boligsiden, som kender de handler, "
-        "en mægler stod for; en bolig solgt privat, eller beholdt i årtier, "
-        "har ingen.",
+        "Handelshistorikken er registrets egen historiske adkomst, som "
+        "kræver login, og en kvadratmeterpris kræver desuden ejendommens "
+        "tinglyste areal.",
     "Nothing in this selection has that figure recorded.":
         "Intet i dette udvalg har det tal noteret.",
     "{groups} over {properties}. Groups with nothing recorded are "
@@ -418,9 +418,11 @@ DANISH: dict[str, str] = {
     "No owners recorded": "Ingen ejere registreret",
     "Value and debt": "Værdi og gæld",
     "Public valuation": "Offentlig vurdering",
+    "Sale price per m² (tinglyst areal)": "Kvadratmeterpris (tinglyst areal)",
+    "BBR living area": "BBR boligareal",
+    "Price per m² (tinglyst areal)": "Kvadratmeterpris (tinglyst areal)",
     "Land value": "Grundværdi",
     "Valued on": "Vurderingsdato",
-    "Boligsiden estimate": "Boligsiden vurderer",
     "Equity (at least)": "Friværdi (mindst)",
     "Loan-to-value (at most)": "Belåningsgrad (højst)",
     "Latest sale": "Seneste handel",

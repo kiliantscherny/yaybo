@@ -63,7 +63,7 @@ def annotate(properties: list[dict]) -> list[dict]:
         row["_by"] = _town(address, postcode)
         row["_vej"] = _street(head)
         row["_etage"] = _floor(row)
-        # Boligsiden's key made readable; the register's own ejendomstype
+        # A BBR key made readable; the register's own ejendomstype
         # left exactly as it wrote it. Without the first, a dropdown offers
         # "condo" - an API token, and an American one - to somebody choosing
         # what kind of home to look at.
@@ -92,7 +92,7 @@ def _floor(row: dict) -> str:
     """The floor a flat is on: "st", "1", "2"… or "" for a whole property.
 
     Read from `lejlighed` where the register gave one, and otherwise off the
-    address, which is where it lives for anything Boligsiden filled in.
+    address, which is where it lives for anything filled in from outside.
     """
     unit = (row.get("lejlighed") or "").strip()
     if not unit:
@@ -388,7 +388,14 @@ MEASURES: tuple[Measure, ...] = (
     Measure("frivaerdi", "Equity", "kr", "property", _get("frivaerdi_dkk")),
     Measure("belaant", "Loan-to-value", "pct", "property",
             _get("belaaningsgrad_pct")),
+    # Two of these, because a sale has two areas to be divided by and they
+    # are different measures. The plain one is BBR's living area, which is
+    # what a listing quotes and so what anyone comparing against an agent
+    # wants; it is empty without a Datafordeler key, and the tinglyst one -
+    # the register's own areal - is what fills in that case.
     Measure("salg_m2", "Sale price per m²", "kr", "trade", _get("pris_pr_m2")),
+    Measure("salg_m2_tinglyst", "Sale price per m² (tinglyst areal)", "kr",
+            "trade", _get("pris_pr_m2_tinglyst")),
     Measure("salg", "Sale price", "kr", "trade", _get("beloeb_dkk")),
     Measure("handler", "Number of sales", "count", "trade", lambda row: 1.0,
             default="sum"),
@@ -447,14 +454,14 @@ ANALYSES: tuple[Analysis, ...] = (
     Analysis(
         "priser", "Prices over time",
         "What a square metre has cost, year by year, from the recorded sales.",
-        "time", ("salg_m2", "salg", "handler"),
+        "time", ("salg_m2", "salg_m2_tinglyst", "salg", "handler"),
     ),
     Analysis(
         "sammenlign", "Compare groups",
         "The same figure side by side - floor against floor, or street "
         "against street.",
-        "group", ("vurdering_m2", "salg_m2", "vurdering", "areal", "gaeld",
-                  "frivaerdi", "belaant"),
+        "group", ("vurdering_m2", "salg_m2", "salg_m2_tinglyst", "vurdering",
+                  "areal", "gaeld", "frivaerdi", "belaant"),
     ),
     Analysis(
         "gaeld", "Debt and equity",

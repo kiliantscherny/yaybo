@@ -168,38 +168,31 @@ def test_a_share_owing_nothing_totals_zero_rather_than_nothing():
     assert andele[0]["samlet_gaeld_dkk"] == 0
 
 
-# Boligsiden reports the building's own sale against every door in the block -
-# the same date and amount on all of them - and divides it by each flat's area
-# into a price per square metre that describes nothing. A share is never sold
-# as real property, so there is no flat-level sale for it to be confused with.
-BOLIG = {
-    "adresse_uuid": "dawa-1",
-    "boligtype": "cooperative",
-    "boligareal_m2": 77,
-    "boligsiden_vurdering_dkk": None,
-    "til_salg": "false",
-    "boligsiden_url": "https://example.invalid/proevegade-1-st-th",
-    "breddegrad": 55.5,
-    "laengdegrad": 12.5,
-    "salg": [{"dato": "1999-04-27", "beloeb_dkk": 8_800_000, "pris_pr_m2": 114_286}],
-}
+def test_a_share_has_nowhere_to_put_a_sale():
+    """A share is never sold as real property, so the book records no transfer
+    for one and the table has no column for a price.
 
-
-def test_the_buildings_sale_is_kept_off_the_shares_row():
-    row = build.andel_bolig_row(BOLIG)
-    assert row["boligareal_m2"] == 77
-    assert row["boligtype"] == "cooperative"
-    for column in ("seneste_salg_dato", "seneste_salg_dkk", "seneste_salg_pris_m2"):
-        assert column not in row
-    # And the table has nowhere to put one even if a caller tried.
+    A source that reported the building's own sale against every door in the
+    block would put the same date and amount on all of them, divided by each
+    flat's area into a price per square metre that described nothing. Nothing
+    does that here now, and this is what keeps it that way.
+    """
     columns = dict(store.TABLES["andele"]["columns"])
     assert not [name for name in columns if name.startswith("seneste_salg")]
+    assert "pris_pr_m2" not in columns
+    # The sale belongs to the building, and is still stored there.
+    assert "seneste_salg_dkk" in dict(store.TABLES["ejendomme"]["columns"])
 
 
-def test_a_property_keeps_its_sale():
-    """The same figures are a fact about the building, and are still stored as
-    one - on the ejendomme row the share joins to."""
-    assert build.bolig_row(BOLIG)["seneste_salg_dkk"] == 8_800_000
+def test_dawa_is_what_places_a_share():
+    """The book gives an address and nothing spatial, so the coordinates on an
+    andele row come from the address register."""
+    row = build.dawa_row(
+        {"uuid": "dawa-1", "breddegrad": 55.5, "laengdegrad": 12.5}
+    )
+    assert row == {"adresse_uuid": "dawa-1", "breddegrad": 55.5, "laengdegrad": 12.5}
+    # An address DAWA cannot place leaves the row alone rather than blanking it.
+    assert build.dawa_row({"uuid": "dawa-2"}) == {"adresse_uuid": "dawa-2"}
 
 
 def test_narrowing_to_a_flat_keeps_the_building_it_is_in():
@@ -372,7 +365,6 @@ def test_fetch_fills_both_books_from_one_address(monkeypatch):
          "postnummer": "9999", "etage": "", "doer": ""},
         [BUILDING, SHARE],
         delay=0,
-        boligsiden_on=False,
         laantype_on=False,
     )
 
@@ -404,7 +396,7 @@ def test_a_share_alone_leaves_the_building_join_empty(monkeypatch):
         {"tekst": "x", "vejnavn": "Prøvegade", "husnummer": "1",
          "postnummer": "9999", "etage": "", "doer": ""},
         [SHARE],
-        delay=0, boligsiden_on=False, laantype_on=False,
+        delay=0, laantype_on=False,
     )
     assert bundle.andele[0]["ejendom_uuid"] == ""
     assert bundle.properties == []
@@ -422,7 +414,7 @@ def test_notices_come_through_the_fetch_too(monkeypatch):
         {"tekst": "x", "vejnavn": "Prøvegade", "husnummer": "1",
          "postnummer": "9999", "etage": "", "doer": ""},
         [SHARE],
-        delay=0, boligsiden_on=False, laantype_on=False,
+        delay=0, laantype_on=False,
     )
     assert len(bundle.tables["andel_meddelelser"]) == 1
     assert bundle.tables["andel_meddelelser"][0]["debitorer"] == "Ida Testesen"

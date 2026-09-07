@@ -18,7 +18,7 @@ from dataclasses import dataclass, field
 
 import requests
 
-from yaybo.enrich import boligsiden, laantype
+from yaybo.enrich import bbr, laantype
 from yaybo.register import attest, attest_xml, rows
 from yaybo.register.address import (
     dawa_addresses,
@@ -170,7 +170,10 @@ def units_at(
     return narrow(units, address["etage"], address["doer"])
 
 
-def _gather_andel(api, uuid: str, gathered: dict, addresses: dict, building: dict):
+def _gather_andel(
+    api, uuid: str, gathered: dict, addresses: dict, building: dict, *,
+    key: str = "", bbr_cache: dict | None = None,
+):
     """Fetch one co-op share and add the two tables' worth of rows it fills.
 
     Returns the record so the caller can hand it to `on_raw`. There is no
@@ -180,21 +183,20 @@ def _gather_andel(api, uuid: str, gathered: dict, addresses: dict, building: dic
     record = api.fetch_andel(uuid)
     adresse = record.get("adresse", "")
 
-    # Boligsiden is doing more work here than it does for a property. The book
-    # gives no area, no valuation and nothing about the building, so without
-    # this an andel row is an address and a debt.
-    bolig = {}
-    if addresses:
-        found = addresses.get(floor_and_door(adresse))
-        if found:
-            bolig = boligsiden.fetch(found)
+    # The book gives no area, no valuation and nothing about the building, so
+    # an andel row is an address, a debt, wherever DAWA places it and whatever
+    # BBR says the flat is. BBR is doing more work here than for a property,
+    # which at least has a tinglyste areal of its own.
+    entry = addresses.get(floor_and_door(adresse))
+    bolig = _bbr(entry, key, bbr_cache)
 
     gathered["andele"].append(
         {
             **rows.andel_row(
                 record, uuid, building.get("uuid", ""), building.get("adresse", "")
             ),
-            **rows.andel_bolig_row(bolig),
+            **rows.bbr_row(bolig),
+            **rows.dawa_row(entry),
         }
     )
     gathered["andel_haeftelser"] += rows.andel_haeftelse_rows(record, uuid)
@@ -209,8 +211,8 @@ def fetch(
     *,
     warning: str = "",
     delay: float = 1.0,
-    boligsiden_on: bool = True,
     laantype_on: bool = True,
+    bbr_on: bool = True,
     on_status=None,
     on_unit=None,
     on_raw=None,
@@ -234,9 +236,13 @@ def fetch(
     enriched = api.authenticated
     gathered: dict[str, list[dict]] = {name: [] for name in TABLE_NAMES}
 
-    # One request gives every flat in the building its DAWA uuid, which is the
-    # key Boligsiden answers to. Without it there is nothing to ask about.
-    addresses = dawa_addresses(address) if boligsiden_on else {}
+    # One request gives every flat in the building its official coordinates,
+    # and the DAWA uuid that BBR is keyed on.
+    addresses = dawa_addresses(address)
+    # Empty when no Datafordeler key is configured, which is the ordinary case
+    # and costs nothing but the BBR columns.
+    bbr_key = bbr.api_key() if bbr_on else ""
+    bbr_cache: dict = {}
     parcels: dict = {}
     fetched = 0
 
@@ -259,7 +265,10 @@ def fetch(
 
         uuid = unit["uuid"]
         if unit.get("bog") == ANDELSBOG:
-            record = _gather_andel(api, uuid, gathered, addresses, building)
+            record = _gather_andel(
+                api, uuid, gathered, addresses, building,
+                key=bbr_key, bbr_cache=bbr_cache,
+            )
             if on_raw:
                 on_raw(index, record, None, None)
             fetched = index
@@ -302,18 +311,28 @@ def fetch(
         parsed = attest_xml.parse(raw) if raw is not None else {}
 
         adresse = record.get("adresse", "")
-        bolig = {}
-        if addresses:
-            found = addresses.get(floor_and_door(adresse))
-            if found:
-                bolig = boligsiden.fetch(found)
-                gathered["handelshistorik"] += rows.handel_rows(bolig, uuid, adresse)
-                gathered["bygninger"] += rows.bygning_rows(bolig, uuid, adresse)
+        entry = addresses.get(floor_and_door(adresse))
+
+        # Read before the property row is built, because the newest transfer
+        # in it is what the row's seneste_salg_* columns are, and the sales
+        # table is the same list read a second way.
+        entries, owners = rows.history_rows(history, uuid, adresse)
+
+        # BBR first, because the living area it gives is what the sale prices
+        # divide by. The register's own tinglyste areal prices them too, in a
+        # column of its own - see rows.handel_rows on why both.
+        bolig = _bbr(entry, bbr_key, bbr_cache)
+        property_row = rows.property_row(record, uuid, parcel, flat)
+        areal_m2 = property_row.get("areal_m2")
+        boligareal_m2 = bolig.get("boligareal_m2")
+        gathered["bygninger"] += rows.bygning_rows(bolig, uuid, adresse)
 
         gathered["ejendomme"].append(
             {
-                **rows.property_row(record, uuid, parcel, flat),
-                **rows.bolig_row(bolig),
+                **property_row,
+                **rows.bbr_row(bolig),
+                **rows.latest_sale_row(entries, areal_m2, boligareal_m2),
+                **rows.dawa_row(entry),
                 # Per property, not per run. A session that lapses halfway
                 # leaves a database where some rows have owners' dates of birth
                 # and previous owners and some do not, and the only useful
@@ -326,9 +345,11 @@ def fetch(
         gathered["servitutter"] += rows.servitut_rows(record, uuid, parsed)
         gathered["dokument_parter"] += rows.party_rows(parsed, uuid)
         gathered["underpant"] += rows.underpant_rows(parsed, uuid)
-        entries, owners = rows.history_rows(history, uuid, adresse)
         gathered["adkomsthistorik"] += entries
         gathered["adkomsthistorik_ejere"] += owners
+        gathered["handelshistorik"] += rows.handel_rows(
+            entries, uuid, adresse, areal_m2, boligareal_m2
+        )
 
         suffix, document = attest.attest_document(details)
         if document:
@@ -406,3 +427,15 @@ def lookup(
         say(f"fetching the first {limit} - raise the limit for more")
         units = units[:limit]
     return fetch(api, address, units, warning=warning, **options)
+
+
+def _bbr(entry: dict | None, key: str, cache: dict | None) -> dict:
+    """What BBR holds for one address, or {} when there is no key for it.
+
+    Both uuids come off the DAWA lookup that has already happened, so this
+    costs no extra address resolution - only BBR's own requests, which are
+    cached per building.
+    """
+    if not entry or not key:
+        return {}
+    return bbr.fetch(entry.get("husnummer", ""), entry.get("uuid", ""), key, cache)
