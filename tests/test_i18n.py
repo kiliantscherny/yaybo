@@ -146,7 +146,7 @@ def test_translating_something_that_has_no_bindings_does_nothing():
 # Words that are the same in both languages. An entry mapping a string to
 # itself would be a line to keep in step with nothing, so they are listed here
 # instead and the check below skips them.
-SAME_IN_BOTH = {"Filter", "SQL", "MitID", "Boligsiden", "Median", "Start",
+SAME_IN_BOTH = {"Filter", "SQL", "MitID", "Median", "Start",
                 "Type", "Postnr", "Note", "Pri.", "▶  Start", "■  Stop",
                 "Auto-fetch: on", "Auto-fetch: off", "Stop"}
 

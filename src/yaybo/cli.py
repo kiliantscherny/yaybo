@@ -30,9 +30,12 @@ comma-separated list for several at once.
     attester                the whole register document, as queryable JSON
 
 Three of those need a login - the register only shows its own documents to
-someone who has proved who they are. Two more come from outside it entirely,
-and need none: Boligsiden for sale prices and the BBR record, and Danmarks
-Statistik for the rates that let a charge be read as an F3 or a fixed loan.
+someone who has proved who they are, and the sale history is one of them. Two
+sources sit outside the register and need no login: DAWA, which resolves the
+address and places it, and Danmarks Statistik, for the rates that let a charge
+be read as an F3 or a fixed loan. A third, BBR, holds the building record and
+the living area a listing quotes; it needs a free Datafordeler API key in
+DATAFORDELER_API_KEY, and everything else fills without one.
 """
 
 from __future__ import annotations
@@ -248,8 +251,8 @@ def _fetch_one(args, api, formats: set[str], address: str, say) -> None:
         use_dawa=not args.no_dawa,
         andele_on=not args.no_andele,
         delay=args.delay,
-        boligsiden_on=not args.no_boligsiden,
         laantype_on=not args.no_laantype,
+        bbr_on=not args.no_bbr,
         on_status=say,
         on_unit=each,
         on_raw=raw,
@@ -294,6 +297,7 @@ def _fetch_one(args, api, formats: set[str], address: str, say) -> None:
             name = f"{slugify(document['adresse'])}.{document['format']}"
             (folder / name).write_text(document["dokument"], encoding="utf-8")
         say(f"wrote {len(documents)} attest(er) to {folder}/")
+        say("  each one is signed and names real people - do not pass them on")
 
 
 def _keep_going(done: int, total: int) -> bool:
@@ -353,6 +357,12 @@ def run_export(args) -> int:
         say("leaving attester out of csv/xlsx: whole documents do not fit a cell")
         if "duckdb" not in formats:
             tables = {name: rows for name, rows in tables.items() if name != "attester"}
+
+    # A DuckDB export is written to be handed to somebody, and it is the one
+    # format wide enough to carry the signed documents with it. Say so, because
+    # passing those on is the thing the register's own rules prohibit.
+    if "duckdb" in formats and tables.get("attester"):
+        say("including attester: signed documents naming real people - see the README")
 
     if not any(tables.values()):
         raise SystemExit("nothing to export - the database is empty")
@@ -488,9 +498,10 @@ def build_parser() -> argparse.ArgumentParser:
              "association's own property, as before",
     )
     fetch.add_argument(
-        "--no-boligsiden",
+        "--no-bbr",
         action="store_true",
-        help="skip Boligsiden: no sale prices, no BBR building data, no equity",
+        help="skip BBR: no building record, and no price per m2 over the living "
+             "area (the one over the register's tinglyste areal still fills)",
     )
     fetch.add_argument(
         "--no-laantype",
@@ -564,12 +575,12 @@ def build_parser() -> argparse.ArgumentParser:
     )
     backfill.add_argument("--dry-run", action="store_true",
                           help="report what would be written and change nothing")
-    backfill.add_argument("--skip-boligsiden", action="store_true",
-                          help="do not ask Boligsiden for sale prices and BBR data")
+    backfill.add_argument("--skip-bbr", action="store_true",
+                          help="do not ask BBR for the building record")
     backfill.add_argument("--skip-laantype", action="store_true",
                           help="do not estimate loan types from DST rates")
     backfill.add_argument("--delay", type=float, default=0.2, metavar="SECONDS",
-                          help="pause between Boligsiden requests (default: 0.2)")
+                          help="pause between DAWA requests (default: 0.2)")
     return parser
 
 

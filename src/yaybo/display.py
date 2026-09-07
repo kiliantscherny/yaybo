@@ -1,7 +1,7 @@
 """How a value is written on screen, as opposed to how it is stored.
 
 Danish conventions throughout, because that is what the register uses and what
-anyone checking a figure against tinglysning.dk or Boligsiden will be reading:
+anyone checking a figure against tinglysning.dk will be reading:
 full stops for thousands, a comma for the decimal mark, ISO dates only where
 sorting matters more than reading.
 
@@ -105,12 +105,12 @@ def ago(value) -> str:
     return i18n.t("{n} y ago", n=f"{days / 365:.0f}")
 
 
-# Boligsiden answers in English. The stored value stays as it arrived, because
+# The BBR record answers in English. A stored value stays as it arrived, because
 # that is what the API said; this is only how it is written on screen.
-# Boligsiden's own keys, given a name a person would use. English here and
+# the source's own keys, given a name a person would use. English here and
 # translated where drawn, like every other label: these are a fixed set of
 # categories rather than anything the register wrote.
-# Boligsiden's own keys on the left, given a name a person would use on the
+# the source's own keys on the left, given a name a person would use on the
 # right. The keys are theirs and stay as they are; the labels are English here
 # and translated where drawn, like every other label. Nobody should ever be
 # shown the key itself - "condo" is American, and more to the point it is an
@@ -151,7 +151,7 @@ def rgb(colour: str | None, fallback: tuple[int, int, int]) -> tuple[int, int, i
 
 
 def boligtype(value) -> str:
-    """Boligsiden's key becomes something readable in the current language.
+    """A BBR key becomes something readable in the current language.
 
     Anything unmapped is left exactly as it is: the register's own
     ejendomstype arrives through here too, and that is Danish data rather than

@@ -67,8 +67,7 @@ src/yaybo/
 │   ├── historik.py    parsing the historical-owner blobs
 │   ├── rows.py        turning all of that into the tables in store.py
 │   └── fields.py      the small shared normalisers
-├── enrich/            the two public sources that need no login
-│   ├── boligsiden.py  sale prices, price per m², and the BBR record
+├── enrich/            what is worked out around the register
 │   └── laantype.py    DST rates, and reading a bare rate as a loan product
 ├── screens/           library, andele, andel, buildings, search, property,
 │                      queue, stats, analysis, sql

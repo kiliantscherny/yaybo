@@ -35,7 +35,23 @@ ADKOMST_TYPES = {
     "betingetskoede": "Betinget skøde",
     "auktionsskoede": "Auktionsskøde",
     "adkomsterklaering": "Adkomsterklæring",
+    "skifteretsattest": "Skifteretsattest",
 }
+
+
+def adkomst_type(code: str) -> str:
+    """The register's own word for an adkomst code, or the code itself.
+
+    The attest states the deed in force as `endeligtskoede`; the historisk
+    adkomst states the same kind of document as `ENDELIGTSKOEDE`, and an
+    auction as `AUKTIONSSKØDE` with the o-slash the map spells `oe`. Both are
+    the register's vocabulary and neither is readable, so both are expanded
+    the same way and anything unrecognised is left exactly as it came.
+    """
+    if not code:
+        return ""
+    key = code.strip().lower().replace("ø", "oe").replace("å", "aa")
+    return ADKOMST_TYPES.get(key, code)
 
 
 def tag(element) -> str:
@@ -194,7 +210,7 @@ def _adkomst(node) -> dict:
         return {}
     deed = text(node, "AdkomstType")
     found = {
-        "dokumenttype": ADKOMST_TYPES.get(deed, deed),
+        "dokumenttype": adkomst_type(deed),
         "dokumenttype_kode": deed,
         "koebesum_dkk": number(node, "SkoedeKoebesum", "IAltKoebesum")
         or number(node, "SkoedeKoebesum", "KontantKoebesum"),

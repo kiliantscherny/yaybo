@@ -6,8 +6,8 @@
 Project yaybo {
   database_type: 'DuckDB'
   Note: '''
-    Danish property records, fetched from tinglysning.dk and enriched
-    from Boligsiden and Danmarks Statistik.
+    Danish property records, fetched from tinglysning.dk, placed with
+    DAWA and enriched from Danmarks Statistik.
 
     Every table joins back to ejendomme.uuid. Primary keys are real and
     enforced; the references below are documented but NOT enforced,
@@ -42,15 +42,13 @@ Table ejendomme {
   antal_servitutter bigint
   adresse_uuid varchar
   boligtype varchar
-  boligareal_m2 bigint [note: 'BBR living area, which is what a listing quotes']
-  boligsiden_vurdering_dkk bigint
-  til_salg boolean
-  boligsiden_url varchar
+  boligareal_m2 bigint [note: 'BBR living area, which is what a listing quotes. Not the same measure as areal_m2, the register\'s tinglyste areal. Needs a Datafordeler API key']
   breddegrad double
   laengdegrad double
   seneste_salg_dato date
   seneste_salg_dkk bigint
-  seneste_salg_pris_m2 bigint [note: 'DERIVED: last sale divided by area']
+  seneste_salg_pris_m2 bigint [note: 'DERIVED: the newest transfer over the BBR living area. Empty without a Datafordeler API key']
+  seneste_salg_pris_m2_tinglyst bigint [note: 'DERIVED: the same transfer over the register\'s own tinglyste areal, which needs no key']
   samlet_gaeld_dkk bigint [note: 'DERIVED: sum of the property\'s charges']
   frivaerdi_dkk bigint [note: 'DERIVED against the public valuation, so treat it as a floor']
   belaaningsgrad_pct double [note: 'DERIVED against the public valuation, so treat it as a ceiling']
@@ -193,11 +191,8 @@ Table andele {
   antal_meddelelser bigint
   samlet_gaeld_dkk bigint [note: 'DERIVED: sum of what is charged against this share alone. NOT what living there owes - an andelshaver also owes a share of the association\'s own mortgage, which is against the building in the tingbog and is nowhere in this table']
   adresse_uuid varchar
-  boligtype varchar [note: 'Boligsiden\'s word for it; reads \'cooperative\' for a share']
-  boligareal_m2 bigint [note: 'BBR living area, from Boligsiden. The book records no area at all']
-  boligsiden_vurdering_dkk bigint
-  til_salg boolean
-  boligsiden_url varchar
+  boligtype varchar [note: 'what BBR calls it. Needs a Datafordeler API key']
+  boligareal_m2 bigint [note: 'BBR living area, and the only area a share has - the book records none. Needs a Datafordeler API key']
   breddegrad double
   laengdegrad double
   hentet timestamp [note: 'when this row was written']
@@ -249,15 +244,16 @@ Table handelshistorik {
   dato date
   beloeb_dkk bigint
   areal_m2 bigint
-  pris_pr_m2 bigint
+  boligareal_m2 bigint
+  pris_pr_m2 bigint [note: 'DERIVED over the BBR living area, which is the measure a listing quotes. Empty without a Datafordeler API key']
+  pris_pr_m2_tinglyst bigint [note: 'DERIVED over the register\'s own tinglyste areal. The two are not the same measure and can differ a lot']
   handelstype varchar
-  handelstype_kode varchar
   registrering_id varchar
   hentet timestamp [note: 'when this row was written']
   indexes {
     (ejendom_uuid, registrering_id) [pk]
   }
-  Note: 'Recorded sales, from Boligsiden. Overlaps adkomsthistorik without replacing it: the register knows transfers that were never a sale, and Boligsiden knows the price per square metre.'
+  Note: 'Every recorded transfer read as a sale, out of the register\'s own historisk adkomst. The same transfers as adkomsthistorik, read for the money rather than the people. Needs a MitID login.'
 }
 
 Table bygninger {
@@ -287,7 +283,7 @@ Table bygninger {
   indexes {
     (ejendom_uuid, bygning_nr) [pk]
   }
-  Note: 'The BBR record for the building: year built, rooms, walls, heating. The land register says none of this.'
+  Note: 'The BBR record for the building: year built, rooms, walls, heating. The land register says none of this. Filled from BBR via Datafordeleren, which needs a free API key; empty without one.'
 }
 
 Table adkomsthistorik {

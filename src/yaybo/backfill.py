@@ -30,7 +30,7 @@ from pathlib import Path
 import duckdb
 
 from yaybo import store
-from yaybo.enrich import boligsiden, laantype
+from yaybo.enrich import bbr, laantype
 from yaybo.register import attest, attest_xml
 from yaybo.register import rows as build
 from yaybo.register.address import address_parts, dawa_addresses, floor_and_door
@@ -39,11 +39,15 @@ from yaybo.register.address import address_parts, dawa_addresses, floor_and_door
 # alone, because nothing here knows how to rebuild it.
 DERIVED = [
     "haeftelser", "servitutter", "dokument_parter", "underpant",
-    "adkomsthistorik", "adkomsthistorik_ejere", "attester",
+    "adkomsthistorik", "adkomsthistorik_ejere", "handelshistorik", "attester",
 ]
-# Rebuilt too, but only when the public sources are asked: Boligsiden fills
-# columns on the property row, and the debt totals depend on the charges.
-ENRICHED = ["ejendomme", "handelshistorik", "bygninger", "rentestatistik"]
+# Rebuilt too, but only when the public sources are asked: DAWA places the
+# property, and the debt totals depend on the charges.
+#
+# `bygninger` is rebuilt only when a Datafordeler key is configured. Without
+# one there is nothing to rebuild it from, and an existing table is left
+# exactly as it was rather than being emptied.
+ENRICHED = ["ejendomme", "bygninger", "rentestatistik"]
 
 
 def _count(db, name: str) -> int:
@@ -104,6 +108,10 @@ def collect(path: Path) -> tuple[dict, dict, list[dict]]:
         )
         tables["adkomsthistorik"] += entries
         tables["adkomsthistorik_ejere"] += owners
+        # The same transfers read as sales. No request: the history is already
+        # in the database, which is the whole point of this command. The area
+        # is filled in later, in enrich, where the property rows are to hand.
+        tables["handelshistorik"] += build.handel_rows(entries, uuid, adresse)
         tables["attester"].append(
             {"ejendom_uuid": uuid, "adresse": adresse, "format": kind or "xml",
              "dokument": raw, "dokument_json": attest.attest_json({"_raw": raw})}
@@ -111,12 +119,12 @@ def collect(path: Path) -> tuple[dict, dict, list[dict]]:
     return dict(tables), before, properties
 
 
-def enrich(tables: dict, properties: list[dict], *, boligsiden_on: bool,
-           laantype_on: bool, delay: float = 0.2) -> None:
+def enrich(tables: dict, properties: list[dict], *, laantype_on: bool,
+           bbr_on: bool = True, delay: float = 0.2) -> None:
     """Add what the public sources know, on top of what the register said.
 
-    Boligsiden answers to a DAWA address UUID, which the older rows do not
-    carry, so it is looked up again here - one request per building rather
+    DAWA answers to an address rather than to anything the register stores, so
+    the addresses are looked up again here - one request per building rather
     than per flat, the same way a fetch does it.
     """
     if laantype_on:
@@ -125,7 +133,40 @@ def enrich(tables: dict, properties: list[dict], *, boligsiden_on: bool,
         print(f"  named the loan type on {estimated['named']} realkredit charge(s), "
               f"from {len(estimated['renter'])} months of DST rates", file=sys.stderr)
 
-    if boligsiden_on and properties:
+    # The transfers, grouped, ready to be read as sales once both areas are
+    # known - which is after DAWA and BBR below, not here.
+    sales: dict = collections.defaultdict(list)
+    for entry in tables.get("adkomsthistorik") or []:
+        sales[entry.get("ejendom_uuid", "")].append(entry)
+
+    def _rebuild_sales() -> None:
+        """Redo the sales table now that both areas are known.
+
+        Called after BBR, because the living area it supplies is what the main
+        price per square metre divides by.
+        """
+        areas = {
+            row.get("uuid", ""): (row.get("areal_m2"), row.get("boligareal_m2"))
+            for row in properties
+        }
+        built: list[dict] = []
+        for row in properties:
+            uuid = row.get("uuid", "")
+            tinglyst, bolig = areas.get(uuid, (None, None))
+            entries = sales.get(uuid) or []
+            made = build.handel_rows(
+                entries,
+                uuid,
+                row.get("adresse") or "",
+                tinglyst,
+                bolig,
+                current=row,
+            )
+            built += made
+            row.update(build.latest_sale_row(made))
+        tables["handelshistorik"] = built
+
+    if properties:
         # Group the flats by the building they are in, so one DAWA lookup
         # serves all of them.
         buildings: dict = collections.defaultdict(list)
@@ -134,31 +175,42 @@ def enrich(tables: dict, properties: list[dict], *, boligsiden_on: bool,
             key = (parts["vejnavn"], parts["husnummer"], parts["postnummer"])
             buildings[key].append(row)
 
-        found = 0
+        key = bbr.api_key() if bbr_on else ""
+        bbr_cache: dict = {}
+        found = from_bbr = 0
         for (vejnavn, husnr, postnr), rows in buildings.items():
             if not (vejnavn and postnr):
                 continue
+            time.sleep(delay)
             addresses = dawa_addresses(
                 {"vejnavn": vejnavn, "husnummer": husnr, "postnummer": postnr}
             )
             for row in rows:
                 adresse = row.get("adresse") or ""
-                uuid = addresses.get(floor_and_door(adresse))
-                if not uuid:
-                    continue
-                time.sleep(delay)
-                bolig = boligsiden.fetch(uuid)
-                if not bolig:
+                entry = addresses.get(floor_and_door(adresse))
+                if not entry:
                     continue
                 found += 1
-                row.update(build.bolig_row(bolig))
-                tables.setdefault("handelshistorik", []).extend(
-                    build.handel_rows(bolig, row["uuid"], adresse))
-                tables.setdefault("bygninger", []).extend(
-                    build.bygning_rows(bolig, row["uuid"], adresse))
-        print(f"  Boligsiden answered for {found} of {len(properties)} propert"
+                row.update(build.dawa_row(entry))
+                if not key:
+                    continue
+                time.sleep(delay)
+                bolig = bbr.fetch(
+                    entry.get("husnummer", ""), entry.get("uuid", ""), key, bbr_cache
+                )
+                if bolig:
+                    from_bbr += 1
+                    row.update(build.bbr_row(bolig))
+                    tables.setdefault("bygninger", []).extend(
+                        build.bygning_rows(bolig, row["uuid"], adresse))
+        print(f"  DAWA placed {found} of {len(properties)} propert"
               f"{'y' if len(properties) == 1 else 'ies'}", file=sys.stderr)
+        if key:
+            print(f"  BBR answered for {from_bbr}", file=sys.stderr)
+        else:
+            print("  no Datafordeler key, so no BBR record", file=sys.stderr)
 
+    _rebuild_sales()
     build.add_financials(properties, tables.get("haeftelser") or [])
     tables["ejendomme"] = properties
 
@@ -168,12 +220,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--db", help="the database to rebuild in place")
     parser.add_argument("--dry-run", action="store_true",
                         help="report what would be written and change nothing")
-    parser.add_argument("--skip-boligsiden", action="store_true",
-                        help="do not ask Boligsiden for sale prices and BBR data")
+    parser.add_argument("--skip-bbr", action="store_true",
+                        help="do not ask BBR for the building record")
     parser.add_argument("--skip-laantype", action="store_true",
                         help="do not estimate loan types from DST rates")
     parser.add_argument("--delay", type=float, default=0.2, metavar="SECONDS",
-                        help="pause between Boligsiden requests (default: 0.2)")
+                        help="pause between DAWA requests (default: 0.2)")
     return run(parser.parse_args(argv))
 
 
@@ -189,7 +241,7 @@ def run(args) -> int:
 
     print(f"{len(tables['attester'])} document(s) read from {path}", file=sys.stderr)
     enrich(tables, properties,
-           boligsiden_on=not args.skip_boligsiden, laantype_on=not args.skip_laantype,
+           laantype_on=not args.skip_laantype, bbr_on=not args.skip_bbr,
            delay=args.delay)
 
     for name in DERIVED + ENRICHED:

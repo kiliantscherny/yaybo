@@ -1,6 +1,6 @@
 ---
 name: danish-property-records
-description: Fetches and analyses Danish property records with the yaybo CLI - owners, mortgages and charges (haeftelser), easements (servitutter), sale prices, BBR building data and realkredit loan types, from tinglysning.dk (Tingbogen and Andelsboligbogen), Boligsiden and Danmarks Statistik. Covers real property (ejerbolig, ejerlejlighed) and co-op shares (andelsbolig, andelslejlighed), which are separate registers holding different things. Use when the user asks about a Danish address, property or andelsbolig, wants to look up who owns something, what is mortgaged against it, what it sold for, or wants Danish property data queried, compared or exported to Excel.
+description: Fetches and analyses Danish property records with the yaybo CLI - owners, mortgages and charges (haeftelser), easements (servitutter), sale history and realkredit loan types, from tinglysning.dk (Tingbogen and Andelsboligbogen), DAWA and Danmarks Statistik. Covers real property (ejerbolig, ejerlejlighed) and co-op shares (andelsbolig, andelslejlighed), which are separate registers holding different things. Use when the user asks about a Danish address, property or andelsbolig, wants to look up who owns something, what is mortgaged against it, what it sold for, or wants Danish property data queried, compared or exported to Excel.
 ---
 
 # Danish property records with yaybo

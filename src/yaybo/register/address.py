@@ -4,7 +4,7 @@ Everything here talks to DAWA (api.dataforsyningen.dk), Denmark's official
 address register, which is far more forgiving than tinglysning's own
 autocomplete: it copes with th/tv doors, a mis-spaced house number ("30 B") and
 a missing diacritic ("Frederiksberg Alle"), none of which tinglysning will
-parse. DAWA's address UUID is also what Boligsiden answers to, so resolving an
+parse. DAWA's address UUID is also what a BBR lookup keys on, so resolving an
 address here is what makes that join possible later.
 
 The register does not index postal addresses, though - it indexes legally
@@ -50,7 +50,7 @@ def autocomplete(query: str, limit: int = 12) -> list[dict]:
     if not isinstance(found, list):
         return []
     return [
-        # DAWA's own uuid comes along because it is what Boligsiden answers to,
+        # DAWA's own uuid comes along because it is what BBR keys on,
         # and having it here saves looking the same address up twice.
         {**_from_dawa(match["adresse"]), "adresse_uuid": match["adresse"].get("id", "")}
         for match in found
@@ -194,14 +194,17 @@ def fetch_parcel(ejerlavkode: str, matrikelnr: str, cache: dict) -> dict:
         }
     return cache[key]
 
-def dawa_addresses(address: dict) -> dict[tuple[str, str], str]:
-    """Every address at this house number, as (etage, doer) -> DAWA uuid.
+def dawa_addresses(address: dict) -> dict[tuple[str, str], dict]:
+    """Every address at this house number, as (etage, doer) -> what DAWA knows.
 
     One request for the whole building rather than one per flat: the register
     is searched at building level too, so both sides of the join are gathered
     the same way and a block of sixty flats costs a single call.
 
-    The UUID is what Boligsiden keys on, which is the only reason it is wanted.
+    Two things come back per address. The UUID is what BBR will key on. The
+    coordinates are DAWA's own adgangspunkt - the official address register's
+    answer to where the place is - and are the only thing placing a property or
+    a share on a map now that no other source is asked for one.
     """
     try:
         found = requests.get(
@@ -218,12 +221,32 @@ def dawa_addresses(address: dict) -> dict[tuple[str, str], str]:
     if not isinstance(found, list):
         return {}
     return {
-        ((entry.get("etage") or "").lower(), (entry.get("dør") or "").lower()): entry[
-            "id"
-        ]
+        ((entry.get("etage") or "").lower(), (entry.get("dør") or "").lower()): {
+            "uuid": entry["id"],
+            **_access(entry.get("adgangsadresse") or {}),
+        }
         for entry in found
         if entry.get("id")
     }
+
+
+def _access(access: dict) -> dict:
+    """What the adgangsadresse contributes: where the place is, and BBR's key.
+
+    The coordinate pair is [longitude, latitude], which is the order a GeoJSON
+    position uses and the reverse of how anyone says it aloud.
+
+    The adgangsadresse's own uuid is BBR's `husnummer`, which is what a
+    building is looked up by. The address uuid beside it is what a *flat* is
+    looked up by, so both are wanted and they are not the same thing.
+    """
+    found: dict = {}
+    if access.get("id"):
+        found["husnummer"] = access["id"]
+    coordinates = (access.get("adgangspunkt") or {}).get("koordinater") or []
+    if len(coordinates) == 2:
+        found["laengdegrad"], found["breddegrad"] = coordinates
+    return found
 
 
 def address_parts(adresse: str) -> dict:

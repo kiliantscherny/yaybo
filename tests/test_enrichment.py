@@ -1,90 +1,152 @@
-"""Check the two public sources that sit outside the land register.
+"""Check what is worked out around the register rather than read out of it.
 
 Run directly - `uv run python tests/test_enrichment.py` - or under pytest.
 
-Neither test touches the network: the Boligsiden payload is a trimmed copy of
-a real response with invented figures, and the DST reply is built by hand so
-the awkward part of it - a dimension the query never asked for - is present.
+Neither test touches the network: the transfers are invented, and the DST reply
+is built by hand so the awkward part of it - a dimension the query never asked
+for - is present.
 """
 
 from yaybo import store
-from yaybo.enrich import boligsiden, laantype
+from yaybo.enrich import bbr, laantype
 from yaybo.register import rows as build
 
-# Trimmed from a real api.boligsiden.dk/addresses/{uuid} reply. Same keys and
-# nesting; the address, the prices and the building are invented.
-PAYLOAD = {
-    "slug": "proevegade-1-3-12-9999-proevekoebing",
-    "isOnMarket": True,
-    "addressType": "condo",
-    "livingArea": 71,
-    "latestValuation": 1350000,
-    "coordinates": {"lat": 55.5, "lon": 12.5, "type": "EPSG4326"},
-    "registrations": [
-        # Deliberately oldest first, to prove the sort.
-        {"date": "2021-10-14", "amount": 3000000, "area": 71, "type": "family",
-         "registrationID": "r-2"},
-        {"date": "2026-06-19", "amount": 4000000, "area": 80, "livingArea": 80,
-         "type": "normal", "perAreaPrice": 50000, "registrationID": "r-1"},
-        # No area at all: the price per square metre cannot be worked out.
-        {"date": "1998-01-05", "amount": 500000, "type": "auction",
-         "registrationID": "r-3"},
-    ],
-    "buildings": [{
-        "buildingNumber": "1", "buildingName": "Etagebolig-bygning",
-        "yearBuilt": 1970, "yearRenovated": 1992, "numberOfFloors": 5,
-        "numberOfRooms": 2, "numberOfBathrooms": 1, "numberOfToilets": 1,
-        "housingArea": 71, "basementArea": 800, "businessArea": 1100,
-        "otherArea": 93, "totalArea": 6303, "externalWallMaterial": "Letbetonsten",
-        "roofingMaterial": "Tagpap med lille hældning",
-        "heatingInstallation": "Fjernvarme/blokvarme",
-        "supplementaryHeating": "Ingen supplerende varme",
-        "kitchenCondition": "Eget køkken med afløb",
-        "bathroomCondition": "Badeværelse i enheden",
-        "toiletCondition": "Vandskyllende toilet i enheden",
-    }],
+# What history_rows makes of the register's "historisk adkomst" list: one entry
+# per transfer, newest first. Invented people, invented prices.
+ENTRIES = [
+    {"ejendom_uuid": "u1", "post_nummer": 1, "adresse": "Prøvegade 1, 3. 12",
+     "dato": "2026-06-19", "dokumenttype": "Endeligt skøde",
+     "koebesum_dkk": 4000000, "antal_ejere": 2, "historiske_ejere": "..."},
+    {"ejendom_uuid": "u1", "post_nummer": 2, "adresse": "Prøvegade 1, 3. 12",
+     "dato": "2021-10-14", "dokumenttype": "Auktionsskøde",
+     "koebesum_dkk": 3000000, "antal_ejere": 1, "historiske_ejere": "..."},
+    # A transfer the register recorded without a price: an inheritance, say.
+    {"ejendom_uuid": "u1", "post_nummer": 3, "adresse": "Prøvegade 1, 3. 12",
+     "dato": "1998-01-05", "dokumenttype": "Skifteretsattest",
+     "koebesum_dkk": None, "antal_ejere": 1, "historiske_ejere": "..."},
+]
+
+
+def test_sales_are_the_registers_own_transfers():
+    sales = build.handel_rows(ENTRIES, "u1", "Prøvegade 1, 3. 12")
+    assert [s["dato"] for s in sales] == ["2026-06-19", "2021-10-14", "1998-01-05"]
+    assert [s["beloeb_dkk"] for s in sales] == [4000000, 3000000, None]
+    # The register's own word for the document, never a vocabulary of our own.
+    assert [s["handelstype"] for s in sales] == [
+        "Endeligt skøde", "Auktionsskøde", "Skifteretsattest"
+    ]
+    # Every row is identifiable, because the table is keyed on it.
+    assert [s["registrering_id"] for s in sales] == ["1", "2", "3"]
+
+
+def test_there_is_a_price_against_each_area():
+    """Two measures of the same flat, so two prices and never a blend.
+
+    The plain column divides by BBR's living area, which is what a listing
+    quotes; the _tinglyst one by the register's own areal.
+    """
+    sales = build.handel_rows(ENTRIES, "u1", "Prøvegade 1, 3. 12", 80, 100)
+    assert [s["pris_pr_m2"] for s in sales] == [40000, 30000, None]
+    assert [s["pris_pr_m2_tinglyst"] for s in sales] == [50000, 37500, None]
+    assert all(s["areal_m2"] == 80 and s["boligareal_m2"] == 100 for s in sales)
+
+
+def test_each_price_is_empty_when_its_own_area_is():
+    """One area missing must not promote the other into its column."""
+    only_register = build.handel_rows(ENTRIES, "u1", "a", 80)[0]
+    assert only_register["pris_pr_m2_tinglyst"] == 50000
+    assert only_register["pris_pr_m2"] is None
+
+    only_bbr = build.handel_rows(ENTRIES, "u1", "a", None, 100)[0]
+    assert only_bbr["pris_pr_m2"] == 40000
+    assert only_bbr["pris_pr_m2_tinglyst"] is None
+
+    for sale in build.handel_rows(ENTRIES, "u1", "a"):
+        assert sale["pris_pr_m2"] is None and sale["pris_pr_m2_tinglyst"] is None
+    # The register writes an area as text often enough to matter.
+    text_area = build.handel_rows(ENTRIES, "u1", "a", "80 m2")[0]
+    assert text_area["pris_pr_m2_tinglyst"] == 50000
+
+
+def test_the_property_row_takes_the_newest_sale():
+    sales = build.handel_rows(ENTRIES, "u1", "a", 80, 100)
+    row = build.latest_sale_row(sales)
+    assert row["seneste_salg_dato"] == "2026-06-19"
+    assert row["seneste_salg_dkk"] == 4000000
+    assert row["seneste_salg_pris_m2"] == 40000
+    assert row["seneste_salg_pris_m2_tinglyst"] == 50000
+    assert build.latest_sale_row([]) == {}
+
+
+# The historisk adkomst lists previous owners only. The transfer that put the
+# current owner there is on the property's own row, and leaving it out made
+# every property miss its most recent sale - the one anybody actually wants.
+# Dated after everything in ENTRIES, which is what the register guarantees:
+# the history is who owned it *before* the owner this document put there.
+CURRENT = {
+    "koebesum_dkk": 4449000,
+    "adkomst_dato_loebenummer": "20260715-1017732059",
+    "adkomst_dokumenttype": "Skøde",
+    "overtagelsesdato": "2026-09-15",
 }
 
 
-def test_sales_are_newest_first_with_a_price_per_square_metre():
-    found = boligsiden.parse(PAYLOAD, "uuid-a")
-    sales = found["salg"]
-    assert [s["dato"] for s in sales] == ["2026-06-19", "2021-10-14", "1998-01-05"]
-    # Boligsiden gave this one; the second is worked out from amount and area.
-    assert sales[0]["pris_pr_m2"] == 50000
-    assert sales[1]["pris_pr_m2"] == round(3000000 / 71)
-    # No area, so no price per square metre - rather than a division by zero.
-    assert sales[2]["pris_pr_m2"] is None
-    # The kind of transfer matters: a family sale is not a market price.
+def test_the_adkomst_in_force_is_the_newest_sale():
+    sales = build.handel_rows(ENTRIES, "u1", "a", 80, 100, current=CURRENT)
+    assert len(sales) == len(ENTRIES) + 1
+    newest = sales[0]
+    # Dated by registration, as the history is - not by the handover date.
+    assert newest["dato"] == "2026-07-15"
+    assert newest["beloeb_dkk"] == 4449000
+    assert newest["handelstype"] == "Skøde"
+    assert newest["registrering_id"] == "20260715-1017732059"
+    assert build.latest_sale_row(sales)["seneste_salg_dkk"] == 4449000
+
+
+def test_an_adkomst_that_was_not_a_purchase_is_not_a_sale():
+    """An inheritance or a division transfers without a price. It belongs in
+    adkomsthistorik, and putting it here would invent a sale of nothing."""
+    for missing in ({"koebesum_dkk": None}, {"koebesum_dkk": 0},
+                    {"koebesum_dkk": 4449000}):
+        assert build.handel_rows(ENTRIES, "u1", "a", current=missing) == \
+            build.handel_rows(ENTRIES, "u1", "a")
+
+
+def test_the_registers_document_codes_are_read_the_same_way_on_both_sides():
+    """The attest says `endeligtskoede`, the history says `ENDELIGTSKOEDE`,
+    and an auction comes back with an ø where the map spells oe."""
+    sales = build.handel_rows(
+        [{"dato": "2020-01-01", "dokumenttype": "ENDELIGTSKOEDE",
+          "koebesum_dkk": 1, "post_nummer": 1},
+         {"dato": "2019-01-01", "dokumenttype": "AUKTIONSSKØDE",
+          "koebesum_dkk": 1, "post_nummer": 2},
+         {"dato": "2018-01-01", "dokumenttype": "SKIFTERETSATTEST",
+          "koebesum_dkk": 1, "post_nummer": 3}],
+        "u1", "a",
+    )
     assert [s["handelstype"] for s in sales] == [
-        "Almindeligt salg", "Familiehandel", "Tvangsauktion"
+        "Endeligt skøde", "Auktionsskøde", "Skifteretsattest"
     ]
+    # A code with no expansion is left exactly as it came, rather than guessed
+    # at: word boundaries are not recoverable from ENDELIGTSKOEDE.
+    unknown = build.handel_rows(
+        [{"dato": "2020-01-01", "dokumenttype": "NOGETNYT",
+          "koebesum_dkk": 1, "post_nummer": 1}], "u1", "a",
+    )
+    assert unknown[0]["handelstype"] == "NOGETNYT"
 
 
-def test_the_bbr_record_the_land_register_never_gives():
-    found = boligsiden.parse(PAYLOAD, "uuid-a")
-    building = found["bygninger"][0]
-    assert building["opfoerelsesaar"] == 1970
-    assert building["ombygningsaar"] == 1992
-    assert building["vaerelser"] == 2
-    assert building["varmeinstallation"] == "Fjernvarme/blokvarme"
-    assert building["ydervaeg"] == "Letbetonsten"
+def test_bbr_fills_the_flats_own_area_and_type():
+    flat = {"boligareal_m2": 91, "boligtype": "Egentlig beboelseslejlighed"}
+    assert build.bbr_row(flat) == flat
+    # No key, no answer, and nothing written over what is already there.
+    assert build.bbr_row({}) == {}
+    assert build.bbr_row({"boligareal_m2": None}) == {}
 
 
-def test_the_property_row_takes_the_latest_sale_and_the_listing():
-    row = build.bolig_row(boligsiden.parse(PAYLOAD, "uuid-a"))
-    assert row["til_salg"] == "true"
-    assert row["boligsiden_url"].endswith("proevegade-1-3-12-9999-proevekoebing")
-    assert row["seneste_salg_dato"] == "2026-06-19"
-    assert row["seneste_salg_dkk"] == 4000000
-    # This is BBR's living area, not the register's "tinglyste areal".
-    assert row["boligareal_m2"] == 71
-
-
-def test_an_address_boligsiden_has_never_heard_of():
-    assert boligsiden.parse({}, "uuid-a")["salg"] == []
-    assert build.bolig_row({}) == {}
-    assert build.handel_rows({}, "u", "a") == []
+def test_a_property_the_register_has_no_history_for():
+    assert build.handel_rows([], "u1", "a") == []
+    assert build.latest_sale_row([]) == {}
 
 
 def test_debt_and_equity_are_totalled_from_the_charges():
@@ -205,3 +267,30 @@ if __name__ == "__main__":
         test()
         print(f"  ok  {test.__name__}")
     print(f"{len(tests)} passed")
+
+
+# ── the BBR credential ──────────────────────────────────────────────────
+
+
+def test_the_environment_wins_over_a_dotenv(tmp_path, monkeypatch):
+    env = tmp_path / ".env"
+    env.write_text("DATAFORDELER_API_KEY=from-the-file\n", encoding="utf-8")
+    monkeypatch.setenv(bbr.ENV_VAR, "from-the-environment")
+    assert bbr.api_key(env) == "from-the-environment"
+
+
+def test_a_dotenv_is_read_when_the_environment_is_silent(tmp_path, monkeypatch):
+    monkeypatch.delenv(bbr.ENV_VAR, raising=False)
+    env = tmp_path / ".env"
+    env.write_text(
+        "# a comment\nOTHER=x\nDATAFORDELER_API_KEY=\"quoted-key\"\n", encoding="utf-8"
+    )
+    assert bbr.api_key(env) == "quoted-key"
+    assert bbr.configured(env)
+
+
+def test_no_key_anywhere_is_not_an_error(tmp_path, monkeypatch):
+    """Without a key every other table still fills; only BBR stays empty."""
+    monkeypatch.delenv(bbr.ENV_VAR, raising=False)
+    assert bbr.api_key(tmp_path / "nothing-here") == ""
+    assert not bbr.configured(tmp_path / "nothing-here")

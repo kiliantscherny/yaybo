@@ -83,20 +83,25 @@ TABLES: dict[str, TableSpec] = {
             ("grund_areal_m2", INTEGER),
             ("antal_haeftelser", INTEGER),
             ("antal_servitutter", INTEGER),
-            # DAWA's address UUID, which is also Boligsiden's key.
+            # DAWA's address UUID, which is what a BBR lookup will key on.
             ("adresse_uuid", TEXT),
+            # From BBR, which needs a Datafordeler API key; empty without one.
+            # boligareal_m2 is not the same measure as the register's own
+            # "tinglyste areal": it is the BBR living area, which is what a
+            # listing quotes, and it is the one the prices below divide by.
             ("boligtype", TEXT),
-            # Not the same measure as the register's "tinglyste areal": this is
-            # the BBR living area, which is what a listing quotes.
             ("boligareal_m2", INTEGER),
-            ("boligsiden_vurdering_dkk", INTEGER),
-            ("til_salg", BOOLEAN),
-            ("boligsiden_url", TEXT),
             ("breddegrad", DECIMAL),
             ("laengdegrad", DECIMAL),
             ("seneste_salg_dato", DATE),
             ("seneste_salg_dkk", INTEGER),
+            # Two prices, because there are two areas and they measure
+            # different things. The plain one divides by the BBR living area,
+            # which is what a listing quotes and what the figures default to;
+            # the _tinglyst one divides by the register's own areal_m2 and is
+            # the only one available without a BBR key.
             ("seneste_salg_pris_m2", INTEGER),
+            ("seneste_salg_pris_m2_tinglyst", INTEGER),
             # Worked out from the rows above rather than fetched. The public
             # valuation is the base, and it runs well below market, so treat
             # frivaerdi as a floor and belaaningsgrad as a ceiling.
@@ -268,25 +273,20 @@ TABLES: dict[str, TableSpec] = {
             # mortgage, which is registered against the building in the
             # tingbog and is nowhere in this table.
             ("samlet_gaeld_dkk", INTEGER),
-            # Boligsiden, keyed on DAWA's address uuid. The book says nothing
-            # whatever about the flat itself, so without this an andel is an
-            # address and a debt and no more. Its boligtype reads
-            # "cooperative", which is a second opinion on what this is.
+            # DAWA places the share; the book says nothing spatial at all.
+            # boligtype and boligareal_m2 want BBR and are empty until there is
+            # a source for it - the book records no area either.
             ("adresse_uuid", TEXT),
             ("boligtype", TEXT),
             ("boligareal_m2", INTEGER),
-            ("boligsiden_vurdering_dkk", INTEGER),
-            ("til_salg", BOOLEAN),
-            ("boligsiden_url", TEXT),
             ("breddegrad", DECIMAL),
             ("laengdegrad", DECIMAL),
-            # No seneste_salg_* here, though Boligsiden offers one. A share is
-            # not sold as real property, so the only transfer ever recorded at
-            # a co-op address is the building's own sale to the association -
-            # the same date and amount on every door in the block, divided by
-            # each flat's area into a price per square metre that means
-            # nothing. That sale is a fact about the building, and is already
-            # stored as one on the ejendomme row this andel joins to.
+            # No seneste_salg_* here, and no table of sales either. A share is
+            # not sold as real property, so the register records no transfer
+            # for one: the andelsboligbog holds rights over a share, not title
+            # to it. Any sale at a co-op address is the building's own, which
+            # is a fact about the building and is stored on the ejendomme row
+            # this andel joins to.
         ],
     },
     # Notices noted on a share, which is the only place this book names anyone
@@ -342,10 +342,11 @@ TABLES: dict[str, TableSpec] = {
             ("kreditorer", TEXT),
         ],
     },
-    # Every recorded sale of the address, from Boligsiden. This overlaps
-    # adkomsthistorik and does not replace it: the register knows transfers
-    # that were never a sale, and Boligsiden knows the area and the price per
-    # square metre, which the register does not record.
+    # Every recorded transfer of the property, read as a sale, out of the
+    # register's own adkomsthistorik - the list the site shows as "historisk
+    # adkomst". The two tables are the same transfers read two ways: this one
+    # is the money, adkomsthistorik is the people. Needs a login, as the
+    # history does.
     "handelshistorik": {
         "key": "ejendom_uuid",
         "pk": ["ejendom_uuid", "registrering_id"],
@@ -354,10 +355,14 @@ TABLES: dict[str, TableSpec] = {
             ("adresse", TEXT),
             ("dato", DATE),
             ("beloeb_dkk", INTEGER),
+            # areal_m2 is the register's tinglyste areal, boligareal_m2 the
+            # BBR living area, and there is a price against each. See the note
+            # on ejendomme.seneste_salg_pris_m2 for which is which.
             ("areal_m2", INTEGER),
+            ("boligareal_m2", INTEGER),
             ("pris_pr_m2", INTEGER),
+            ("pris_pr_m2_tinglyst", INTEGER),
             ("handelstype", TEXT),
-            ("handelstype_kode", TEXT),
             ("registrering_id", TEXT),
         ],
     },
@@ -761,8 +766,9 @@ def library(path: str | Path) -> list[dict]:
                    e.boligareal_m2, e.areal_m2, e.ejendomsvurdering_dkk,
                    e.samlet_gaeld_dkk, e.frivaerdi_dkk, e.belaaningsgrad_pct,
                    e.seneste_salg_dato, e.seneste_salg_dkk, e.seneste_salg_pris_m2,
-                   e.til_salg, e.antal_haeftelser, e.antal_servitutter,
-                   e.boligsiden_url, e.breddegrad, e.laengdegrad,
+                   e.seneste_salg_pris_m2_tinglyst,
+                   e.antal_haeftelser, e.antal_servitutter,
+                   e.breddegrad, e.laengdegrad,
                    {beriget}
                    {columns}
                    e."{FETCHED}" AS hentet
@@ -818,7 +824,7 @@ def andele(path: str | Path) -> list[dict]:
         wanted = (
             "uuid", "adresse", "lejlighed", "boligtype", "boligareal_m2",
             "samlet_gaeld_dkk", "antal_haeftelser", "antal_meddelelser",
-            "til_salg", "boligsiden_url", "ejendom_uuid", "bygning_adresse",
+            "ejendom_uuid", "bygning_adresse",
             "kommunekode", "vejkode", "breddegrad", "laengdegrad",
         )
         picked = ", ".join(column(name) for name in wanted)

@@ -178,9 +178,9 @@ class AnalysisScreen(ModalScreen[None]):
             self._note(
                 i18n.t(
                     "Not enough recorded sales in this selection to plot. Sale "
-                    "history comes from Boligsiden, which knows the sales an "
-                    "agent handled; a flat sold privately, or held for "
-                    "decades, has none."
+                    "history is the register's own historical access, which "
+                    "needs a login, and a price per m\u00b2 also needs the "
+                    "property's registered area."
                 )
             )
             return

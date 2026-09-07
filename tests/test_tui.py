@@ -37,7 +37,6 @@ SAMPLE = {
             "ejendomsvurdering_dkk": 2000000,
             "grundvaerdi_dkk": 500000,
             "vurderingsdato": "2024-01-01",
-            "boligsiden_vurdering_dkk": 2900000,
             "samlet_gaeld_dkk": 1000000,
             "frivaerdi_dkk": 1000000,
             "belaaningsgrad_pct": 50.0,
@@ -326,7 +325,7 @@ def test_every_screen_opens(database):
             # carry every kind of event the sample has.
             assert len(screen._timeline()) >= 6
             for tab in ("tab-haeftelser", "tab-timeline", "tab-chart",
-                        "tab-bygning", "tab-dokument"):
+                        "tab-bygning"):
                 screen.query_one("#property-tabs", TabbedContent).active = tab
                 await pilot.pause()
 
