@@ -224,3 +224,13 @@ if __name__ == "__main__":
         test()
         print(f"  ok  {test.__name__}")
     print(f"{len(tests)} passed")
+
+
+def test_the_attest_is_stored_and_exported_even_though_no_screen_shows_it():
+    """The Document tab is gone from the TUI - a few hundred kilobytes of
+    signed OIO XML helps nobody in a pane - but the attest itself is still a
+    table, still exported, and still queryable. Removing the tab must not
+    quietly turn into removing the data."""
+    assert "attester" in store.TABLES
+    columns = dict(store.TABLES["attester"]["columns"])
+    assert "dokument" in columns and "dokument_json" in columns

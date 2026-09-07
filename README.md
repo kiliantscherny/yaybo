@@ -106,7 +106,8 @@ Run `yaybo` with no arguments. Eight screens, all reading the same database:
 - **Forløb** – sales, transfers, mortgages, easements and valuations on one timeline. The register keeps these as four separate lists
 - **Kurve** – price per square metre over time
 - **Bygning** – the BBR record
-- **Dokument** – the signed attest itself
+
+The signed attest has no tab of its own. It is stored, exported and queryable — `attester.dokument` is the document as signed and `dokument_json` the same thing for `json_extract` — but it is a few hundred kilobytes of OIO XML, and everything worth having out of it is already the tables above.
 
 **Co-op shares** is the same idea for the andelsboligbog, which is a different register about a different thing – see [Andelsboliger](#andelsboliger). Each row is one co-op share: its area, what is charged against it, and the association's building. `enter` opens a share, with its charges and everyone named on them and any notices; `g` opens the building, which is where a share's valuation and the association's own mortgages live.
 

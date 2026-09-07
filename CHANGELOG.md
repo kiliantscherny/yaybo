@@ -22,6 +22,8 @@ This one does change columns. Boligsiden is gone as a data source, sale history 
 
 ### Removed
 
+- **The Dokument tab**, from the property screen. It rendered the signed attest, which is a few hundred kilobytes of OIO XML that helps nobody in a pane - everything worth having out of it is already the tables on either side of it. The attest itself is untouched: `attester` is still written, still exported, and still queryable as `dokument` and `dokument_json`.
+
 - **Boligsiden, entirely.** It supplied the BBR record and the sale history. It is a private site: `api.boligsiden.dk/robots.txt` disallows the whole host to every robot, and its terms reserve automated retrieval to whoever holds a written agreement with it. An open endpoint is not permission to use it, so it is removed rather than flagged behind a warning.
 - `--no-boligsiden` and `backfill --skip-boligsiden`, which have nothing left to skip.
 - Three columns, on `ejendomme` and `andele`: `boligsiden_vurdering_dkk`, `til_salg` and `boligsiden_url`. The public valuation the register itself gives, `ejendomsvurdering_dkk`, is unaffected and is the more authoritative figure of the two.

@@ -27,7 +27,6 @@ from textual.widgets import (
     Static,
     TabbedContent,
     TabPane,
-    TextArea,
 )
 from textual_plotext import PlotextPlot
 
@@ -167,8 +166,10 @@ class PropertyScreen(YayboScreen):
                 yield Static("", id="chart-note", classes="hint-text")
             with TabPane(i18n.t("Building"), id="tab-bygning"):
                 yield VerticalScroll(id="bygning")
-            with TabPane(i18n.t("Document"), id="tab-dokument"):
-                yield TextArea("", read_only=True, id="dokument")
+            # No tab for the attest itself. It is stored, exported and
+            # queryable, but it is a few hundred kilobytes of signed OIO XML
+            # and reading it in a pane helps nobody - everything worth having
+            # out of it is already the tables on either side of this.
         yield QueueBar()
         yield Footer()
 
@@ -237,7 +238,6 @@ class PropertyScreen(YayboScreen):
         self._fill_timeline()
         self._fill_chart()
         self._fill_bygning()
-        self._fill_document()
         self._label_tabs()
 
     def _fill_table(self, identifier: str, spec, rows: list[dict] | None) -> None:
@@ -582,18 +582,6 @@ class PropertyScreen(YayboScreen):
             f"{display.kr(first)} → {display.kr(last)} kr./m², "
             f"{'up' if change >= 0 else 'down'} {abs(change):.0f}%."
         )
-
-    def _fill_document(self) -> None:
-        area = self.query_one("#dokument", TextArea)
-        documents = self.tables.get("attester") or []
-        if not documents:
-            area.text = (
-                "No register document stored for this property.\n\n"
-                "The tingbogsattest is only shown to a logged-in session - press "
-                "ctrl+L to log in, then f to fetch this property again."
-            )
-            return
-        area.text = documents[0].get("dokument") or ""
 
     # ── acting on it ────────────────────────────────────────────────────
 

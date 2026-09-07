@@ -340,10 +340,6 @@ Tab:hover { color: $secondary; }
     min-height: 12;
 }
 
-#dokument {
-    height: 1fr;
-}
-
 /* ── queue ───────────────────────────────────────────────────────────── */
 
 #queue-status {
