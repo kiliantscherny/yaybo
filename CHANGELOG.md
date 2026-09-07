@@ -4,7 +4,11 @@ The format is [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the 
 
 ## [Unreleased]
 
-This one does change columns. Boligsiden is gone as a data source, sale history now comes from the register itself, and three columns are dropped. An existing database opens unchanged - nothing is deleted from it - but anything fetched from here on fills fewer columns.
+## [1.2.0] - 2026-09-07
+
+Every source is now a public register or an open government API. Boligsiden supplied the BBR record and the sale history and was the one source here that was not: its `robots.txt` disallows its whole API host to every robot, and its terms reserve automated retrieval to whoever holds a written agreement with it. An open endpoint is not permission to use one, so it is gone, and everything it gave now comes from somewhere official - the sale history from the register itself, the BBR record from BBR.
+
+This changes columns. Four are dropped and three are added, and a `--no-boligsiden` flag goes with them. An existing database opens unchanged and `yaybo backfill` brings it forward: nothing that was ever written is deleted, because `store.save` adds columns and never drops them. Anything fetched from here on fills the new columns rather than the old ones.
 
 ### Added
 
@@ -125,5 +129,8 @@ First published release. Everything below is what it arrives with, rather than w
 - `samlet_gaeld_dkk`, `frivaerdi_dkk`, `belaaningsgrad_pct` and `laantype_estimat` are worked out, not recorded, and the README says what that costs you.
 - Python 3.10 and newer.
 
-[Unreleased]: https://github.com/kiliantscherny/yaybo/compare/v0.2.1...HEAD
+[Unreleased]: https://github.com/kiliantscherny/yaybo/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/kiliantscherny/yaybo/compare/v1.1.0...v1.2.0
+[1.1.0]: https://github.com/kiliantscherny/yaybo/compare/v1.0.0...v1.1.0
+[1.0.0]: https://github.com/kiliantscherny/yaybo/compare/v0.2.1...v1.0.0
 [0.2.1]: https://github.com/kiliantscherny/yaybo/releases/tag/v0.2.1
