@@ -204,7 +204,7 @@ def property_fields(
 
 # What is worked out for a property rather than read off it: the totals
 # against the charges, the newest transfer lifted off the history, and where
-# DAWA says the address is. Kept together so the CSV and the database agree.
+# DAR says the address is. Kept together so the CSV and the database agree.
 AFLEDT_FIELDS = [
     "boligtype", "boligareal_m2",
     "seneste_salg_dato", "seneste_salg_dkk", "seneste_salg_pris_m2",
@@ -221,9 +221,9 @@ HANDEL_FIELDS = [
 ]
 
 def dawa_row(entry: dict | None) -> dict:
-    """Where DAWA says the address is, for a property or a share alike.
+    """Where DAR says the address is, for a property or a share alike.
 
-    Written with the empties left out, so an address DAWA has no adgangspunkt
+    Written with the empties left out, so an address DAR has no adgangspunkt
     for leaves the row alone rather than blanking it.
     """
     if not entry:
