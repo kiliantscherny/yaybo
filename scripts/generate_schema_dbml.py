@@ -185,7 +185,7 @@ def render() -> str:
         "  database_type: 'DuckDB'",
         "  Note: '''",
         "    Danish property records, fetched from tinglysning.dk, placed with",
-        "    DAWA and enriched from Danmarks Statistik.",
+        "    DAR and enriched from Danmarks Statistik.",
         "",
         "    Every table joins back to ejendomme.uuid. Primary keys are real and",
         "    enforced; the references below are documented but NOT enforced,",

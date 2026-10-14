@@ -31,7 +31,7 @@ comma-separated list for several at once.
 
 Three of those need a login - the register only shows its own documents to
 someone who has proved who they are, and the sale history is one of them. Two
-sources sit outside the register and need no login: DAWA, which resolves the
+sources sit outside the register and need no login: DAR, which resolves the
 address and places it, and Danmarks Statistik, for the rates that let a charge
 be read as an F3 or a fixed loan. A third, BBR, holds the building record and
 the living area a listing quotes; it needs a free Datafordeler API key in
@@ -489,7 +489,8 @@ def build_parser() -> argparse.ArgumentParser:
     fetch.add_argument(
         "--no-dawa",
         action="store_true",
-        help="skip DAWA address cleaning and use tinglysning's own autocomplete",
+        help="skip the address register's cleaning and use tinglysning's own "
+        "autocomplete",
     )
     fetch.add_argument(
         "--no-andele",
@@ -580,7 +581,7 @@ def build_parser() -> argparse.ArgumentParser:
     backfill.add_argument("--skip-laantype", action="store_true",
                           help="do not estimate loan types from DST rates")
     backfill.add_argument("--delay", type=float, default=0.2, metavar="SECONDS",
-                          help="pause between DAWA requests (default: 0.2)")
+                          help="pause between address-register requests (default: 0.2)")
     return parser
 
 

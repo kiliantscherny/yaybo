@@ -83,7 +83,7 @@ TABLES: dict[str, TableSpec] = {
             ("grund_areal_m2", INTEGER),
             ("antal_haeftelser", INTEGER),
             ("antal_servitutter", INTEGER),
-            # DAWA's address UUID, which is what a BBR lookup will key on.
+            # DAR's address UUID (once DAWA's), which is what a BBR lookup keys on.
             ("adresse_uuid", TEXT),
             # From BBR, which needs a Datafordeler API key; empty without one.
             # boligareal_m2 is not the same measure as the register's own
@@ -273,7 +273,7 @@ TABLES: dict[str, TableSpec] = {
             # mortgage, which is registered against the building in the
             # tingbog and is nowhere in this table.
             ("samlet_gaeld_dkk", INTEGER),
-            # DAWA places the share; the book says nothing spatial at all.
+            # DAR places the share; the book says nothing spatial at all.
             # boligtype and boligareal_m2 want BBR and are empty until there is
             # a source for it - the book records no area either.
             ("adresse_uuid", TEXT),

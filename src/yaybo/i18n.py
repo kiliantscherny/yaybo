@@ -465,15 +465,14 @@ DANISH: dict[str, str] = {
     "1 · find the address": "1 · find adressen",
     "2 · pick its properties": "2 · vælg dens ejendomme",
     "3 · fetch": "3 · hent",
-    "Type an address to look it up in the land register. DAWA will "
-    "clean up the spelling, the spacing and the floor, so a rough "
-    "one is fine.":
-        "Skriv en adresse for at slå den op i tingbogen. DAWA retter "
-        "stavning, mellemrum og etage, så en omtrentlig adresse er nok.",
+    "Type an address to look it up in the land register, then pick "
+    "it from the list that appears as you type.":
+        "Skriv en adresse for at slå den op i tingbogen, og vælg den på "
+        "listen, der dukker op, mens du skriver.",
     "Type an address to look it up in the land register.":
         "Skriv en adresse for at slå den op i tingbogen.",
-    "DAWA knows no address like {query!r}.":
-        "DAWA kender ingen adresse som {query!r}.",
+    "The address register knows no address like {query!r}.":
+        "Adresseregistret kender ingen adresse som {query!r}.",
     " · {n} with nothing registered": " · {n} uden noget tinglyst",
     "{n} address(es){capped}{whole}{empty}.\n↓ or enter moves to "
     "the list · then enter opens one, or a takes its whole building":

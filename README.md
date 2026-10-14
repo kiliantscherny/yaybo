@@ -64,7 +64,7 @@ Results go to `out/tinglysning.duckdb`. Looking the same address up again replac
 | --- | --- | --- |
 | **tinglysning.dk** | owners, mortgages and charges, easements, past transfers, sale history | partly |
 | **Danmarks Statistik** | what each kind of realkredit loan cost month by month, used to read a bare interest rate as an F3 or a fixed loan | no |
-| **DAWA** | address lookup and validation while you type, and the official coordinates | no |
+| **DAR** (via [Adressevælger](https://github.com/Klimadatastyrelsen/adressevaelger)) | address lookup and validation while you type, and the official coordinates | no |
 | **BBR** (via Datafordeleren) | the building record — year built, rooms, walls, heating — and the living area a listing quotes | free API key |
 
 Most of it is available without logging in. Logging in with MitID adds owners' dates of birth, everyone named on each mortgage, and the history of previous owners.
@@ -97,7 +97,7 @@ Run `yaybo` with no arguments. Eight screens, all reading the same database:
 
 **Properties** is where it opens. Each row shows how stale it is, its valuation, debt and loan-to-value, and whether it was fetched while logged in. Sort by any column with `o`, filter with `name:value`, tick rows with `space` and act on the lot. `enter` opens a property, `f` re-fetches, `e` exports.
 
-**Search** resolves your typing against [DAWA](https://dawadocs.dataforsyningen.dk/), then asks the register which properties actually sit at that address – one for a rented block, over a hundred for a block of owner-occupied flats. Tick the ones you want and press `f` to hand them to the queue.
+**Search** resolves your typing against DAR, Denmark's address register, through Klimadatastyrelsen's [Adressevælger](https://github.com/Klimadatastyrelsen/adressevaelger), then asks the register which properties actually sit at that address – one for a rented block, over a hundred for a block of owner-occupied flats. Tick the ones you want and press `f` to hand them to the queue.
 
 **Property** shows one property, tab by tab, read back out of the database, so it is instant and works offline:
 
@@ -498,7 +498,7 @@ That is the shape this is built to: a database file on the machine of the person
 
 ### Every source here is a public one
 
-All four are public registers or open government APIs, published to be read by programs: [DAWA](https://dawadocs.dataforsyningen.dk/) and Danmarks Statistik are documented open APIs, BBR is distributed by Datafordeleren, and the land register is public by statute.
+All four are public registers or open government APIs, published to be read by programs: DAR's Adressevælger and Danmarks Statistik are documented open APIs, BBR is distributed by Datafordeleren, and the land register is public by statute.
 
 That is a rule rather than a coincidence, and it is what a new source has to clear. A private site's terms and its `robots.txt` are checked before a line is written against it, and an open endpoint is not the same as permission to use it — an API that answers without a key may still be one its owner has asked robots to leave alone.
 

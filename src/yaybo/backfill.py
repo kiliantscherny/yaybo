@@ -41,7 +41,7 @@ DERIVED = [
     "haeftelser", "servitutter", "dokument_parter", "underpant",
     "adkomsthistorik", "adkomsthistorik_ejere", "handelshistorik", "attester",
 ]
-# Rebuilt too, but only when the public sources are asked: DAWA places the
+# Rebuilt too, but only when the public sources are asked: DAR places the
 # property, and the debt totals depend on the charges.
 #
 # `bygninger` is rebuilt only when a Datafordeler key is configured. Without
@@ -123,7 +123,7 @@ def enrich(tables: dict, properties: list[dict], *, laantype_on: bool,
            bbr_on: bool = True, delay: float = 0.2) -> None:
     """Add what the public sources know, on top of what the register said.
 
-    DAWA answers to an address rather than to anything the register stores, so
+    DAR answers to an address rather than to anything the register stores, so
     the addresses are looked up again here - one request per building rather
     than per flat, the same way a fetch does it.
     """
@@ -134,7 +134,7 @@ def enrich(tables: dict, properties: list[dict], *, laantype_on: bool,
               f"from {len(estimated['renter'])} months of DST rates", file=sys.stderr)
 
     # The transfers, grouped, ready to be read as sales once both areas are
-    # known - which is after DAWA and BBR below, not here.
+    # known - which is after DAR and BBR below, not here.
     sales: dict = collections.defaultdict(list)
     for entry in tables.get("adkomsthistorik") or []:
         sales[entry.get("ejendom_uuid", "")].append(entry)
@@ -167,7 +167,7 @@ def enrich(tables: dict, properties: list[dict], *, laantype_on: bool,
         tables["handelshistorik"] = built
 
     if properties:
-        # Group the flats by the building they are in, so one DAWA lookup
+        # Group the flats by the building they are in, so one DAR lookup
         # serves all of them.
         buildings: dict = collections.defaultdict(list)
         for row in properties:
@@ -203,7 +203,7 @@ def enrich(tables: dict, properties: list[dict], *, laantype_on: bool,
                     row.update(build.bbr_row(bolig))
                     tables.setdefault("bygninger", []).extend(
                         build.bygning_rows(bolig, row["uuid"], adresse))
-        print(f"  DAWA placed {found} of {len(properties)} propert"
+        print(f"  DAR placed {found} of {len(properties)} propert"
               f"{'y' if len(properties) == 1 else 'ies'}", file=sys.stderr)
         if key:
             print(f"  BBR answered for {from_bbr}", file=sys.stderr)
@@ -225,7 +225,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--skip-laantype", action="store_true",
                         help="do not estimate loan types from DST rates")
     parser.add_argument("--delay", type=float, default=0.2, metavar="SECONDS",
-                        help="pause between DAWA requests (default: 0.2)")
+                        help="pause between address-register requests (default: 0.2)")
     return run(parser.parse_args(argv))
 
 

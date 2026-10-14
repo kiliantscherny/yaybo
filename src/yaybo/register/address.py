@@ -1,11 +1,21 @@
 """Turn what a person types into an address the register can be asked about.
 
-Everything here talks to DAWA (api.dataforsyningen.dk), Denmark's official
-address register, which is far more forgiving than tinglysning's own
-autocomplete: it copes with th/tv doors, a mis-spaced house number ("30 B") and
-a missing diacritic ("Frederiksberg Alle"), none of which tinglysning will
-parse. DAWA's address UUID is also what a BBR lookup keys on, so resolving an
-address here is what makes that join possible later.
+Everything here talks to Adressevælger and Adressevask (adressevaelger.dk),
+Klimadatastyrelsen's front door to DAR, Denmark's official address register.
+They replaced DAWA, which closed for good on 1 October 2026 and now answers
+every request with 410 Gone. DAR's address UUIDs are the ones DAWA handed out,
+and they are what a BBR lookup keys on, so resolving an address here is what
+makes that join possible later.
+
+Both services want a `token` on every request but do not yet check who is
+asking: the published demo token is accepted, and `ADRESSEVAELGER_TOKEN`
+replaces it for whoever has been issued their own, which matters the day the
+service starts telling tokens apart.
+
+They are less forgiving than DAWA was. A search answers with a display string
+rather than fields, so the fields are read back out of it; Adressevask corrects
+nothing and simply refuses what it cannot match exactly. Coordinates arrive in
+UTM zone 32 (EPSG:25832) and are turned into degrees here.
 
 The register does not index postal addresses, though - it indexes legally
 registered properties. A block of owner-occupied flats has one property per
@@ -16,6 +26,8 @@ what the register actually holds, rather than in the query.
 
 from __future__ import annotations
 
+import math
+import os
 import re
 import unicodedata
 
@@ -23,7 +35,13 @@ import requests
 
 from yaybo.register.fields import normalise
 
-DAWA = "https://api.dataforsyningen.dk"
+ADRESSEVAELGER = "https://adressevaelger.dk"
+TOKEN_ENV = "ADRESSEVAELGER_TOKEN"
+# Klimadatastyrelsen's own examples use this one, and it is accepted until the
+# service starts issuing tokens per user.
+PUBLIC_TOKEN = "adressevaelger123"
+# The most a search will return; it refuses a request for more.
+MAKSIMUM = 200
 
 
 class AddressError(Exception):
@@ -33,59 +51,60 @@ class AddressError(Exception):
 def autocomplete(query: str, limit: int = 12) -> list[dict]:
     """Addresses matching a partial query, for something to pick from.
 
-    Deliberately raw: every match DAWA returns, in its order, with the string
-    it renders itself as. Deciding which of them the user meant is
+    Deliberately raw: every match the search returns, in its order, with the
+    string it renders itself as. Deciding which of them the user meant is
     `resolve_address`'s job, and only worth doing once they have chosen.
+
+    A house number and a unit address both come back; a street on its own does
+    not, because there is nothing at a street for the register to be asked
+    about. Only a unit carries an address UUID - a bare house number has none,
+    and BBR will be asked about it by its building instead.
     """
     if not query.strip():
         return []
     try:
-        found = requests.get(
-            f"{DAWA}/adresser/autocomplete",
-            params={"q": query, "per_side": limit},
-            timeout=15,
-        ).json()
+        found = _search("adresser", query, min(limit, MAKSIMUM))
     except (requests.RequestException, ValueError):
         return []
-    if not isinstance(found, list):
-        return []
     return [
-        # DAWA's own uuid comes along because it is what BBR keys on,
-        # and having it here saves looking the same address up twice.
-        {**_from_dawa(match["adresse"]), "adresse_uuid": match["adresse"].get("id", "")}
+        {
+            **_from_titel(match["titel"]),
+            "adresse_uuid": match["id"] if match.get("type") == "adresse" else "",
+        }
         for match in found
-        if match.get("adresse")
+        if match.get("type") in ("adresse", "husnummer") and match.get("titel")
     ]
 
 
 def resolve_address(query: str) -> dict:
-    """Clean free-text Danish address input via DAWA, the official address register.
+    """Clean free-text Danish address input, via the official address register.
 
-    DAWA is far more forgiving than tinglysning's own autocomplete, which
-    cannot parse th/tv doors, a mis-spaced house number ("30 B") or a missing
-    diacritic ("Frederiksberg Alle").
-
-    Two DAWA endpoints, because they fail in opposite directions. `datavask`
-    is built for messy but *complete* addresses and grades its answer: A exact,
-    B corrected, C ambiguous. C must not be trusted - asked for the
-    non-existent "Frederiksberg Alle 42" it confidently answers number 12 - so
-    anything below B falls through to `autocomplete`, which handles partial
-    input but wants roughly correct spelling.
+    Two services, because they fail in opposite directions. Adressevask is
+    built for complete addresses and is strict about them: it either matches
+    street, number and postcode exactly or says why it could not, and never
+    guesses - asked for the non-existent "Frederiksberg Alle 42" it answers
+    that there is no such number rather than offering 12, which is what DAWA's
+    wash used to do. Anything it will not vouch for falls through to the
+    search, which copes with partial input but wants roughly correct spelling.
     """
-    washed = requests.get(
-        f"{DAWA}/datavask/adresser", params={"betegnelse": query}, timeout=30
-    ).json()
-    results = washed.get("resultater") or []
-    if washed.get("kategori") in ("A", "B") and len(results) == 1:
-        return _from_dawa(results[0]["aktueladresse"])
+    washed = _get("vask/", adresse=query)
+    status = (washed.get("vaskestatus") or {}).get("kode")
+    result = washed.get("vaskeresultat") or {}
+    # A positive code is a match and a negative one is the reason there is
+    # none; only the first carries an address worth trusting.
+    if isinstance(status, int) and status > 0 and result.get("adressebetegnelse"):
+        return _from_titel(result["adressebetegnelse"])
 
-    matches = requests.get(
-        f"{DAWA}/adresser/autocomplete", params={"q": query, "per_side": 10}, timeout=30
-    ).json()
+    matches = [
+        _from_titel(match["titel"])
+        for match in _search("adresser", query, 10)
+        if match.get("type") in ("adresse", "husnummer") and match.get("titel")
+    ]
     buildings: dict[tuple, dict] = {}
-    for match in matches:
-        found = match["adresse"]
-        buildings.setdefault((found["vejnavn"], found["husnr"], found["postnr"]), found)
+    for found in matches:
+        buildings.setdefault(
+            (found["vejnavn"], found["husnummer"], found["postnummer"]), found
+        )
 
     if not buildings:
         raise AddressError(f"no address matched {query!r}")
@@ -93,7 +112,7 @@ def resolve_address(query: str) -> dict:
         listing = "\n  ".join(f"{v} {h}, {p}" for v, h, p in list(buildings)[:5])
         raise AddressError(f"{query!r} is ambiguous - try one of:\n  {listing}")
 
-    # Autocomplete answers a flat query with its siblings too ("13. 3" also
+    # The search answers a flat query with its siblings too ("13. 3" also
     # returns 13. 1, 13. 2), so a result count says nothing about intent. Keep
     # the floor and door only when a result renders the query exactly;
     # otherwise the query named a building and the unit would be a guess.
@@ -103,22 +122,52 @@ def resolve_address(query: str) -> dict:
         None,
     )
     if exact:
-        return _from_dawa(exact["adresse"])
-    return _from_dawa({**next(iter(buildings.values())), "etage": None, "dør": None})
+        return exact
+    return _from_titel(drop_unit(next(iter(buildings.values()))["tekst"]))
 
 
-def _from_dawa(found: dict) -> dict:
-    """Map DAWA's field names onto the ones tinglysning's search expects."""
-    etage, doer = found.get("etage") or "", found.get("dør") or ""
-    unit = f"{etage}. {doer}".strip() if etage else doer
-    postal = f"{found['postnr']} {found.get('postnrnavn', '')}".strip()
+def _get(path: str, **params) -> dict:
+    """One request to Adressevælger, with the token it insists on."""
+    token = os.environ.get(TOKEN_ENV) or PUBLIC_TOKEN
+    found = requests.get(
+        f"{ADRESSEVAELGER}/{path}", params={**params, "token": token}, timeout=30
+    ).json()
+    if not isinstance(found, dict):
+        raise ValueError(f"unexpected answer from {path}")
+    return found
+
+
+def _search(kind: str, tekst: str, maksimum: int) -> list[dict]:
+    """The search behind every autocomplete: `adresser` or `husnumre`.
+
+    It turns away anything longer than 73 characters, which nobody types as
+    an address, so a longer query is cut rather than refused.
+    """
+    found = _get(f"{kind}/soeg", tekst=tekst[:73], maksimum=maksimum)
+    if found.get("status") != "ok":
+        raise ValueError(found.get("beskrivelse") or f"{kind} search failed")
+    return [match for match in found.get("fund") or [] if isinstance(match, dict)]
+
+
+def _from_titel(titel: str) -> dict:
+    """Read the fields tinglysning's search expects out of a rendered address.
+
+    The search answers with "Prøvegade 1, 2. tv, 9999 Prøveby" and an id, not
+    with the parts, and fetching each hit's record to get them would cost a
+    request per row of an autocomplete list. The string is DAR's own rendering,
+    so reading it back is safe in a way reading what a person typed is not.
+    """
+    parts = address_parts(titel)
+    etage, doer = floor_and_door(titel)
+    _, postal = titel.rsplit(", ", 1) if ", " in titel else ("", "")
+    unit = unit_label(titel)
     return {
         "tekst": ", ".join(
-            filter(None, [f"{found['vejnavn']} {found['husnr']}", unit, postal])
+            filter(None, [f"{parts['vejnavn']} {parts['husnummer']}", unit, postal])
         ),
-        "vejnavn": found["vejnavn"],
-        "husnummer": found["husnr"],
-        "postnummer": found["postnr"],
+        "vejnavn": parts["vejnavn"],
+        "husnummer": parts["husnummer"],
+        "postnummer": parts["postnummer"],
         "etage": etage,
         "doer": doer,
     }
@@ -172,81 +221,135 @@ def split_postcode(text: str) -> tuple[str, str]:
 
 
 def fetch_parcel(ejerlavkode: str, matrikelnr: str, cache: dict) -> dict:
-    """Look up the land parcel in DAWA for its BFE number and registered area.
+    """The land parcel's BFE number and registered area - for now, nothing.
 
-    Careful what this is: for a whole-building property it is the property's
+    Careful what this was: for a whole-building property it is the property's
     own BFE, but for a flat in a subdivided block it is the BFE of the *parcel
-    underneath*, and the area is the whole plot. The per-flat BFE, area and
-    ejerlejlighedsnummer live in Matriklen, which needs Datafordeleren
-    credentials. The columns are named grund_* so the two never get confused.
+    underneath*, and the area is the whole plot. The columns are named grund_*
+    so the two never get confused.
+
+    DAWA's jordstykker answered this without a key and went with the rest of
+    DAWA. Its successor is Matriklen on Datafordeleren, which needs the same
+    optional key BBR does, so until that is wired in the grund_* columns stay
+    empty rather than asking a service that only answers 410.
     """
-    key = (ejerlavkode, matrikelnr)
-    if key not in cache:
-        try:
-            parcel = requests.get(
-                f"{DAWA}/jordstykker/{ejerlavkode}/{matrikelnr}", timeout=30
-            ).json()
-        except (requests.RequestException, ValueError):
-            parcel = {}
-        cache[key] = {
-            "grund_bfe": parcel.get("bfenummer", ""),
-            "grund_areal_m2": parcel.get("registreretareal", ""),
-        }
-    return cache[key]
+    return cache.setdefault((ejerlavkode, matrikelnr), {})
+
 
 def dawa_addresses(address: dict) -> dict[tuple[str, str], dict]:
-    """Every address at this house number, as (etage, doer) -> what DAWA knows.
+    """Every address at this house number, as (etage, doer) -> what DAR knows.
 
-    One request for the whole building rather than one per flat: the register
+    The name is older than the source: DAWA answered this until it closed, and
+    DAR's UUIDs are the ones DAWA handed out, so nothing stored has to change.
+
+    Two requests for the whole building rather than one per flat: the register
     is searched at building level too, so both sides of the join are gathered
-    the same way and a block of sixty flats costs a single call.
+    the same way and a block of sixty flats costs the same as a house. The
+    search lists the units and their house number; the house number's own
+    record says where it is, which no unit has a place of its own for.
 
     Two things come back per address. The UUID is what BBR will key on. The
-    coordinates are DAWA's own adgangspunkt - the official address register's
-    answer to where the place is - and are the only thing placing a property or
-    a share on a map now that no other source is asked for one.
+    coordinates are the address register's adgangspunkt - the official answer
+    to where the place is - and are the only thing placing a property or a
+    share on a map.
     """
+    building = f"{address['vejnavn']} {address.get('husnummer', '')}".strip()
     try:
-        found = requests.get(
-            f"{DAWA}/adresser",
-            params={
-                "vejnavn": address["vejnavn"],
-                "husnr": address.get("husnummer", ""),
-                "postnr": address["postnummer"],
-            },
-            timeout=30,
-        ).json()
+        found = _search("adresser", f"{building}, {address['postnummer']}", MAKSIMUM)
     except (requests.RequestException, ValueError):
         return {}
-    if not isinstance(found, list):
-        return {}
-    return {
-        ((entry.get("etage") or "").lower(), (entry.get("dør") or "").lower()): {
-            "uuid": entry["id"],
-            **_access(entry.get("adgangsadresse") or {}),
+
+    units: dict[tuple[str, str], dict] = {}
+    for match in found:
+        titel = match.get("titel") or ""
+        if match.get("type") != "adresse" or not match.get("id"):
+            continue
+        parts = address_parts(titel)
+        # The search is fuzzy, so "Prøvegade 1" also finds 10 and 1A, and
+        # only an exact house number in the right postcode is this building.
+        if (
+            normalise(f"{parts['vejnavn']} {parts['husnummer']}") != normalise(building)
+            or parts["postnummer"] != str(address["postnummer"])
+        ):
+            continue
+        units[floor_and_door(titel)] = {
+            "uuid": match["id"],
+            "husnummer": match.get("husnummerId", ""),
         }
-        for entry in found
-        if entry.get("id")
-    }
+
+    places: dict[str, dict] = {}
+    for unit in units.values():
+        husnummer = unit["husnummer"]
+        if husnummer and husnummer not in places:
+            places[husnummer] = _access(husnummer)
+        unit.update(places.get(husnummer, {}))
+    return units
 
 
-def _access(access: dict) -> dict:
-    """What the adgangsadresse contributes: where the place is, and BBR's key.
+def _access(husnummer: str) -> dict:
+    """Where a house number is, in degrees.
 
-    The coordinate pair is [longitude, latitude], which is the order a GeoJSON
-    position uses and the reverse of how anyone says it aloud.
-
-    The adgangsadresse's own uuid is BBR's `husnummer`, which is what a
-    building is looked up by. The address uuid beside it is what a *flat* is
-    looked up by, so both are wanted and they are not the same thing.
+    The husnummer is DAR's adgangsadresse, and its uuid is BBR's `husnummer`,
+    which is what a building is looked up by. The address uuid beside it is
+    what a *flat* is looked up by, so both are wanted and they are not the same
+    thing - this is the half that places them.
     """
-    found: dict = {}
-    if access.get("id"):
-        found["husnummer"] = access["id"]
-    coordinates = (access.get("adgangspunkt") or {}).get("koordinater") or []
-    if len(coordinates) == 2:
-        found["laengdegrad"], found["breddegrad"] = coordinates
-    return found
+    try:
+        found = _get(f"husnumre/{husnummer}")
+    except (requests.RequestException, ValueError):
+        return {}
+    point = ((found.get("husnummer") or {}).get("adgangspunkt") or {}).get(
+        "koordinater"
+    ) or {}
+    if point.get("x") is None or point.get("y") is None:
+        return {}
+    laengdegrad, breddegrad = utm32_to_degrees(point["x"], point["y"])
+    return {"laengdegrad": laengdegrad, "breddegrad": breddegrad}
+
+
+def utm32_to_degrees(easting: float, northing: float) -> tuple[float, float]:
+    """ETRS89 / UTM zone 32N metres to (longitude, latitude) in degrees.
+
+    DAWA handed out degrees; DAR hands out the metres Danish mapping works in.
+    The stored columns stay in degrees, so older rows and new ones agree. This
+    is the standard inverse transverse Mercator series on GRS80, written out
+    rather than pulling in pyproj for one projection. It is good to well under a
+    metre across Denmark, and ETRS89 and WGS84 differ by less than that, which
+    is all the precision a pin on a map needs.
+    """
+    a, f = 6378137.0, 1 / 298.257222101
+    k0, false_easting, central = 0.9996, 500000.0, math.radians(9)
+    e2 = f * (2 - f)
+    ep2 = e2 / (1 - e2)
+    x, m = easting - false_easting, northing / k0
+
+    mu = m / (a * (1 - e2 / 4 - 3 * e2**2 / 64 - 5 * e2**3 / 256))
+    e1 = (1 - math.sqrt(1 - e2)) / (1 + math.sqrt(1 - e2))
+    phi1 = (
+        mu
+        + (3 * e1 / 2 - 27 * e1**3 / 32) * math.sin(2 * mu)
+        + (21 * e1**2 / 16 - 55 * e1**4 / 32) * math.sin(4 * mu)
+        + (151 * e1**3 / 96) * math.sin(6 * mu)
+        + (1097 * e1**4 / 512) * math.sin(8 * mu)
+    )
+
+    sin1, cos1, tan1 = math.sin(phi1), math.cos(phi1), math.tan(phi1)
+    n1 = a / math.sqrt(1 - e2 * sin1**2)
+    r1 = a * (1 - e2) / (1 - e2 * sin1**2) ** 1.5
+    t1, c1 = tan1**2, ep2 * cos1**2
+    d = x / (n1 * k0)
+
+    lat = phi1 - (n1 * tan1 / r1) * (
+        d**2 / 2
+        - (5 + 3 * t1 + 10 * c1 - 4 * c1**2 - 9 * ep2) * d**4 / 24
+        + (61 + 90 * t1 + 298 * c1 + 45 * t1**2 - 252 * ep2 - 3 * c1**2) * d**6 / 720
+    )
+    lon = central + (
+        d
+        - (1 + 2 * t1 + c1) * d**3 / 6
+        + (5 - 2 * c1 + 28 * t1 - 3 * c1**2 + 8 * ep2 + 24 * t1**2) * d**5 / 120
+    ) / cos1
+    return math.degrees(lon), math.degrees(lat)
 
 
 def address_parts(adresse: str) -> dict:
@@ -285,41 +388,45 @@ def slugify(text: str) -> str:
 def street_buildings(vejnavn: str, postnummer: str = "") -> list[dict]:
     """Every house number on one street in one postcode, as addresses to fetch.
 
-    Access addresses rather than unit addresses: the register searches at
+    House numbers rather than unit addresses: the register searches at
     building level anyway, and one query per building is the difference between
     forty requests for a street and four hundred.
+
+    Without a postcode, a street name found in one town comes back as its
+    house numbers, but one found in several comes back as the streets instead -
+    there are four Matthæusgades and the user has not said which. Four are not
+    listed by asking once per town, which for a Vestergade would be a request
+    for every town in the country: the answer is empty, and the caller falls
+    back to an ordinary search.
     """
-    # Without a postcode this answers for every street of that name in the
-    # country, which is the right answer to a street typed without one - there
-    # are four Matthæusgades and the user has not said which.
-    params = {"vejnavn": vejnavn, "struktur": "mini"}
-    if postnummer:
-        params["postnr"] = postnummer
     try:
-        found = requests.get(
-            f"{DAWA}/adgangsadresser", params=params, timeout=30
-        ).json()
+        found = _search("husnumre", f"{vejnavn} {postnummer}".strip(), MAKSIMUM)
+        streets = {
+            str(match.get("postnr"))
+            for match in found
+            if match.get("type") == "navngivenvejpostnummer"
+            and normalise(match.get("vejnavn") or "") == normalise(vejnavn)
+        }
+        if not postnummer and len(streets) > 1:
+            return []
+        if not postnummer and streets:
+            postnummer = streets.pop()
+            found = _search("husnumre", f"{vejnavn} {postnummer}", MAKSIMUM)
     except (requests.RequestException, ValueError):
-        return []
-    if not isinstance(found, list):
         return []
 
     buildings: dict[tuple, dict] = {}
-    for entry in found:
-        key = (entry.get("vejnavn"), entry.get("husnr"), entry.get("postnr"))
-        if not all(key):
+    for match in found:
+        if match.get("type") != "husnummer" or not match.get("titel"):
+            continue
+        building = _from_titel(match["titel"])
+        if normalise(building["vejnavn"]) != normalise(vejnavn) or (
+            postnummer and building["postnummer"] != str(postnummer)
+        ):
             continue
         buildings.setdefault(
-            key,
-            {
-                "tekst": f"{entry['vejnavn']} {entry['husnr']}, "
-                f"{entry['postnr']} {entry.get('postnrnavn', '')}".strip(),
-                "vejnavn": entry["vejnavn"],
-                "husnummer": entry["husnr"],
-                "postnummer": str(entry["postnr"]),
-                "etage": "",
-                "doer": "",
-            },
+            (building["vejnavn"], building["husnummer"], building["postnummer"]),
+            building,
         )
     return sorted(buildings.values(), key=lambda a: _house_order(a["husnummer"]))
 

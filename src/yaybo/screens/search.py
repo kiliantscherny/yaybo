@@ -2,12 +2,12 @@
 
 Two lists, and they are different kinds of list on purpose.
 
-The first is DAWA's, and it only answers "which address did you mean". Picking
-from it costs nothing and commits to nothing. Whole buildings come first there,
-because the register indexes buildings and a building is usually what was meant:
-asked about a house number, DAWA answers with a dozen of its flats, which
-reads as a list of things to fetch and is not one - the register would be asked
-the same question about any of them.
+The first is the address register's, and it only answers "which address did you
+mean". Picking from it costs nothing and commits to nothing. Whole buildings come
+first there, because the register indexes buildings and a building is usually
+what was meant: asked about a house number, the address register answers with a
+dozen of its flats, which reads as a list of things to fetch and is not one - the
+land register would be asked the same question about any of them.
 
 The second is the register's, and it is the real list: every legally registered
 property at that address, which is one for a rented block and a hundred and
@@ -60,7 +60,8 @@ from yaybo.widgets.session_bar import SessionBar
 # Long enough that a fast typist does not fire a request per keystroke, short
 # enough that the list feels like it is keeping up.
 SETTLE = 0.35
-# How many addresses to ask DAWA for. Generous, because the buildings are pulled
+# How many addresses to ask the address register for, which is the most it
+# will give. Generous, because the buildings are pulled
 # out of these, and one block of flats can otherwise crowd its neighbours off
 # the list entirely - a street of forty buildings needs more than a screenful
 # before its numbers stop being cut off halfway.
@@ -161,9 +162,8 @@ class SearchScreen(YayboScreen):
         self._steps(1)
         self._say(
             i18n.t(
-                "Type an address to look it up in the land register. DAWA will "
-                "clean up the spelling, the spacing and the floor, so a rough "
-                "one is fine."
+                "Type an address to look it up in the land register, then pick "
+                "it from the list that appears as you type."
             )
         )
         self.query_one("#search-input", Input).focus()
@@ -251,14 +251,20 @@ class SearchScreen(YayboScreen):
             self.app.call_from_thread(self._show_matches, [], query, False)
             return
         # A street with no house number is a question about the street, and
-        # autocomplete answers it a page at a time. The access-address endpoint
+        # autocomplete answers it a page at a time. Listing its house numbers
         # answers it whole - forty-three buildings on Matthæusgade rather than
-        # DAWA's first thirty of everything that matched the letters.
+        # the first page of everything that matched the letters. A street name
+        # found in several towns cannot be listed without a postcode, so that
+        # one falls back to the ordinary search.
         parts = address_parts(query.strip())
         whole_street = not parts["husnummer"]
-        if whole_street:
-            found = street_buildings(parts["vejnavn"], parts["postnummer"])
-        else:
+        found = (
+            street_buildings(parts["vejnavn"], parts["postnummer"])
+            if whole_street
+            else []
+        )
+        if not found:
+            whole_street = False
             found = autocomplete(query, MATCHES)
         self.app.call_from_thread(self._show_matches, found, query, whole_street)
 
@@ -281,7 +287,7 @@ class SearchScreen(YayboScreen):
 
         if not self.matches:
             if len(query.strip()) >= 3:
-                self._say(i18n.t("DAWA knows no address like {query!r}.",
+                self._say(i18n.t("The address register knows no address like {query!r}.",
                                  query=query.strip()))
             return
 
@@ -367,7 +373,7 @@ class SearchScreen(YayboScreen):
         letter is a letter - addresses contain "30A" - so `a` cannot mean
         anything until the cursor is in the list.
         """
-        capped = f" (DAWA's first {MATCHES})" if self._capped else ""
+        capped = f" (the first {MATCHES})" if self._capped else ""
         whole = " · the whole street" if self._whole_street else ""
         dead = self._dead_ends()
         # Only ever counts what the register has actually answered for, so this
@@ -416,11 +422,11 @@ class SearchScreen(YayboScreen):
     def _match_moved(self, event: OptionList.OptionHighlighted) -> None:
         """Ask what is registered at the address under the cursor.
 
-        DAWA answers "is this a real address", which is a different question
-        from "does the land register hold anything there" - and plenty of real
-        addresses are registered as part of a neighbouring property, or not at
-        all. Asking while the cursor rests on a row means the answer is usually
-        already on screen by the time enter is pressed.
+        The address register answers "is this a real address", which is a
+        different question from "does the land register hold anything there" -
+        and plenty of real addresses are registered as part of a neighbouring
+        property, or not at all. Asking while the cursor rests on a row means the
+        answer is usually already on screen by the time enter is pressed.
         """
         if self._picking_units or not self.matches:
             return
@@ -797,7 +803,7 @@ class SearchScreen(YayboScreen):
 
 
 def _buildings_first(found: list[dict]) -> list[dict]:
-    """A row per building at the top, then the individual flats DAWA matched."""
+    """A row per building at the top, then the individual flats the search matched."""
     buildings: dict[tuple, dict] = {}
     units: list[dict] = []
     for match in found:

@@ -139,7 +139,7 @@ def resolve(
 ) -> tuple[dict, list[dict], str]:
     """Turn a typed address into (address, what the registers hold, a warning).
 
-    Two lookups, and they are not interchangeable. DAWA cleans the address;
+    Two lookups, and they are not interchangeable. DAR cleans the address;
     the registers then say what sits at it - anything from one property (a
     rented block) to sixty (a block of flats), plus a co-op share per door
     where the address is an andelsbolig.
@@ -148,8 +148,10 @@ def resolve(
     if use_dawa:
         try:
             address = resolve_address(query)
-        except requests.RequestException:
-            address = None  # DAWA unreachable; the register can do its own
+        except (requests.RequestException, ValueError):
+            # The address register unreachable or talking nonsense; the land
+            # register can do its own, if less forgivingly.
+            address = None
     if address is None:
         address = api.lookup_address(query)
 
@@ -164,7 +166,7 @@ def units_at(
     """What the registers hold at an already-resolved address.
 
     The half of `resolve` that costs requests, for a caller that got its
-    address from DAWA directly and has nothing left to clean.
+    address from the address register directly and has nothing left to clean.
     """
     units = both_books(api, address, andele_on)
     return narrow(units, address["etage"], address["doer"])
@@ -184,7 +186,7 @@ def _gather_andel(
     adresse = record.get("adresse", "")
 
     # The book gives no area, no valuation and nothing about the building, so
-    # an andel row is an address, a debt, wherever DAWA places it and whatever
+    # an andel row is an address, a debt, wherever DAR places it and whatever
     # BBR says the flat is. BBR is doing more work here than for a property,
     # which at least has a tinglyste areal of its own.
     entry = addresses.get(floor_and_door(adresse))
@@ -237,7 +239,7 @@ def fetch(
     gathered: dict[str, list[dict]] = {name: [] for name in TABLE_NAMES}
 
     # One request gives every flat in the building its official coordinates,
-    # and the DAWA uuid that BBR is keyed on.
+    # and the DAR uuid that BBR is keyed on.
     addresses = dawa_addresses(address)
     # Empty when no Datafordeler key is configured, which is the ordinary case
     # and costs nothing but the BBR columns.
@@ -437,7 +439,7 @@ def lookup(
 def _bbr(entry: dict | None, key: str, cache: dict | None) -> dict:
     """What BBR holds for one address, or {} when there is no key for it.
 
-    Both uuids come off the DAWA lookup that has already happened, so this
+    Both uuids come off the DAR lookup that has already happened, so this
     costs no extra address resolution - only BBR's own requests, which are
     cached per building.
     """

@@ -61,7 +61,7 @@ src/yaybo/
 │                      so what it computes can be checked without a terminal
 ├── register/          tinglysning.dk itself
 │   ├── client.py      the HTTP session, its proof-of-work and its tokens
-│   ├── address.py     DAWA lookup and address parsing
+│   ├── address.py     DAR lookup (Adressevælger) and address parsing
 │   ├── attest.py      the signed attest, as text
 │   ├── attest_xml.py  the same document as XML, which says far more
 │   ├── historik.py    parsing the historical-owner blobs

@@ -172,7 +172,7 @@ class Tinglysning:
     def lookup_address(self, query: str) -> dict:
         """Resolve an address using tinglysning's own autocomplete.
 
-        Only used when DAWA is unreachable. It matches on a prefix of
+        Only used when the address register is unreachable. It matches on a prefix of
         "street no., floor. door", so a trailing postcode has to come off
         first, and it cannot parse th/tv doors at all.
         """
