@@ -149,6 +149,26 @@ def _search(kind: str, tekst: str, maksimum: int) -> list[dict]:
     return [match for match in found.get("fund") or [] if isinstance(match, dict)]
 
 
+def _without_town(titel: str) -> str:
+    """Drop the supplerende bynavn from a rendered address, if it has one.
+
+    A village inside a larger postal district is named between the unit and
+    the postcode - "Vesterbrogade 1, Humlum, 7600 Struer" - in exactly the slot
+    a floor and door take, so read naively it is a flat on the Humlum floor.
+    DAWA kept the two apart in separate fields; the search does not. A unit
+    always has a digit, a full stop or is a short door like "tv", and a town
+    name has none of those, which is what tells them apart. DAWA left the town
+    out of the address it rendered, so it is dropped rather than kept.
+    """
+    segments = titel.split(", ")
+    if len(segments) < 3:
+        return titel
+    town = segments[-2]
+    if any(c.isdigit() for c in town) or "." in town or len(town) <= 2:
+        return titel
+    return ", ".join(segments[:-2] + segments[-1:])
+
+
 def _from_titel(titel: str) -> dict:
     """Read the fields tinglysning's search expects out of a rendered address.
 
@@ -157,6 +177,7 @@ def _from_titel(titel: str) -> dict:
     request per row of an autocomplete list. The string is DAR's own rendering,
     so reading it back is safe in a way reading what a person typed is not.
     """
+    titel = _without_town(titel)
     parts = address_parts(titel)
     etage, doer = floor_and_door(titel)
     _, postal = titel.rsplit(", ", 1) if ", " in titel else ("", "")
@@ -261,7 +282,7 @@ def dawa_addresses(address: dict) -> dict[tuple[str, str], dict]:
 
     units: dict[tuple[str, str], dict] = {}
     for match in found:
-        titel = match.get("titel") or ""
+        titel = _without_town(match.get("titel") or "")
         if match.get("type") != "adresse" or not match.get("id"):
             continue
         parts = address_parts(titel)

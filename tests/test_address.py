@@ -46,6 +46,17 @@ def test_a_rendered_address_reads_back_into_its_fields():
     )
 
 
+def test_a_village_name_is_not_read_as_a_floor():
+    """The supplerende bynavn sits where a unit would, and is neither."""
+    found = address._from_titel("Prøvegade 1, Lilleby, 9999 Prøveby")
+    assert (found["etage"], found["doer"]) == ("", "")
+    assert found["tekst"] == "Prøvegade 1, 9999 Prøveby"
+    flat = address._from_titel("Prøvegade 1, st. tv, Lilleby, 9999 Prøveby")
+    assert (flat["etage"], flat["doer"]) == ("st", "tv")
+    # A door with no floor is still a unit, not a town, so it is kept.
+    assert address._from_titel("Prøvegade 1, tv, 9999 Prøveby")["etage"] == "tv"
+
+
 def test_utm_metres_become_degrees():
     """Copenhagen City Hall's adgangspunkt, which is a public landmark."""
     laengdegrad, breddegrad = address.utm32_to_degrees(724434.93, 6175755.61)
@@ -104,6 +115,7 @@ def test_a_building_keeps_only_its_own_flats_and_is_placed_once(monkeypatch):
             _hit("Prøvegade 10, 9999 Prøveby", husnummerId="other"),
             _hit("Prøvegade 1A, 9999 Prøveby", husnummerId="other"),
             _hit("Prøvegade 1, 8888 Andetby", husnummerId="other"),
+            _hit("Prøvegade 1, 2., Lilleby, 9999 Prøveby", husnummerId=BUILDING),
         ]},
         f"husnumre/{BUILDING}": {"status": "ok", "husnummer": {
             "adgangspunkt": {"koordinater": {"x": 724434.93, "y": 6175755.61}},
@@ -112,7 +124,7 @@ def test_a_building_keeps_only_its_own_flats_and_is_placed_once(monkeypatch):
     found = address.dawa_addresses(
         {"vejnavn": "Prøvegade", "husnummer": "1", "postnummer": "9999"}
     )
-    assert sorted(found) == [("", ""), ("1", "th"), ("st", "tv")]
+    assert sorted(found) == [("", ""), ("1", "th"), ("2", ""), ("st", "tv")]
     flat = found[("1", "th")]
     assert flat["uuid"] == "id-Prøvegade 1, 1. th, 9999 Prøveby"
     assert flat["husnummer"] == BUILDING
