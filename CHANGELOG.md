@@ -7,6 +7,7 @@ The format is [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the 
 ### Fixed
 
 - **Address search works again.** DAWA closed on 1 October 2026 and now answers every request with 410 Gone, which left search, `fetch` and `backfill` unable to resolve or place an address. They now ask DAR, the official address register, through Klimadatastyrelsen's Adressevælger and Adressevask at `adressevaelger.dk`. The address UUIDs are the same ones DAWA handed out, so nothing stored changes and BBR joins as before.
+- **The register's daily limit no longer ends in a traceback.** When tinglysning answers "Der er foretaget for mange forespørgsler for i dag", a run now stops cleanly and keeps every property it fetched before the refusal. `yaybo fetch` says so and skips the remaining addresses rather than asking about each; the queue holds the interrupted job and everything waiting behind it, instead of failing them one request at a time.
 - The services want a token on every request but do not yet tell tokens apart. The published demo token is used unless `ADRESSEVAELGER_TOKEN` is set, which is where your own goes once one is required.
 
 ### Changed

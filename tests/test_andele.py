@@ -563,3 +563,44 @@ if __name__ == "__main__":
         test()
         print(f"  ok  {test.__name__}")
     print(f"{len(tests)} passed")
+
+
+def test_the_daily_limit_ends_a_fetch_but_keeps_what_came_before(monkeypatch):
+    """The register refuses the rest of the day partway through a building.
+
+    Lives here because this is where a fake register that drives the whole of
+    pipeline.fetch already is. The refusal must not cost the properties that
+    were fetched before it, and must not be asked about the ones after it.
+    """
+    from yaybo.register.client import DailyLimitReached
+
+    monkeypatch.setattr(pipeline, "fetch_parcel", lambda *a, **k: {})
+    monkeypatch.setattr(pipeline, "dawa_addresses", lambda address: {})
+    asked: list[str] = []
+
+    class _Limited(_FetchApi):
+        def fetch_record(self, uuid):
+            asked.append(uuid)
+            if len(asked) > 2:
+                raise DailyLimitReached("Der er foretaget for mange forespørgsler")
+            return super().fetch_record(uuid)
+
+    flats = [{**BUILDING, "uuid": f"ejd-{i}"} for i in range(5)]
+    bundle = pipeline.fetch(
+        _Limited(),
+        {
+            "tekst": BUILDING["adresse"],
+            "vejnavn": "Prøvegade",
+            "husnummer": "1",
+            "postnummer": "9999",
+            "etage": "",
+            "doer": "",
+        },
+        flats,
+        delay=0,
+        laantype_on=False,
+        bbr_on=False,
+    )
+    assert [p["uuid"] for p in bundle.properties] == ["ejd-0", "ejd-1"]
+    assert "for mange" in bundle.daily_limit
+    assert len(asked) == 3, "nothing after the refusal should be asked"

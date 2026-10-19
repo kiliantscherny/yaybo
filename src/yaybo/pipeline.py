@@ -27,7 +27,7 @@ from yaybo.register.address import (
     resolve_address,
     select_units,
 )
-from yaybo.register.client import ANDELSBOG, SessionExpired
+from yaybo.register.client import ANDELSBOG, DailyLimitReached, SessionExpired
 
 # The tables a lookup fills, in the order store.TABLES declares them.
 TABLE_NAMES = (
@@ -66,6 +66,9 @@ class Bundle:
     enriched: bool = False
     # How far the run got, when a lapsed session cut it short.
     fetched: int = 0
+    # The register's own words, when it stopped the run by refusing any more
+    # requests today. Empty otherwise. The rows are still good, just fewer.
+    daily_limit: str = ""
 
     @property
     def properties(self) -> list[dict]:
@@ -237,6 +240,10 @@ def fetch(
 
     `on_raw(index, record, details, history)` sees each property's payloads
     exactly as the register sent them, before anything reads a row out of them.
+
+    The register's daily limit ends the run the way `should_stop` does: what
+    was gathered before it is built and returned, and `Bundle.daily_limit`
+    says why there is not more.
     """
     say = on_status or (lambda message: None)
     enriched = api.authenticated
@@ -251,6 +258,7 @@ def fetch(
     bbr_cache: dict = {}
     parcels: dict = {}
     fetched = 0
+    daily_limit = ""
 
     # The association's property, when this lookup found exactly one. Every
     # share at the address joins to it, and through it to the block's
@@ -270,22 +278,30 @@ def fetch(
             on_unit(index, len(units), unit)
 
         uuid = unit["uuid"]
-        if unit.get("bog") == ANDELSBOG:
-            record = _gather_andel(
-                api,
-                uuid,
-                gathered,
-                addresses,
-                building,
-                key=bbr_key,
-                bbr_cache=bbr_cache,
-            )
-            if on_raw:
-                on_raw(index, record, None, None)
-            fetched = index
-            continue
+        try:
+            if unit.get("bog") == ANDELSBOG:
+                record = _gather_andel(
+                    api,
+                    uuid,
+                    gathered,
+                    addresses,
+                    building,
+                    key=bbr_key,
+                    bbr_cache=bbr_cache,
+                )
+                if on_raw:
+                    on_raw(index, record, None, None)
+                fetched = index
+                continue
 
-        record = api.fetch_record(uuid)
+            record = api.fetch_record(uuid)
+        except DailyLimitReached as refusal:
+            daily_limit = str(refusal)
+            say(
+                f"the register's daily limit was reached after {index - 1} of "
+                f"{len(units)}: {daily_limit}"
+            )
+            break
 
         details = history = None
         if api.authenticated:
@@ -400,6 +416,7 @@ def fetch(
         warning=warning,
         enriched=enriched,
         fetched=fetched,
+        daily_limit=daily_limit,
     )
 
 

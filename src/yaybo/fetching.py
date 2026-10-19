@@ -223,6 +223,26 @@ class FetchQueue:
             self._draining.release()
             changed()
 
+    def _hold_for_today(self, job: Job, bundle) -> None:
+        """Park everything when the register will answer nothing more today.
+
+        The job that met the refusal keeps what it got, which is already saved,
+        and goes back to held with the rest of the queue behind it. Held rather
+        than failed, because nothing is wrong with any of them, and held rather
+        than waiting, because waiting would be picked up again at once and
+        refused again - a request per job against a service that has said no.
+        """
+        job.fetched = len(bundle.properties) + len(bundle.andele)
+        job.state = HELD
+        job.note = (
+            "the register's daily limit was reached - what was fetched is "
+            "saved; start again tomorrow to finish it"
+        )
+        for other in self.jobs:
+            if other.state == WAITING:
+                other.state = HELD
+                other.note = "held: the register's daily limit was reached"
+
     def _do(self, api, database, job: Job, changed) -> None:
         def on_unit(index: int, total: int, unit: dict) -> None:
             # Called before each property, so index - 1 of them are really done.
@@ -269,6 +289,10 @@ class FetchQueue:
             return
 
         job.rows = sum(written.values())
+        if bundle.daily_limit:
+            self._hold_for_today(job, bundle)
+            changed()
+            return
         attempted = max(job.fetched, len(bundle.properties))
         if self._stop.is_set() and attempted < job.expected:
             # Stopped partway. What was fetched is saved and stays saved; the

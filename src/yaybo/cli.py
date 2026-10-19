@@ -222,10 +222,22 @@ def run_fetch(args) -> int:
         if len(args.address) > 1:
             say(f"\n[{index + 1}/{len(args.address)}] {address}")
         try:
-            _fetch_one(args, api, formats, address, say)
+            limited = _fetch_one(args, api, formats, address, say)
         except AddressError as error:
             say(f"  could not look that up: {error}")
             failed.append(address)
+            continue
+        if limited:
+            # Every address after this one would be refused the same way, so
+            # asking is only more requests against a service that has said no.
+            # What this one got before the refusal is already written.
+            say(
+                "\nthe register will answer no more requests today, so this "
+                "run stops here. What was fetched is saved; fetch the rest "
+                "again tomorrow."
+            )
+            failed.extend(args.address[index:])
+            break
 
     if len(args.address) > 1:
         done = len(args.address) - len(failed)
@@ -238,8 +250,12 @@ def run_fetch(args) -> int:
     return 1 if failed else 0
 
 
-def _fetch_one(args, api, formats: set[str], address: str, say) -> None:
-    """One address: look it up, then write it in every format asked for."""
+def _fetch_one(args, api, formats: set[str], address: str, say) -> bool:
+    """One address: look it up, then write it in every format asked for.
+
+    Returns whether the register's daily limit cut it short. What came back
+    before the refusal is written all the same, unless that was nothing.
+    """
 
     def each(index: int, total: int, unit: dict) -> None:
         print(f"  [{index}/{total}] {unit.get('adresse', '')}", file=sys.stderr)
@@ -265,6 +281,8 @@ def _fetch_one(args, api, formats: set[str], address: str, say) -> None:
     )
     if bundle.warning:
         say(f"note: {bundle.warning}")
+    if bundle.daily_limit and not (bundle.properties or bundle.andele):
+        return True
 
     # Name the output after what was actually fetched. If the requested flat
     # had no separate entry we fell back to the whole building, so the flat
@@ -303,6 +321,7 @@ def _fetch_one(args, api, formats: set[str], address: str, say) -> None:
             (folder / name).write_text(document["dokument"], encoding="utf-8")
         say(f"wrote {len(documents)} attest(er) to {folder}/")
         say("  each one is signed and names real people - do not pass them on")
+    return bool(bundle.daily_limit)
 
 
 def _keep_going(done: int, total: int) -> bool:
