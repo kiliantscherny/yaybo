@@ -22,12 +22,25 @@ from yaybo.register.address import unit_label
 from yaybo.register.fields import iso_date, normalise, plain_number
 
 HISTORIK_FIELDS = [
-    "adresse", "dato", "dokumenttype", "koebesum_dkk", "antal_ejere",
-    "historiske_ejere", "post_nummer", "ejendom_uuid",
+    "adresse",
+    "dato",
+    "dokumenttype",
+    "koebesum_dkk",
+    "antal_ejere",
+    "historiske_ejere",
+    "post_nummer",
+    "ejendom_uuid",
 ]
 HISTORIK_EJER_FIELDS = [
-    "dato", "nummer", "navn", "foedselsdato", "cvr", "andel", "note",
-    "post_nummer", "ejendom_uuid",
+    "dato",
+    "nummer",
+    "navn",
+    "foedselsdato",
+    "cvr",
+    "andel",
+    "note",
+    "post_nummer",
+    "ejendom_uuid",
 ]
 
 
@@ -206,19 +219,39 @@ def property_fields(
 # against the charges, the newest transfer lifted off the history, and where
 # DAR says the address is. Kept together so the CSV and the database agree.
 AFLEDT_FIELDS = [
-    "boligtype", "boligareal_m2",
-    "seneste_salg_dato", "seneste_salg_dkk", "seneste_salg_pris_m2",
-    "samlet_gaeld_dkk", "frivaerdi_dkk", "belaaningsgrad_pct",
-    "breddegrad", "laengdegrad", "adresse_uuid",
+    "boligtype",
+    "boligareal_m2",
+    "seneste_salg_dato",
+    "seneste_salg_dkk",
+    "seneste_salg_pris_m2",
+    "samlet_gaeld_dkk",
+    "frivaerdi_dkk",
+    "belaaningsgrad_pct",
+    "breddegrad",
+    "laengdegrad",
+    "adresse_uuid",
 ]
 RENTE_FIELDS = [
-    "maaned", "laantype", "rentfix_kode", "effektiv_rente_pct", "bidrag_pct",
+    "maaned",
+    "laantype",
+    "rentfix_kode",
+    "effektiv_rente_pct",
+    "bidrag_pct",
     "kupon_pct",
 ]
 HANDEL_FIELDS = [
-    "adresse", "dato", "beloeb_dkk", "areal_m2", "boligareal_m2", "pris_pr_m2",
-    "pris_pr_m2_tinglyst", "handelstype", "registrering_id", "ejendom_uuid",
+    "adresse",
+    "dato",
+    "beloeb_dkk",
+    "areal_m2",
+    "boligareal_m2",
+    "pris_pr_m2",
+    "pris_pr_m2_tinglyst",
+    "handelstype",
+    "registrering_id",
+    "ejendom_uuid",
 ]
+
 
 def dawa_row(entry: dict | None) -> dict:
     """Where DAR says the address is, for a property or a share alike.
@@ -404,31 +437,88 @@ def add_financials(properties: list[dict], charges: list[dict]) -> None:
 
 
 HAEFTELSE_FIELDS = [
-    "adresse", "dato_loebenummer", "prioritet", "dokumenttype",
-    "dokumenttype_beskrivelse", "formularkode", "hovedstol", "hovedstol_dkk",
-    "valuta", "rentetype", "rentesats_pct", "reference_rente",
-    "reference_rente_pct", "rente_margin_pct", "rente_foreloebig", "laantype",
-    "saerlige_vilkaar", "kreditorbetegnelse", "kreditorer", "tinglysningsdato",
-    "senest_paategnet", "overfoert", "konverteret_pantebrev", "afgift_dkk",
-    "afgift_overfoert", "antal_respekt", "antal_underpant", "tekst",
-    "laantype_estimat", "laantype_afstand", "laantype_alternativ",
-    "laantype_afgjort_af", "laantype_kilde",
-    "rettighed_uuid", "dokument_version", "dokument_uuid", "ejendom_uuid",
+    "adresse",
+    "dato_loebenummer",
+    "prioritet",
+    "dokumenttype",
+    "dokumenttype_beskrivelse",
+    "formularkode",
+    "hovedstol",
+    "hovedstol_dkk",
+    "valuta",
+    "rentetype",
+    "rentesats_pct",
+    "reference_rente",
+    "reference_rente_pct",
+    "rente_margin_pct",
+    "rente_foreloebig",
+    "laantype",
+    "saerlige_vilkaar",
+    "kreditorbetegnelse",
+    "kreditorer",
+    "tinglysningsdato",
+    "senest_paategnet",
+    "overfoert",
+    "konverteret_pantebrev",
+    "afgift_dkk",
+    "afgift_overfoert",
+    "antal_respekt",
+    "antal_underpant",
+    "tekst",
+    "laantype_estimat",
+    "laantype_afstand",
+    "laantype_alternativ",
+    "laantype_afgjort_af",
+    "laantype_kilde",
+    "rettighed_uuid",
+    "dokument_version",
+    "dokument_uuid",
+    "ejendom_uuid",
 ]
 SERVITUT_FIELDS = [
-    "adresse", "dato_loebenummer", "prioritet", "dokumenttype", "indhold",
-    "tekst", "paataleberettigede", "ogsaa_lyst_paa", "uden_ejers_tiltraedelse",
-    "prioritet_forud", "betydning_for_vaerdi", "tinglysningsdato",
-    "senest_paategnet", "overfoert", "afgift_dkk", "akt_filnavn",
-    "rettighed_uuid", "dokument_version", "dokument_uuid", "ejendom_uuid",
+    "adresse",
+    "dato_loebenummer",
+    "prioritet",
+    "dokumenttype",
+    "indhold",
+    "tekst",
+    "paataleberettigede",
+    "ogsaa_lyst_paa",
+    "uden_ejers_tiltraedelse",
+    "prioritet_forud",
+    "betydning_for_vaerdi",
+    "tinglysningsdato",
+    "senest_paategnet",
+    "overfoert",
+    "afgift_dkk",
+    "akt_filnavn",
+    "rettighed_uuid",
+    "dokument_version",
+    "dokument_uuid",
+    "ejendom_uuid",
 ]
 PART_FIELDS = [
-    "dokumentart", "rolle", "nummer", "navn", "foedselsdato", "cvr", "andel",
-    "adresse_kode", "dokument_uuid", "ejendom_uuid",
+    "dokumentart",
+    "rolle",
+    "nummer",
+    "navn",
+    "foedselsdato",
+    "cvr",
+    "andel",
+    "adresse_kode",
+    "dokument_uuid",
+    "ejendom_uuid",
 ]
 UNDERPANT_FIELDS = [
-    "dato_loebenummer", "beloeb_dkk", "valuta", "prioritet", "panthavere",
-    "rettighed_uuid", "dokument_uuid", "haeftelse_uuid", "ejendom_uuid",
+    "dato_loebenummer",
+    "beloeb_dkk",
+    "valuta",
+    "prioritet",
+    "panthavere",
+    "rettighed_uuid",
+    "dokument_uuid",
+    "haeftelse_uuid",
+    "ejendom_uuid",
 ]
 
 # What each end of a mortgage is called, singular, for the rolle column.
@@ -460,8 +550,11 @@ def haeftelse_rows(record: dict, uuid: str, document: dict | None = None) -> lis
                 "antal_respekt": len(h["respekterer"]),
                 "antal_underpant": len(h["underpant"]),
                 "ejendom_uuid": uuid,
-                **{key: h.get(key, "") for key in HAEFTELSE_FIELDS
-                   if key in h and key not in ("adresse", "kreditorer")},
+                **{
+                    key: h.get(key, "")
+                    for key in HAEFTELSE_FIELDS
+                    if key in h and key not in ("adresse", "kreditorer")
+                },
             }
             for h in charges
         ]
@@ -495,8 +588,11 @@ def servitut_rows(record: dict, uuid: str, document: dict | None = None) -> list
                 "adresse": adresse,
                 "paataleberettigede": _names(s["paataleberettigede"]),
                 "ejendom_uuid": uuid,
-                **{key: s.get(key, "") for key in SERVITUT_FIELDS
-                   if key in s and key not in ("adresse", "paataleberettigede")},
+                **{
+                    key: s.get(key, "")
+                    for key in SERVITUT_FIELDS
+                    if key in s and key not in ("adresse", "paataleberettigede")
+                },
             }
             for s in easements
         ]
@@ -547,21 +643,34 @@ def party_rows(document: dict | None, uuid: str) -> list[dict]:
         for key, rolle in HAEFTELSE_ROLLER.items():
             add("haeftelse", h["dokument_uuid"], rolle, h.get(key))
         for pledge in h.get("underpant") or []:
-            add("underpant", pledge["dokument_uuid"], "underpanthaver",
-                pledge.get("panthavere"))
+            add(
+                "underpant",
+                pledge["dokument_uuid"],
+                "underpanthaver",
+                pledge.get("panthavere"),
+            )
     for s in document.get("servitutter") or []:
-        add("servitut", s["dokument_uuid"], "paataleberettiget",
-            s.get("paataleberettigede"))
+        add(
+            "servitut",
+            s["dokument_uuid"],
+            "paataleberettiget",
+            s.get("paataleberettigede"),
+        )
 
     # Numbered only now that every reading of a document has been folded in, so
     # the number counts people rather than the order one reading happened to
     # arrive in - which is what makes it safe to key the stored table on.
     return [
         {
-            "dokumentart": art, "dokument_uuid": doc_uuid, "rolle": rolle,
-            "nummer": number, "ejendom_uuid": uuid,
-            **{key: party.get(key, "") for key in
-               ("navn", "foedselsdato", "cvr", "andel", "adresse_kode")},
+            "dokumentart": art,
+            "dokument_uuid": doc_uuid,
+            "rolle": rolle,
+            "nummer": number,
+            "ejendom_uuid": uuid,
+            **{
+                key: party.get(key, "")
+                for key in ("navn", "foedselsdato", "cvr", "andel", "adresse_kode")
+            },
         }
         for (art, doc_uuid, rolle), found in groups.items()
         for number, party in enumerate(found.values(), start=1)
@@ -590,9 +699,17 @@ def underpant_rows(document: dict | None, uuid: str) -> list[dict]:
             "ejendom_uuid": uuid,
             "haeftelse_uuid": h["dokument_uuid"],
             "panthavere": _names(pledge["panthavere"]),
-            **{key: pledge.get(key, "") for key in
-               ("dokument_uuid", "dato_loebenummer", "rettighed_uuid",
-                "beloeb_dkk", "valuta", "prioritet")},
+            **{
+                key: pledge.get(key, "")
+                for key in (
+                    "dokument_uuid",
+                    "dato_loebenummer",
+                    "rettighed_uuid",
+                    "beloeb_dkk",
+                    "valuta",
+                    "prioritet",
+                )
+            },
         }
         for h in (document or {}).get("haeftelser") or []
         for pledge in h.get("underpant") or []

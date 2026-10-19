@@ -140,7 +140,10 @@ def _ejendom(stam) -> dict:
     found = {
         "bfe_nr": text(stam, "EjendomIdentifikator", "BestemtFastEjendomNummer"),
         "ejerlejlighedsnr": text(
-            stam, "EjendomIdentifikator", "EjendomType", "Ejerlejlighed",
+            stam,
+            "EjendomIdentifikator",
+            "EjendomType",
+            "Ejerlejlighed",
             "Ejerlejlighedsnummer",
         ),
         "landsejerlav": text(
@@ -218,8 +221,10 @@ def _adkomst(node) -> dict:
         "valuta": text(node, "ValutaKode"),
         "overtagelsesdato": when(node, "SkoedeOvertagelsesDato"),
         "afgift_dkk": number(node, "TinglysningAfgiftBetalt"),
-        "ejere": [_part(h, andel=_brøk(first(dig(h, "AndelIdeel"))))
-                  for h in dig(node, "AdkomsthaverSamling", "Adkomsthaver")],
+        "ejere": [
+            _part(h, andel=_brøk(first(dig(h, "AndelIdeel"))))
+            for h in dig(node, "AdkomsthaverSamling", "Adkomsthaver")
+        ],
     }
     found.update(_dokument(node))
     return found
@@ -246,14 +251,19 @@ def _haeftelse(node) -> dict:
             for r in dig(node, "RespektSamling", "Respekt")
         ],
         "saerlige_vilkaar": [
-            text(v) for v in dig(
-                node, "HaeftelseSaerligeLaanevilkaarstypeSamling",
+            text(v)
+            for v in dig(
+                node,
+                "HaeftelseSaerligeLaanevilkaarstypeSamling",
                 "HaeftelseSaerligeLaanevilkaarstype",
             )
         ],
         "kreditorbetegnelse": " / ".join(
-            text(a) for a in dig(node, "HaeftelseLaanKreditorbetegnelseTekst",
-                                 "TekstGruppe", "Afsnit") if text(a)
+            text(a)
+            for a in dig(
+                node, "HaeftelseLaanKreditorbetegnelseTekst", "TekstGruppe", "Afsnit"
+            )
+            if text(a)
         ),
         "kreditorer": [
             _part(r) for r in dig(node, "KreditorInformationSamling", "RolleInformation")
@@ -266,11 +276,18 @@ def _haeftelse(node) -> dict:
             for r in dig(node, "MeddelelseshaverInformationSamling", "RolleInformation")
         ],
         "fuldmagtshavere": [
-            _part(r) for r in dig(node, "ImplicitFuldmagtSamling", "ImplicitFuldmagt",
-                                  "FuldmagtHaverInformation")
+            _part(r)
+            for r in dig(
+                node,
+                "ImplicitFuldmagtSamling",
+                "ImplicitFuldmagt",
+                "FuldmagtHaverInformation",
+            )
         ],
-        "underpant": [_underpant(u) for u in dig(node, "UnderpantrettighedSamling",
-                                                 "Underpantrettighed")],
+        "underpant": [
+            _underpant(u)
+            for u in dig(node, "UnderpantrettighedSamling", "Underpantrettighed")
+        ],
         "tekst": _fritekst(node),
     }
     found.update(_dokument(node))
@@ -295,8 +312,9 @@ def _rente(node) -> dict:
             "rente_foreloebig": _ja(fast, "HaeftelseRenteSatsForeloebigIndikator"),
         }
     if variabel is not None:
-        margin = first(dig(variabel, "HaeftelseReferenceRente",
-                           "ReferenceRenteTillaegFradrag"))
+        margin = first(
+            dig(variabel, "HaeftelseReferenceRente", "ReferenceRenteTillaegFradrag")
+        )
         sign = -1 if text(margin, "TillaegFradragIndikator") == "fradrag" else 1
         pct = number(margin, "Procentsats") if margin is not None else ""
         return {
@@ -417,8 +435,10 @@ def _adresse_kode(node) -> str:
         return ""
     access = first(dig(node, "AddressAccess"))
     parts = [
-        text(access, "MunicipalityCode"), text(access, "StreetCode"),
-        text(access, "StreetBuildingIdentifier"), text(node, "FloorIdentifier"),
+        text(access, "MunicipalityCode"),
+        text(access, "StreetCode"),
+        text(access, "StreetBuildingIdentifier"),
+        text(node, "FloorIdentifier"),
         text(node, "SuiteIdentifier"),
     ]
     return "-".join(p for p in parts if p)
@@ -472,7 +492,7 @@ def _fritekst(node) -> str:
 
 
 def _brøk(node) -> str:
-    """"1/300" out of a Taeller and a Naevner."""
+    """ "1/300" out of a Taeller and a Naevner."""
     if node is None:
         return ""
     over, under = text(node, "Taeller"), text(node, "Naevner")
@@ -527,6 +547,7 @@ def summary(raw: str) -> dict:
     if not record:
         return {}
     ejendom, adkomst = record["ejendom"], record["adkomst"]
+
     # The flat columns have always been text, and a CSV cannot tell the
     # difference anyway; the typed copies go to the database from parse().
     def as_text(value):
@@ -544,7 +565,8 @@ def summary(raw: str) -> dict:
         "overtagelsesdato": adkomst.get("overtagelsesdato", ""),
         "owners": {
             fields.normalise(owner["navn"]): (
-                {"cvr": owner["cvr"]} if owner["cvr"]
+                {"cvr": owner["cvr"]}
+                if owner["cvr"]
                 else {"foedselsdato": owner["foedselsdato"]}
             )
             for owner in adkomst.get("ejere") or []

@@ -24,7 +24,10 @@ def test_property_details():
     assert ejendom["matrikelnr"] == "42"
     # The property's own address names its street; a party's gives only codes.
     assert (ejendom["vejnavn"], ejendom["husnr"], ejendom["etage"], ejendom["doer"]) == (
-        "Prøvegade", "1", "3", "12"
+        "Prøvegade",
+        "1",
+        "3",
+        "12",
     )
     assert ejendom["grund_areal_m2"] == 4200
     assert ejendom["udstykningsdato"] == "1975-05-05"
@@ -48,7 +51,7 @@ def test_a_fixed_rate_is_not_read_as_danish_thousands():
 
 
 def test_a_variable_rate_keeps_its_reference_and_margin():
-    """"CITA6 + 0.45" is a different loan from a flat 2.74 that stands at the
+    """ "CITA6 + 0.45" is a different loan from a flat 2.74 that stands at the
     same number today, so all three parts are kept."""
     charge = RECORD["haeftelser"][1]
     assert charge["rentetype"] == "variabel"
@@ -97,7 +100,11 @@ def test_every_party_gets_a_row_with_a_role():
     for row in rows:
         roles.setdefault(row["rolle"], []).append(row)
     assert set(roles) == {
-        "adkomsthaver", "kreditor", "debitor", "meddelelseshaver", "underpanthaver",
+        "adkomsthaver",
+        "kreditor",
+        "debitor",
+        "meddelelseshaver",
+        "underpanthaver",
         "paataleberettiget",
     }
     assert len(roles["adkomsthaver"]) == 3
@@ -126,9 +133,13 @@ def test_charge_rows_prefer_the_xml_and_fall_back_to_the_public_record():
     public = {
         "adresse": "Prøvegade 1",
         "haeftelser": [
-            {"alias": "20250101-1000000002",
-             "haeftelsestype": "realkreditpantebrev",
-             "hovedstol": "2.000.000 DKK", "rente": "2,74", "uuid": "x"}
+            {
+                "alias": "20250101-1000000002",
+                "haeftelsestype": "realkreditpantebrev",
+                "hovedstol": "2.000.000 DKK",
+                "rente": "2,74",
+                "uuid": "x",
+            }
         ],
     }
     plain = build.haeftelse_rows(public, "uuid-1")

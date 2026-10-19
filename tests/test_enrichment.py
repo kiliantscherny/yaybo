@@ -14,16 +14,37 @@ from yaybo.register import rows as build
 # What history_rows makes of the register's "historisk adkomst" list: one entry
 # per transfer, newest first. Invented people, invented prices.
 ENTRIES = [
-    {"ejendom_uuid": "u1", "post_nummer": 1, "adresse": "Prøvegade 1, 3. 12",
-     "dato": "2026-06-19", "dokumenttype": "Endeligt skøde",
-     "koebesum_dkk": 4000000, "antal_ejere": 2, "historiske_ejere": "..."},
-    {"ejendom_uuid": "u1", "post_nummer": 2, "adresse": "Prøvegade 1, 3. 12",
-     "dato": "2021-10-14", "dokumenttype": "Auktionsskøde",
-     "koebesum_dkk": 3000000, "antal_ejere": 1, "historiske_ejere": "..."},
+    {
+        "ejendom_uuid": "u1",
+        "post_nummer": 1,
+        "adresse": "Prøvegade 1, 3. 12",
+        "dato": "2026-06-19",
+        "dokumenttype": "Endeligt skøde",
+        "koebesum_dkk": 4000000,
+        "antal_ejere": 2,
+        "historiske_ejere": "...",
+    },
+    {
+        "ejendom_uuid": "u1",
+        "post_nummer": 2,
+        "adresse": "Prøvegade 1, 3. 12",
+        "dato": "2021-10-14",
+        "dokumenttype": "Auktionsskøde",
+        "koebesum_dkk": 3000000,
+        "antal_ejere": 1,
+        "historiske_ejere": "...",
+    },
     # A transfer the register recorded without a price: an inheritance, say.
-    {"ejendom_uuid": "u1", "post_nummer": 3, "adresse": "Prøvegade 1, 3. 12",
-     "dato": "1998-01-05", "dokumenttype": "Skifteretsattest",
-     "koebesum_dkk": None, "antal_ejere": 1, "historiske_ejere": "..."},
+    {
+        "ejendom_uuid": "u1",
+        "post_nummer": 3,
+        "adresse": "Prøvegade 1, 3. 12",
+        "dato": "1998-01-05",
+        "dokumenttype": "Skifteretsattest",
+        "koebesum_dkk": None,
+        "antal_ejere": 1,
+        "historiske_ejere": "...",
+    },
 ]
 
 
@@ -33,7 +54,9 @@ def test_sales_are_the_registers_own_transfers():
     assert [s["beloeb_dkk"] for s in sales] == [4000000, 3000000, None]
     # The register's own word for the document, never a vocabulary of our own.
     assert [s["handelstype"] for s in sales] == [
-        "Endeligt skøde", "Auktionsskøde", "Skifteretsattest"
+        "Endeligt skøde",
+        "Auktionsskøde",
+        "Skifteretsattest",
     ]
     # Every row is identifiable, because the table is keyed on it.
     assert [s["registrering_id"] for s in sales] == ["1", "2", "3"]
@@ -106,32 +129,61 @@ def test_the_adkomst_in_force_is_the_newest_sale():
 def test_an_adkomst_that_was_not_a_purchase_is_not_a_sale():
     """An inheritance or a division transfers without a price. It belongs in
     adkomsthistorik, and putting it here would invent a sale of nothing."""
-    for missing in ({"koebesum_dkk": None}, {"koebesum_dkk": 0},
-                    {"koebesum_dkk": 4449000}):
-        assert build.handel_rows(ENTRIES, "u1", "a", current=missing) == \
-            build.handel_rows(ENTRIES, "u1", "a")
+    for missing in (
+        {"koebesum_dkk": None},
+        {"koebesum_dkk": 0},
+        {"koebesum_dkk": 4449000},
+    ):
+        assert build.handel_rows(
+            ENTRIES, "u1", "a", current=missing
+        ) == build.handel_rows(ENTRIES, "u1", "a")
 
 
 def test_the_registers_document_codes_are_read_the_same_way_on_both_sides():
     """The attest says `endeligtskoede`, the history says `ENDELIGTSKOEDE`,
     and an auction comes back with an ø where the map spells oe."""
     sales = build.handel_rows(
-        [{"dato": "2020-01-01", "dokumenttype": "ENDELIGTSKOEDE",
-          "koebesum_dkk": 1, "post_nummer": 1},
-         {"dato": "2019-01-01", "dokumenttype": "AUKTIONSSKØDE",
-          "koebesum_dkk": 1, "post_nummer": 2},
-         {"dato": "2018-01-01", "dokumenttype": "SKIFTERETSATTEST",
-          "koebesum_dkk": 1, "post_nummer": 3}],
-        "u1", "a",
+        [
+            {
+                "dato": "2020-01-01",
+                "dokumenttype": "ENDELIGTSKOEDE",
+                "koebesum_dkk": 1,
+                "post_nummer": 1,
+            },
+            {
+                "dato": "2019-01-01",
+                "dokumenttype": "AUKTIONSSKØDE",
+                "koebesum_dkk": 1,
+                "post_nummer": 2,
+            },
+            {
+                "dato": "2018-01-01",
+                "dokumenttype": "SKIFTERETSATTEST",
+                "koebesum_dkk": 1,
+                "post_nummer": 3,
+            },
+        ],
+        "u1",
+        "a",
     )
     assert [s["handelstype"] for s in sales] == [
-        "Endeligt skøde", "Auktionsskøde", "Skifteretsattest"
+        "Endeligt skøde",
+        "Auktionsskøde",
+        "Skifteretsattest",
     ]
     # A code with no expansion is left exactly as it came, rather than guessed
     # at: word boundaries are not recoverable from ENDELIGTSKOEDE.
     unknown = build.handel_rows(
-        [{"dato": "2020-01-01", "dokumenttype": "NOGETNYT",
-          "koebesum_dkk": 1, "post_nummer": 1}], "u1", "a",
+        [
+            {
+                "dato": "2020-01-01",
+                "dokumenttype": "NOGETNYT",
+                "koebesum_dkk": 1,
+                "post_nummer": 1,
+            }
+        ],
+        "u1",
+        "a",
     )
     assert unknown[0]["handelstype"] == "NOGETNYT"
 
@@ -152,7 +204,7 @@ def test_a_property_the_register_has_no_history_for():
 def test_debt_and_equity_are_totalled_from_the_charges():
     properties = [
         {"uuid": "u1", "ejendomsvurdering_dkk": "2000000"},
-        {"uuid": "u2", "ejendomsvurdering_dkk": ""},   # no valuation to divide by
+        {"uuid": "u2", "ejendomsvurdering_dkk": ""},  # no valuation to divide by
     ]
     charges = [
         {"ejendom_uuid": "u1", "hovedstol_dkk": 1200000},
@@ -177,9 +229,7 @@ def _dst(values):
             "DATA": {"category": {"index": {"AL51EFFR": 0, "AL51BIDS": 1}}},
             "INDSEK": {"category": {"index": {"1430": 0}}},
             "RENTFIX": {
-                "category": {
-                    "index": dict(zip(laantype.RENTFIX, range(5), strict=True))
-                }
+                "category": {"index": dict(zip(laantype.RENTFIX, range(5), strict=True))}
             },
             "ContentsCode": {"category": {"index": {"DNRNURI": 0}}},
             "Tid": {"category": {"index": {"2025M01": 0}}},
@@ -195,12 +245,18 @@ def test_jsonstat_is_read_by_name_not_by_position():
     # Effective rates for the five types, then the five bidrag. coupon = eff - bidrag.
     table = laantype._read(_dst([4.0, 3.0, 3.5, 4.5, 5.0, 1.0, 1.0, 1.0, 1.0, 1.0]))
     assert {code: figures["kupon_pct"] for code, figures in table["2025M01"].items()} == {
-        "1M3M": 3.0, "1A": 2.0, "3A": 2.5, "5A": 3.5, "S10A": 4.0
+        "1M3M": 3.0,
+        "1A": 2.0,
+        "3A": 2.5,
+        "5A": 3.5,
+        "S10A": 4.0,
     }
     # The effective rate and the bidrag are kept as well: the coupon is what
     # the register writes down, but those two are what a borrower pays.
     assert table["2025M01"]["1M3M"] == {
-        "effektiv_rente_pct": 4.0, "bidrag_pct": 1.0, "kupon_pct": 3.0
+        "effektiv_rente_pct": 4.0,
+        "bidrag_pct": 1.0,
+        "kupon_pct": 3.0,
     }
 
 
@@ -210,8 +266,12 @@ def test_the_series_is_stored_as_rows_so_an_estimate_can_be_checked():
     rows = laantype.rate_rows(table)
     assert len(rows) == 5
     assert rows[0] == {
-        "maaned": "2025M01", "rentfix_kode": "1M3M", "laantype": "F-kort",
-        "effektiv_rente_pct": 4.0, "bidrag_pct": 1.0, "kupon_pct": 3.0,
+        "maaned": "2025M01",
+        "rentfix_kode": "1M3M",
+        "laantype": "F-kort",
+        "effektiv_rente_pct": 4.0,
+        "bidrag_pct": 1.0,
+        "kupon_pct": 3.0,
     }
     # Every row must fill the columns the table declares.
     columns = {name for name, _ in store.TABLES["rentestatistik"]["columns"]}
@@ -221,7 +281,7 @@ def test_the_series_is_stored_as_rows_so_an_estimate_can_be_checked():
 def test_a_rate_is_matched_to_the_nearest_loan_type():
     table = laantype._read(_dst([4.0, 3.0, 3.5, 4.5, 5.0, 1.0, 1.0, 1.0, 1.0, 1.0]))
     found = laantype.classify(2.51, ["2025M01"], table)
-    assert found["laantype_estimat"] == "F3"       # coupon 2.5
+    assert found["laantype_estimat"] == "F3"  # coupon 2.5
     assert found["laantype_afstand"] == 0.01
     assert found["laantype_kilde"] == "DST"
 
@@ -283,7 +343,7 @@ def test_a_dotenv_is_read_when_the_environment_is_silent(tmp_path, monkeypatch):
     monkeypatch.delenv(bbr.ENV_VAR, raising=False)
     env = tmp_path / ".env"
     env.write_text(
-        "# a comment\nOTHER=x\nDATAFORDELER_API_KEY=\"quoted-key\"\n", encoding="utf-8"
+        '# a comment\nOTHER=x\nDATAFORDELER_API_KEY="quoted-key"\n', encoding="utf-8"
     )
     assert bbr.api_key(env) == "quoted-key"
     assert bbr.configured(env)

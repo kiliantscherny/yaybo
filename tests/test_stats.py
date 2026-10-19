@@ -39,24 +39,53 @@ def tables():
     """One block over several floors, one neighbour, and one other town."""
     properties = [
         flat("a", "Islands Brygge 30B", "2300", "København S", "st. tv"),
-        flat("b", "Islands Brygge 30B", "2300", "København S", "3. tv",
-             ejendomsvurdering_dkk=4_200_000),
-        flat("c", "Islands Brygge 30B", "2300", "København S", "10. th",
-             ejendomsvurdering_dkk=7_000_000, beriget=False),
+        flat(
+            "b",
+            "Islands Brygge 30B",
+            "2300",
+            "København S",
+            "3. tv",
+            ejendomsvurdering_dkk=4_200_000,
+        ),
+        flat(
+            "c",
+            "Islands Brygge 30B",
+            "2300",
+            "København S",
+            "10. th",
+            ejendomsvurdering_dkk=7_000_000,
+            beriget=False,
+        ),
         flat("d", "Islands Brygge 4", "2300", "København S", "2. th"),
         flat("e", "Saxogade 10", "8600", "Silkeborg", "1. tv"),
     ]
     return {
         "ejendomme": properties,
         "handelshistorik": [
-            {"ejendom_uuid": "a", "dato": "2015-04-11", "pris_pr_m2": 30_000,
-             "beloeb_dkk": 2_100_000},
-            {"ejendom_uuid": "b", "dato": "2015-09-02", "pris_pr_m2": 34_000,
-             "beloeb_dkk": 2_380_000},
-            {"ejendom_uuid": "c", "dato": "2022-06-01", "pris_pr_m2": 80_000,
-             "beloeb_dkk": 5_600_000},
-            {"ejendom_uuid": "e", "dato": "2022-02-01", "pris_pr_m2": 20_000,
-             "beloeb_dkk": 1_400_000},
+            {
+                "ejendom_uuid": "a",
+                "dato": "2015-04-11",
+                "pris_pr_m2": 30_000,
+                "beloeb_dkk": 2_100_000,
+            },
+            {
+                "ejendom_uuid": "b",
+                "dato": "2015-09-02",
+                "pris_pr_m2": 34_000,
+                "beloeb_dkk": 2_380_000,
+            },
+            {
+                "ejendom_uuid": "c",
+                "dato": "2022-06-01",
+                "pris_pr_m2": 80_000,
+                "beloeb_dkk": 5_600_000,
+            },
+            {
+                "ejendom_uuid": "e",
+                "dato": "2022-02-01",
+                "pris_pr_m2": 20_000,
+                "beloeb_dkk": 1_400_000,
+            },
         ],
         "ejere": [
             {"ejendom_uuid": "a", "navn": "Ida", "foedselsdato": "1980-01-01"},
@@ -64,10 +93,18 @@ def tables():
             {"ejendom_uuid": "b", "navn": "Prøvebolig A/S", "cvr": "12345678"},
         ],
         "haeftelser": [
-            {"ejendom_uuid": "a", "hovedstol_dkk": 900_000, "rentesats_pct": 1.5,
-             "laantype_estimat": "F3"},
-            {"ejendom_uuid": "b", "hovedstol_dkk": 1_100_000, "rentesats_pct": 3.5,
-             "laantype_estimat": "F3"},
+            {
+                "ejendom_uuid": "a",
+                "hovedstol_dkk": 900_000,
+                "rentesats_pct": 1.5,
+                "laantype_estimat": "F3",
+            },
+            {
+                "ejendom_uuid": "b",
+                "hovedstol_dkk": 1_100_000,
+                "rentesats_pct": 3.5,
+                "laantype_estimat": "F3",
+            },
         ],
         "bygninger": [
             {"ejendom_uuid": "a", "opfoerelsesaar": 1932, "vaerelser": 3},
@@ -79,8 +116,9 @@ def tables():
 
 
 def test_a_building_is_the_address_with_the_flat_taken_off():
-    rows = stats.annotate([flat("a", "Islands Brygge 30B", "2300", "København S",
-                                "3. tv")])
+    rows = stats.annotate(
+        [flat("a", "Islands Brygge 30B", "2300", "København S", "3. tv")]
+    )
     row = rows[0]
     assert row["_bygning"] == "Islands Brygge 30B, 2300 København S"
     assert row["_postnr"] == "2300"
@@ -140,16 +178,18 @@ def test_a_measure_reads_from_whichever_table_holds_it(tables):
 
 
 def test_rows_that_are_not_properties_are_grouped_by_their_property(tables):
-    """"Average owner age by floor" only means something if this holds."""
+    """ "Average owner age by floor" only means something if this holds."""
     scope = stats.scope_of(tables, 'bygning:"Islands Brygge 30B, 2300 København S"')
     ages = dict(
         (name, value) for name, _, value in stats.aggregate(scope, "_etage", "alder")
     )
     # Two owners on the ground floor, born 1980 and 1990; the company on the
     # third has no age to average and must not become a zero.
-    assert ages["st"] == pytest.approx((TODAY - date(1980, 1, 1)).days / 365.25 / 2
-                                       + (TODAY - date(1990, 1, 1)).days / 365.25 / 2,
-                                       rel=0.01)
+    assert ages["st"] == pytest.approx(
+        (TODAY - date(1980, 1, 1)).days / 365.25 / 2
+        + (TODAY - date(1990, 1, 1)).days / 365.25 / 2,
+        rel=0.01,
+    )
     assert ages["3"] is None
 
 
@@ -184,8 +224,7 @@ def test_how_a_measure_is_combined_can_be_chosen(tables):
 def test_a_group_with_nothing_recorded_reports_nothing_rather_than_zero(tables):
     scope = stats.scope_of(tables, "")
     rooms = dict(
-        (name, value)
-        for name, _, value in stats.aggregate(scope, "_by", "vaerelser")
+        (name, value) for name, _, value in stats.aggregate(scope, "_by", "vaerelser")
     )
     assert rooms["Silkeborg"] is None, "no building record is not zero rooms"
 

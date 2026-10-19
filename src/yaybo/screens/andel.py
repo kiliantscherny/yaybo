@@ -200,12 +200,13 @@ class AndelScreen(YayboScreen):
                 [
                     (i18n.t("Address"), display.text(row.get("adresse"))),
                     (i18n.t("Floor/door"), display.text(row.get("lejlighed"))),
-                    (i18n.t("Municipality code"),
-                     display.text(row.get("kommunekode"))),
+                    (i18n.t("Municipality code"), display.text(row.get("kommunekode"))),
                     (i18n.t("Street code"), display.text(row.get("vejkode"))),
                     (i18n.t("Living area"), display.area(row.get("boligareal_m2"))),
-                    (i18n.t("Property type"),
-                     display.text(display.boligtype(row.get("boligtype")))),
+                    (
+                        i18n.t("Property type"),
+                        display.text(display.boligtype(row.get("boligtype"))),
+                    ),
                     (i18n.t("For sale"), display.text(row.get("til_salg"))),
                 ],
             ),
@@ -213,8 +214,10 @@ class AndelScreen(YayboScreen):
                 i18n.t("Charges on the share"),
                 [
                     (i18n.t("Count"), display.number(len(charges))),
-                    (i18n.t("Total debt"),
-                     display.kr(row.get("samlet_gaeld_dkk"), unit="kr.")),
+                    (
+                        i18n.t("Total debt"),
+                        display.kr(row.get("samlet_gaeld_dkk"), unit="kr."),
+                    ),
                     (i18n.t("Notices"), display.number(len(notices))),
                 ],
             ),
@@ -236,8 +239,7 @@ class AndelScreen(YayboScreen):
             panel.mount(Static(_facts(pairs), classes="facts"))
 
         panel.mount(
-            Static(i18n.t("What the book does not hold"),
-                   classes="section-heading")
+            Static(i18n.t("What the book does not hold"), classes="section-heading")
         )
         panel.mount(
             Static(
@@ -265,8 +267,9 @@ class AndelScreen(YayboScreen):
     def action_building(self) -> None:
         building = display.text(self.andel_row.get("bygning_adresse"), "")
         if not building:
-            self.notify(i18n.t("No building recorded for this share."),
-                        severity="warning")
+            self.notify(
+                i18n.t("No building recorded for this share."), severity="warning"
+            )
             return
         self.app.library_for(building)
 
@@ -301,7 +304,8 @@ class AndelScreen(YayboScreen):
             store.save(self.app.database, bundle.tables)
         except Exception as error:  # noqa: BLE001 - shown to the user verbatim
             self.app.call_from_thread(
-                self.notify, i18n.t("Could not re-fetch: {error}", error=error),
+                self.notify,
+                i18n.t("Could not re-fetch: {error}", error=error),
                 severity="error",
             )
             return

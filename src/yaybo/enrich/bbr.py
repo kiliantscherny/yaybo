@@ -220,9 +220,7 @@ def _read(node: dict, felter: dict[str, str]) -> dict:
     }
 
 
-def fetch(
-    husnummer: str, adresse_uuid: str, key: str, cache: dict | None = None
-) -> dict:
+def fetch(husnummer: str, adresse_uuid: str, key: str, cache: dict | None = None) -> dict:
     """What BBR holds for one address: its building, and the flat itself.
 
     `husnummer` is DAWA's adgangsadresse uuid and `adresse_uuid` its address

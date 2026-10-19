@@ -38,8 +38,14 @@ from yaybo.register.address import address_parts, dawa_addresses, floor_and_door
 # Read out of the stored documents; everything else in the database is left
 # alone, because nothing here knows how to rebuild it.
 DERIVED = [
-    "haeftelser", "servitutter", "dokument_parter", "underpant",
-    "adkomsthistorik", "adkomsthistorik_ejere", "handelshistorik", "attester",
+    "haeftelser",
+    "servitutter",
+    "dokument_parter",
+    "underpant",
+    "adkomsthistorik",
+    "adkomsthistorik_ejere",
+    "handelshistorik",
+    "attester",
 ]
 # Rebuilt too, but only when the public sources are asked: DAR places the
 # property, and the debt totals depend on the charges.
@@ -71,8 +77,11 @@ def collect(path: Path) -> tuple[dict, dict, list[dict]]:
                 "FROM adkomsthistorik"
             ).fetchall():
                 history[uuid].append(
-                    {"dato": "" if dato is None else str(dato),
-                     "dokumenttype": art or "", "tekst": tekst or ""}
+                    {
+                        "dato": "" if dato is None else str(dato),
+                        "dokumenttype": art or "",
+                        "tekst": tekst or "",
+                    }
                 )
 
         documents = db.sql(
@@ -86,7 +95,7 @@ def collect(path: Path) -> tuple[dict, dict, list[dict]]:
         properties = [
             dict(zip(readable, row, strict=True))
             for row in db.sql(
-                f'SELECT {", ".join(chr(34) + c + chr(34) for c in readable)} '
+                f"SELECT {', '.join(chr(34) + c + chr(34) for c in readable)} "
                 "FROM ejendomme"
             ).fetchall()
         ]
@@ -113,14 +122,25 @@ def collect(path: Path) -> tuple[dict, dict, list[dict]]:
         # is filled in later, in enrich, where the property rows are to hand.
         tables["handelshistorik"] += build.handel_rows(entries, uuid, adresse)
         tables["attester"].append(
-            {"ejendom_uuid": uuid, "adresse": adresse, "format": kind or "xml",
-             "dokument": raw, "dokument_json": attest.attest_json({"_raw": raw})}
+            {
+                "ejendom_uuid": uuid,
+                "adresse": adresse,
+                "format": kind or "xml",
+                "dokument": raw,
+                "dokument_json": attest.attest_json({"_raw": raw}),
+            }
         )
     return dict(tables), before, properties
 
 
-def enrich(tables: dict, properties: list[dict], *, laantype_on: bool,
-           bbr_on: bool = True, delay: float = 0.2) -> None:
+def enrich(
+    tables: dict,
+    properties: list[dict],
+    *,
+    laantype_on: bool,
+    bbr_on: bool = True,
+    delay: float = 0.2,
+) -> None:
     """Add what the public sources know, on top of what the register said.
 
     DAR answers to an address rather than to anything the register stores, so
@@ -130,8 +150,11 @@ def enrich(tables: dict, properties: list[dict], *, laantype_on: bool,
     if laantype_on:
         estimated = laantype.annotate(tables.get("haeftelser") or [])
         tables["rentestatistik"] = laantype.rate_rows(estimated["renter"])
-        print(f"  named the loan type on {estimated['named']} realkredit charge(s), "
-              f"from {len(estimated['renter'])} months of DST rates", file=sys.stderr)
+        print(
+            f"  named the loan type on {estimated['named']} realkredit charge(s), "
+            f"from {len(estimated['renter'])} months of DST rates",
+            file=sys.stderr,
+        )
 
     # The transfers, grouped, ready to be read as sales once both areas are
     # known - which is after DAR and BBR below, not here.
@@ -202,9 +225,13 @@ def enrich(tables: dict, properties: list[dict], *, laantype_on: bool,
                     from_bbr += 1
                     row.update(build.bbr_row(bolig))
                     tables.setdefault("bygninger", []).extend(
-                        build.bygning_rows(bolig, row["uuid"], adresse))
-        print(f"  DAR placed {found} of {len(properties)} propert"
-              f"{'y' if len(properties) == 1 else 'ies'}", file=sys.stderr)
+                        build.bygning_rows(bolig, row["uuid"], adresse)
+                    )
+        print(
+            f"  DAR placed {found} of {len(properties)} propert"
+            f"{'y' if len(properties) == 1 else 'ies'}",
+            file=sys.stderr,
+        )
         if key:
             print(f"  BBR answered for {from_bbr}", file=sys.stderr)
         else:
@@ -218,14 +245,26 @@ def enrich(tables: dict, properties: list[dict], *, laantype_on: bool,
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=(__doc__ or "").splitlines()[0])
     parser.add_argument("--db", help="the database to rebuild in place")
-    parser.add_argument("--dry-run", action="store_true",
-                        help="report what would be written and change nothing")
-    parser.add_argument("--skip-bbr", action="store_true",
-                        help="do not ask BBR for the building record")
-    parser.add_argument("--skip-laantype", action="store_true",
-                        help="do not estimate loan types from DST rates")
-    parser.add_argument("--delay", type=float, default=0.2, metavar="SECONDS",
-                        help="pause between address-register requests (default: 0.2)")
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="report what would be written and change nothing",
+    )
+    parser.add_argument(
+        "--skip-bbr", action="store_true", help="do not ask BBR for the building record"
+    )
+    parser.add_argument(
+        "--skip-laantype",
+        action="store_true",
+        help="do not estimate loan types from DST rates",
+    )
+    parser.add_argument(
+        "--delay",
+        type=float,
+        default=0.2,
+        metavar="SECONDS",
+        help="pause between address-register requests (default: 0.2)",
+    )
     return run(parser.parse_args(argv))
 
 
@@ -240,9 +279,13 @@ def run(args) -> int:
         raise SystemExit("no stored documents to rebuild from")
 
     print(f"{len(tables['attester'])} document(s) read from {path}", file=sys.stderr)
-    enrich(tables, properties,
-           laantype_on=not args.skip_laantype, bbr_on=not args.skip_bbr,
-           delay=args.delay)
+    enrich(
+        tables,
+        properties,
+        laantype_on=not args.skip_laantype,
+        bbr_on=not args.skip_bbr,
+        delay=args.delay,
+    )
 
     for name in DERIVED + ENRICHED:
         was, now = before.get(name, 0), len(tables.get(name) or [])
@@ -261,8 +304,10 @@ def run(args) -> int:
         return 0
 
     written = store.save(path, tables)
-    print("rewrote " + ", ".join(f"{n} {name}" for name, n in written.items() if n),
-          file=sys.stderr)
+    print(
+        "rewrote " + ", ".join(f"{n} {name}" for name, n in written.items() if n),
+        file=sys.stderr,
+    )
     return 0
 
 

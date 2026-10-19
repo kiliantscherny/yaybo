@@ -160,9 +160,7 @@ def resolve(
     return address, units, warning
 
 
-def units_at(
-    api, address: dict, *, andele_on: bool = True
-) -> tuple[list[dict], str]:
+def units_at(api, address: dict, *, andele_on: bool = True) -> tuple[list[dict], str]:
     """What the registers hold at an already-resolved address.
 
     The half of `resolve` that costs requests, for a caller that got its
@@ -173,8 +171,14 @@ def units_at(
 
 
 def _gather_andel(
-    api, uuid: str, gathered: dict, addresses: dict, building: dict, *,
-    key: str = "", bbr_cache: dict | None = None,
+    api,
+    uuid: str,
+    gathered: dict,
+    addresses: dict,
+    building: dict,
+    *,
+    key: str = "",
+    bbr_cache: dict | None = None,
 ):
     """Fetch one co-op share and add the two tables' worth of rows it fills.
 
@@ -268,8 +272,13 @@ def fetch(
         uuid = unit["uuid"]
         if unit.get("bog") == ANDELSBOG:
             record = _gather_andel(
-                api, uuid, gathered, addresses, building,
-                key=bbr_key, bbr_cache=bbr_cache,
+                api,
+                uuid,
+                gathered,
+                addresses,
+                building,
+                key=bbr_key,
+                bbr_cache=bbr_cache,
             )
             if on_raw:
                 on_raw(index, record, None, None)
@@ -395,7 +404,7 @@ def fetch(
 
 
 def describe(units: list[dict]) -> str:
-    """"1 property and 10 co-op shares" - what a lookup is about to cost.
+    """ "1 property and 10 co-op shares" - what a lookup is about to cost.
 
     Counted separately because they are not the same thing and the difference
     is the point: one of those numbers is buildings and flats registered as
@@ -425,9 +434,7 @@ def lookup(
     `limit` caps how many properties a building is allowed to cost; 0 lifts it.
     """
     say = options.get("on_status") or (lambda message: None)
-    address, units, warning = resolve(
-        api, query, use_dawa=use_dawa, andele_on=andele_on
-    )
+    address, units, warning = resolve(api, query, use_dawa=use_dawa, andele_on=andele_on)
     say(f"resolved: {address['tekst']}")
     say(f"found {describe(units)}")
     if limit and len(units) > limit:

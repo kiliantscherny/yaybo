@@ -34,9 +34,7 @@ class QueueBar(Horizontal):
 
     def compose(self) -> ComposeResult:
         yield Static("", id="queue-bar-label")
-        yield ProgressBar(
-            id="queue-bar-progress", show_eta=False, show_percentage=False
-        )
+        yield ProgressBar(id="queue-bar-progress", show_eta=False, show_percentage=False)
         yield Button(i18n.t("Stop"), id="queue-bar-stop", variant="error")
 
     def on_mount(self) -> None:
@@ -59,9 +57,7 @@ class QueueBar(Horizontal):
             state = queue.current or i18n.t("starting…")
         else:
             state = i18n.t("{n} waiting", n=queue.waiting)
-        failed = (
-            i18n.t("  ·  {n} failed", n=queue.failed) if queue.failed else ""
-        )
+        failed = i18n.t("  ·  {n} failed", n=queue.failed) if queue.failed else ""
         self.query_one("#queue-bar-label", Static).update(
             f"⟳  {done}/{total}  {state}{failed}"
         )

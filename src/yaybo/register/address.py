@@ -227,7 +227,7 @@ def unit_label(adresse: str) -> str:
 def drop_unit(adresse: str) -> str:
     """Strip the flat from an address, leaving the building it belongs to."""
     head, _ = split_postcode(adresse)
-    postal = adresse[len(head):].lstrip(", ")
+    postal = adresse[len(head) :].lstrip(", ")
     street = head.split(",")[0].strip()
     return f"{street}, {postal}" if postal else street
 
@@ -288,10 +288,9 @@ def dawa_addresses(address: dict) -> dict[tuple[str, str], dict]:
         parts = address_parts(titel)
         # The search is fuzzy, so "Prøvegade 1" also finds 10 and 1A, and
         # only an exact house number in the right postcode is this building.
-        if (
-            normalise(f"{parts['vejnavn']} {parts['husnummer']}") != normalise(building)
-            or parts["postnummer"] != str(address["postnummer"])
-        ):
+        if normalise(f"{parts['vejnavn']} {parts['husnummer']}") != normalise(
+            building
+        ) or parts["postnummer"] != str(address["postnummer"]):
             continue
         units[floor_and_door(titel)] = {
             "uuid": match["id"],
@@ -365,11 +364,15 @@ def utm32_to_degrees(easting: float, northing: float) -> tuple[float, float]:
         - (5 + 3 * t1 + 10 * c1 - 4 * c1**2 - 9 * ep2) * d**4 / 24
         + (61 + 90 * t1 + 298 * c1 + 45 * t1**2 - 252 * ep2 - 3 * c1**2) * d**6 / 720
     )
-    lon = central + (
-        d
-        - (1 + 2 * t1 + c1) * d**3 / 6
-        + (5 - 2 * c1 + 28 * t1 - 3 * c1**2 + 8 * ep2 + 24 * t1**2) * d**5 / 120
-    ) / cos1
+    lon = (
+        central
+        + (
+            d
+            - (1 + 2 * t1 + c1) * d**3 / 6
+            + (5 - 2 * c1 + 28 * t1 - 3 * c1**2 + 8 * ep2 + 24 * t1**2) * d**5 / 120
+        )
+        / cos1
+    )
     return math.degrees(lon), math.degrees(lat)
 
 
@@ -383,8 +386,11 @@ def address_parts(adresse: str) -> dict:
     head, postnr = split_postcode(adresse)
     street = head.split(",")[0].strip()
     vejnavn, _, husnr = street.rpartition(" ")
-    return {"vejnavn": vejnavn or street, "husnummer": husnr if vejnavn else "",
-            "postnummer": postnr}
+    return {
+        "vejnavn": vejnavn or street,
+        "husnummer": husnr if vejnavn else "",
+        "postnummer": postnr,
+    }
 
 
 def floor_and_door(adresse: str) -> tuple[str, str]:

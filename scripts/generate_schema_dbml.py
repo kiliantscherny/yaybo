@@ -48,8 +48,7 @@ TABLES = {
     "servitutter": "Easements and covenants recorded against the property.",
     "dokument_parter": "Everyone named on any document, with their role. Needs "
     "a MitID login: this is the table the login is really for.",
-    "underpant": "A mortgage deed pledged on in its own right - a charge on a "
-    "charge.",
+    "underpant": "A mortgage deed pledged on in its own right - a charge on a charge.",
     "handelshistorik": "Every recorded transfer read as a sale, out of the "
     "register's own historisk adkomst. The same transfers as adkomsthistorik, "
     "read for the money rather than the people. Needs a MitID login.",

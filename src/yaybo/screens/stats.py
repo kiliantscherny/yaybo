@@ -69,8 +69,9 @@ class StatsScreen(YayboScreen):
         with Horizontal(id="stats-scope-bar"):
             for widget_id, label, _, _ in SCOPE:
                 yield Static(i18n.t(label), classes="scope-label")
-                yield Select([], prompt=i18n.t("all"), id=widget_id,
-                             classes="scope-select")
+                yield Select(
+                    [], prompt=i18n.t("all"), id=widget_id, classes="scope-select"
+                )
         yield Static("", id="stats-scope")
         yield OptionList(id="stats-analyses")
         yield Static("", id="stats-hint", classes="hint-text")
@@ -136,9 +137,7 @@ class StatsScreen(YayboScreen):
 
     @on(Select.Changed, ".scope-select")
     def _scope_changed(self, event: Select.Changed) -> None:
-        field = next(
-            (f for wid, _, f, _ in SCOPE if wid == event.select.id), ""
-        )
+        field = next((f for wid, _, f, _ in SCOPE if wid == event.select.id), "")
         if not field:
             return
         chosen = None if event.value in (Select.BLANK, ALL, None) else str(event.value)
@@ -202,39 +201,42 @@ class StatsScreen(YayboScreen):
         thin = (
             i18n.t("  ·  nothing matches this combination - press c to reset")
             if held and not shown
-            else i18n.t("  ·  too few to read much into") if 0 < shown < 5 else ""
+            else i18n.t("  ·  too few to read much into")
+            if 0 < shown < 5
+            else ""
         )
         self.query_one("#stats-scope", Static).update(
             i18n.t(
                 "{where}   ·   {shown} of {properties} in {buildings}{thin}",
-                where=where, shown=shown,
-                properties=(i18n.t("{n} property", n=held) if held == 1
-                            else i18n.t("{n} properties", n=held)),
-                buildings=(i18n.t("{n} building", n=buildings) if buildings == 1
-                           else i18n.t("{n} buildings", n=buildings)),
+                where=where,
+                shown=shown,
+                properties=(
+                    i18n.t("{n} property", n=held)
+                    if held == 1
+                    else i18n.t("{n} properties", n=held)
+                ),
+                buildings=(
+                    i18n.t("{n} building", n=buildings)
+                    if buildings == 1
+                    else i18n.t("{n} buildings", n=buildings)
+                ),
                 thin=thin,
             )
         )
 
     def _describe_scope(self) -> str:
-        parts = [
-            self.chosen[field] for _, _, field, _ in SCOPE if self.chosen.get(field)
-        ]
+        parts = [self.chosen[field] for _, _, field, _ in SCOPE if self.chosen.get(field)]
         return " · ".join(reversed(parts)) if parts else i18n.t("Everything held")
 
     @on(OptionList.OptionSelected, "#stats-analyses")
     def _chose(self, event: OptionList.OptionSelected) -> None:
-        analysis = next(
-            a for a in stats.ANALYSES if a.key == str(event.option.id)
-        )
+        analysis = next(a for a in stats.ANALYSES if a.key == str(event.option.id))
         if not self.scope.properties:
             self.notify(i18n.t("Nothing in that selection to compute anything over."))
             return
         from yaybo.screens.analysis import AnalysisScreen
 
-        self.app.push_screen(
-            AnalysisScreen(analysis, self.scope, self._describe_scope())
-        )
+        self.app.push_screen(AnalysisScreen(analysis, self.scope, self._describe_scope()))
 
     def action_back(self) -> None:
         self.app.action_library()

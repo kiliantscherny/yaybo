@@ -115,8 +115,9 @@ def test_bindings_are_restated_on_the_instance():
 
     i18n.use("da")
     i18n.translate_bindings(node)
-    said = [b.description for group in node._bindings.key_to_bindings.values()
-            for b in group]
+    said = [
+        b.description for group in node._bindings.key_to_bindings.values() for b in group
+    ]
     assert said == ["Hent igen"]
     i18n.use("en")
 
@@ -131,8 +132,9 @@ def test_a_binding_with_no_description_is_left_alone():
     node._bindings = BindingsMap([Binding("f", "refetch", "")])
     i18n.use("da")
     i18n.translate_bindings(node)
-    assert [b.description for group in node._bindings.key_to_bindings.values()
-            for b in group] == [""]
+    assert [
+        b.description for group in node._bindings.key_to_bindings.values() for b in group
+    ] == [""]
     i18n.use("en")
 
 
@@ -146,9 +148,22 @@ def test_translating_something_that_has_no_bindings_does_nothing():
 # Words that are the same in both languages. An entry mapping a string to
 # itself would be a line to keep in step with nothing, so they are listed here
 # instead and the check below skips them.
-SAME_IN_BOTH = {"Filter", "SQL", "MitID", "Median", "Start",
-                "Type", "Postnr", "Note", "Pri.", "▶  Start", "■  Stop",
-                "Auto-fetch: on", "Auto-fetch: off", "Stop"}
+SAME_IN_BOTH = {
+    "Filter",
+    "SQL",
+    "MitID",
+    "Median",
+    "Start",
+    "Type",
+    "Postnr",
+    "Note",
+    "Pri.",
+    "▶  Start",
+    "■  Stop",
+    "Auto-fetch: on",
+    "Auto-fetch: off",
+    "Stop",
+}
 
 
 def test_every_footer_key_has_a_danish_word():
@@ -183,15 +198,21 @@ def test_every_column_header_fits_its_column_in_both_languages():
 
     headers = []
     for where, columns in (
-        ("andele", andele.COLUMNS), ("buildings", buildings.COLUMNS),
-        ("queue", queue.COLUMNS), ("property/timeline", prop.TIMELINE),
+        ("andele", andele.COLUMNS),
+        ("buildings", buildings.COLUMNS),
+        ("queue", queue.COLUMNS),
+        ("property/timeline", prop.TIMELINE),
     ):
         headers += [(where, label, width) for label, width in columns]
     for where, spec in (
-        ("andel/charges", andel.HAEFTELSER), ("andel/notices", andel.MEDDELELSER),
-        ("property/owners", prop.EJERE), ("property/charges", prop.HAEFTELSER),
-        ("property/easements", prop.SERVITUTTER), ("property/parties", prop.PARTER),
-        ("property/underpant", prop.UNDERPANT), ("property/sales", prop.HANDLER),
+        ("andel/charges", andel.HAEFTELSER),
+        ("andel/notices", andel.MEDDELELSER),
+        ("property/owners", prop.EJERE),
+        ("property/charges", prop.HAEFTELSER),
+        ("property/easements", prop.SERVITUTTER),
+        ("property/parties", prop.PARTER),
+        ("property/underpant", prop.UNDERPANT),
+        ("property/sales", prop.HANDLER),
     ):
         headers += [(where, row[0], row[3]) for row in spec]
     headers += [("library", column.label, column.width) for column in LIBRARY]
@@ -216,9 +237,15 @@ def test_the_register_is_never_translated():
     charges = build.andel_haeftelse_rows(
         {
             "adresse": "Prøvegade 1, ST. TH, 9999 Prøveby",
-            "haeftelser": [{"alias": "01.02.2024-1", "version": "1",
-                            "haeftelsestype": "Ejerpantebrev",
-                            "hovedstol": "1.000.000 DKK", "kreditorer": []}],
+            "haeftelser": [
+                {
+                    "alias": "01.02.2024-1",
+                    "version": "1",
+                    "haeftelsestype": "Ejerpantebrev",
+                    "hovedstol": "1.000.000 DKK",
+                    "kreditorer": [],
+                }
+            ],
         },
         "andel-1",
     )

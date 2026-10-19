@@ -112,27 +112,49 @@ def _postcode(row: dict) -> str:
 # narrow terminal cuts off - which is exactly the wrong column to lose.
 COLUMNS: tuple[Column, ...] = (
     Column("MitID", 7, "mitid", lambda r: r.get("beriget"), field="beriget"),
-    Column("Address", 34, "adresse", lambda r: display.shorten(r.get("adresse"), 34),
-           field="adresse"),
+    Column(
+        "Address",
+        34,
+        "adresse",
+        lambda r: display.shorten(r.get("adresse"), 34),
+        field="adresse",
+    ),
     Column("Postcode", 8, "postnr", _postcode),
-    Column("Type", 12, "type", lambda r: display.shorten(_kind(r), 12),
-           text=_kind),
-    Column("Area", 6, "areal",
-           lambda r: display.area(r.get("boligareal_m2") or r.get("areal_m2")),
-           field="boligareal_m2"),
-    Column("Valuation", 10, "vurdering",
-           lambda r: display.compact_kr(r.get("ejendomsvurdering_dkk")),
-           field="ejendomsvurdering_dkk"),
-    Column("Debt", 10, "gaeld",
-           lambda r: display.compact_kr(r.get("samlet_gaeld_dkk")),
-           field="samlet_gaeld_dkk"),
-    Column("LTV", 6, "belaant",
-           lambda r: display.pct(r.get("belaaningsgrad_pct"), 0),
-           field="belaaningsgrad_pct"),
-    Column("Owners", 16, "ejer", lambda r: display.shorten(r.get("ejere"), 16),
-           field="ejere"),
-    Column("Fetched", 9, "hentet", lambda r: display.ago(r.get("hentet")),
-           field="hentet"),
+    Column("Type", 12, "type", lambda r: display.shorten(_kind(r), 12), text=_kind),
+    Column(
+        "Area",
+        6,
+        "areal",
+        lambda r: display.area(r.get("boligareal_m2") or r.get("areal_m2")),
+        field="boligareal_m2",
+    ),
+    Column(
+        "Valuation",
+        10,
+        "vurdering",
+        lambda r: display.compact_kr(r.get("ejendomsvurdering_dkk")),
+        field="ejendomsvurdering_dkk",
+    ),
+    Column(
+        "Debt",
+        10,
+        "gaeld",
+        lambda r: display.compact_kr(r.get("samlet_gaeld_dkk")),
+        field="samlet_gaeld_dkk",
+    ),
+    Column(
+        "LTV",
+        6,
+        "belaant",
+        lambda r: display.pct(r.get("belaaningsgrad_pct"), 0),
+        field="belaaningsgrad_pct",
+    ),
+    Column(
+        "Owners", 16, "ejer", lambda r: display.shorten(r.get("ejere"), 16), field="ejere"
+    ),
+    Column(
+        "Fetched", 9, "hentet", lambda r: display.ago(r.get("hentet")), field="hentet"
+    ),
 )
 MITID = next(index for index, column in enumerate(COLUMNS) if column.name == "mitid")
 BY_NAME = {column.name: column for column in COLUMNS}
@@ -195,13 +217,15 @@ class LibraryScreen(YayboScreen):
             yield Static(i18n.t("Filter"), id="library-filter-label")
             yield Input(placeholder=i18n.t("address or owner"), id="library-filter")
             yield Static("", id="library-count")
-            yield Button(i18n.t("＋ Find new property"), id="library-new",
-                         variant="primary")
+            yield Button(
+                i18n.t("＋ Find new property"), id="library-new", variant="primary"
+            )
         with Horizontal(id="library-facets"):
             for widget_id, label, _ in FACETS:
                 yield Static(i18n.t(label), classes="facet-label")
-                yield Select([], prompt=i18n.t("all"), id=widget_id,
-                             classes="facet-select")
+                yield Select(
+                    [], prompt=i18n.t("all"), id=widget_id, classes="facet-select"
+                )
         yield Static("", id="library-scope")
         yield DataTable(id="library-table", cursor_type="row", zebra_stripes=True)
         yield Static("", id="library-empty", classes="empty-state")
@@ -248,8 +272,10 @@ class LibraryScreen(YayboScreen):
             select = self.query_one(f"#{widget_id}", Select)
             select.set_options(
                 [("alle", ALL)]
-                + [(f"{name}  ({n})", name)
-                   for name, n in stats.choices(self.held, field)]
+                + [
+                    (f"{name}  ({n})", name)
+                    for name, n in stats.choices(self.held, field)
+                ]
             )
             select.value = self.chosen.get(field) or ALL
 
@@ -305,8 +331,7 @@ class LibraryScreen(YayboScreen):
     def action_sort_next(self) -> None:
         self.sort_by = (self.sort_by + 1) % len(COLUMNS)
         self._sort()
-        self.notify(i18n.t("Sorted by {name}.",
-                            name=i18n.t(COLUMNS[self.sort_by].label)))
+        self.notify(i18n.t("Sorted by {name}.", name=i18n.t(COLUMNS[self.sort_by].label)))
 
     def action_sort_invert(self) -> None:
         self.descending = not self.descending
@@ -361,17 +386,20 @@ class LibraryScreen(YayboScreen):
         arrow = "↓" if self.descending else "↑"
         count = self.query_one("#library-count", Static)
         held, shown = len(self.held), len(self.shown)
-        ticked = (
-            i18n.t("{n} ticked · ", n=len(self.ticked)) if self.ticked else ""
-        )
+        ticked = i18n.t("{n} ticked · ", n=len(self.ticked)) if self.ticked else ""
         if held:
             whole = (
-                i18n.t("{n} property", n=held) if held == 1
+                i18n.t("{n} property", n=held)
+                if held == 1
                 else i18n.t("{n} properties", n=held)
             )
             count.update(
-                f"{ticked}" + (i18n.t("{shown} of {held}", shown=shown, held=held)
-                               if shown != held else whole)
+                f"{ticked}"
+                + (
+                    i18n.t("{shown} of {held}", shown=shown, held=held)
+                    if shown != held
+                    else whole
+                )
             )
         else:
             count.update("")
@@ -384,7 +412,8 @@ class LibraryScreen(YayboScreen):
             i18n.t(
                 "Already fetched — searching here never leaves the database. "
                 "Sorted by {name} {arrow} (o, i) · ＋ for a new address.",
-                name=i18n.t(column.label), arrow=arrow,
+                name=i18n.t(column.label),
+                arrow=arrow,
             )
             + (f"\n{chosen}" if chosen else "")
         )
@@ -553,10 +582,15 @@ class LibraryScreen(YayboScreen):
         self.ticked.clear()
         self._repaint_ticks()
         self.notify(
-            i18n.t("Queued {n} to re-fetch. {note}",
-                   n=(i18n.t("{n} property", n=added) if added == 1
-                      else i18n.t("{n} properties", n=added)),
-                   note=self.app.queued_note())
+            i18n.t(
+                "Queued {n} to re-fetch. {note}",
+                n=(
+                    i18n.t("{n} property", n=added)
+                    if added == 1
+                    else i18n.t("{n} properties", n=added)
+                ),
+                note=self.app.queued_note(),
+            )
             if added
             else i18n.t("Those are already in the queue.")
         )
@@ -568,13 +602,14 @@ class LibraryScreen(YayboScreen):
         chosen = self._chosen() if self.ticked else []
         if chosen:
             uuids = [row["uuid"] for row in chosen]
-            tables = await asyncio.to_thread(
-                store.tables_for, self.app.database, uuids
-            )
+            tables = await asyncio.to_thread(store.tables_for, self.app.database, uuids)
             title = i18n.t(
                 "Export {n} ticked",
-                n=(i18n.t("{n} property", n=len(uuids)) if len(uuids) == 1
-                   else i18n.t("{n} properties", n=len(uuids))),
+                n=(
+                    i18n.t("{n} property", n=len(uuids))
+                    if len(uuids) == 1
+                    else i18n.t("{n} properties", n=len(uuids))
+                ),
             )
         else:
             # Reading the whole database can take a moment on a big one, and the

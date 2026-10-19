@@ -156,8 +156,12 @@ class SearchScreen(YayboScreen):
         yield Footer()
 
     def on_mount(self) -> None:
-        for hidden in ("#search-matches", "#search-units", "#search-context",
-                       "#search-actions"):
+        for hidden in (
+            "#search-matches",
+            "#search-units",
+            "#search-context",
+            "#search-actions",
+        ):
             self.query_one(hidden).display = False
         self._steps(1)
         self._say(
@@ -208,9 +212,7 @@ class SearchScreen(YayboScreen):
         for number, label in enumerate(STEPS, start=1):
             if number > 1:
                 line.append("  →  ", style="dim")
-            line.append(
-                i18n.t(label), style="bold" if number == active else "dim"
-            )
+            line.append(i18n.t(label), style="bold" if number == active else "dim")
         self.query_one("#search-steps", Static).update(line)
 
     @property
@@ -287,8 +289,12 @@ class SearchScreen(YayboScreen):
 
         if not self.matches:
             if len(query.strip()) >= 3:
-                self._say(i18n.t("The address register knows no address like {query!r}.",
-                                 query=query.strip()))
+                self._say(
+                    i18n.t(
+                        "The address register knows no address like {query!r}.",
+                        query=query.strip(),
+                    )
+                )
             return
 
         self._capped = not whole_street and len(found) >= MATCHES
@@ -305,9 +311,7 @@ class SearchScreen(YayboScreen):
                 out.append(Option(Text(row, style="bold dim"), disabled=True))
                 continue
             out.append(
-                Option(
-                    _match_label(row, self._cost(row), palette, self._mine_note(row))
-                )
+                Option(_match_label(row, self._cost(row), palette, self._mine_note(row)))
             )
         return out
 
@@ -383,7 +387,10 @@ class SearchScreen(YayboScreen):
             i18n.t(
                 "{n} address(es){capped}{whole}{empty}.\n↓ or enter moves to "
                 "the list · then enter opens one, or a takes its whole building",
-                n=len(self.matches), capped=capped, whole=whole, empty=empty,
+                n=len(self.matches),
+                capped=capped,
+                whole=whole,
+                empty=empty,
             )
         )
 
@@ -447,9 +454,7 @@ class SearchScreen(YayboScreen):
         if key in self.held:
             return
         try:
-            units, _ = pipeline.units_at(
-                self.app.api, {**match, "etage": "", "doer": ""}
-            )
+            units, _ = pipeline.units_at(self.app.api, {**match, "etage": "", "doer": ""})
         except Exception:  # noqa: BLE001
             # A probe is a courtesy, not the search. If the register will not
             # answer, leave the row unannotated and let enter find out properly
@@ -490,9 +495,7 @@ class SearchScreen(YayboScreen):
 
     def _dead_ends(self) -> int:
         return sum(
-            1
-            for match in self.matches
-            if self.held.get(_building_key(match)) == []
+            1 for match in self.matches if self.held.get(_building_key(match)) == []
         )
 
     def _open(
@@ -522,8 +525,12 @@ class SearchScreen(YayboScreen):
             )
             return
         self.address = address
-        self._say(i18n.t("Asking the register what is registered at {where}…",
-                         where=address["tekst"]))
+        self._say(
+            i18n.t(
+                "Asking the register what is registered at {where}…",
+                where=address["tekst"],
+            )
+        )
         self._find_units(address, take_all)
 
     # ── step two: which properties ──────────────────────────────────────
@@ -618,20 +625,16 @@ class SearchScreen(YayboScreen):
         self._steps(1)
         left = len(self.matches) - self._dead_ends()
         nothing = (
-            i18n.t(
-                "Nothing on this list has anything registered - try another "
-                "address."
-            )
+            i18n.t("Nothing on this list has anything registered - try another address.")
             if self.matches and left <= 0
-            else i18n.t(
-                "Struck-through rows are the ones already known to be empty."
-            )
+            else i18n.t("Struck-through rows are the ones already known to be empty.")
         )
         self._say(
             i18n.t(
                 "Nothing is registered at {where}.\nThe address is real, but "
                 "the land register holds no property there. {nothing}",
-                where=where, nothing=nothing,
+                where=where,
+                nothing=nothing,
             )
         )
         if self.matches:
@@ -650,12 +653,16 @@ class SearchScreen(YayboScreen):
         chosen, total = len(listing.selected), len(self.units)
         note = f"{warning}\n" if warning else ""
         self._say(
-            note + i18n.t(
+            note
+            + i18n.t(
                 "{properties} registered here · {chosen} ticked\nspace ticks "
                 "one · a ticks all · n clears · f queues them · ← back to the "
                 "addresses",
-                properties=(i18n.t("{n} property", n=total) if total == 1
-                            else i18n.t("{n} properties", n=total)),
+                properties=(
+                    i18n.t("{n} property", n=total)
+                    if total == 1
+                    else i18n.t("{n} properties", n=total)
+                ),
                 chosen=chosen,
             )
         )
@@ -691,8 +698,7 @@ class SearchScreen(YayboScreen):
         if not self._picking_units:
             self._say(
                 i18n.t(
-                    "Pick an address first - enter on one, or a for its whole "
-                    "building."
+                    "Pick an address first - enter on one, or a for its whole building."
                 )
             )
             return
@@ -701,8 +707,7 @@ class SearchScreen(YayboScreen):
         if not chosen:
             self._say(
                 i18n.t(
-                    "Nothing ticked. space ticks the one under the cursor; a "
-                    "ticks all."
+                    "Nothing ticked. space ticks the one under the cursor; a ticks all."
                 )
             )
             return
@@ -727,7 +732,8 @@ class SearchScreen(YayboScreen):
         listing.deselect_all()
         self._just_announced = True
         held = (
-            i18n.t("{n} property", n=len(units)) if len(units) == 1
+            i18n.t("{n} property", n=len(units))
+            if len(units) == 1
             else i18n.t("{n} properties", n=len(units))
         )
         note = self.app.queued_note()
@@ -735,7 +741,9 @@ class SearchScreen(YayboScreen):
             i18n.t(
                 "Queued {held} from {where}.\n{note}  ← goes back to the "
                 "addresses to queue more, b shows the queue, l the library.",
-                held=held, where=self.address["tekst"], note=note,
+                held=held,
+                where=self.address["tekst"],
+                note=note,
             )
         )
         self.notify(i18n.t("Queued {held}. {note}", held=held, note=note))
@@ -836,7 +844,7 @@ def _split_books(units: list[dict]) -> tuple[int, int]:
 
 
 def _tally(properties: int, shares: int) -> str:
-    """"1 ejendom + 10 andele", in the register's own words.
+    """ "1 ejendom + 10 andele", in the register's own words.
 
     Never one total. A property and a share are different things in different
     books, and a co-op block is one of the first and a dozen of the second -
@@ -896,8 +904,7 @@ def _match_label(
         # the building. Saying so here is the difference between an honest row
         # and one that promises a flat and delivers ninety.
         label.append(
-            "   " + i18n.t("no property of its own · whole building: {n}",
-                           n=properties),
+            "   " + i18n.t("no property of its own · whole building: {n}", n=properties),
             style=f"bold {empty}",
         )
     else:

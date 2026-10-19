@@ -293,18 +293,21 @@ class PropertyScreen(YayboScreen):
                 i18n.t("The property"),
                 [
                     (i18n.t("Address"), display.text(row.get("adresse"))),
-                    (i18n.t("Type"), display.boligtype(row.get("boligtype"))
-                     or display.text(row.get("ejendomstype"))),
+                    (
+                        i18n.t("Type"),
+                        display.boligtype(row.get("boligtype"))
+                        or display.text(row.get("ejendomstype")),
+                    ),
                     (i18n.t("Living area"), display.area(row.get("boligareal_m2"))),
                     (i18n.t("Registered area"), display.area(row.get("areal_m2"))),
                     (i18n.t("BFE number"), display.text(row.get("bfe_nr"))),
-                    (i18n.t("Flat number"),
-                     display.text(row.get("ejerlejlighedsnr"))),
-                    (i18n.t("Share of the block"),
-                     display.text(row.get("fordelingstal"))),
+                    (i18n.t("Flat number"), display.text(row.get("ejerlejlighedsnr"))),
+                    (
+                        i18n.t("Share of the block"),
+                        display.text(row.get("fordelingstal")),
+                    ),
                     (i18n.t("Cadastral number"), display.text(row.get("matrikel"))),
-                    (i18n.t("Cadastral district"),
-                     display.text(row.get("landsejerlav"))),
+                    (i18n.t("Cadastral district"), display.text(row.get("landsejerlav"))),
                     (i18n.t("Municipality"), display.text(row.get("kommune"))),
                 ],
             ),
@@ -320,36 +323,41 @@ class PropertyScreen(YayboScreen):
                         i18n.t("Public valuation"),
                         display.kr(row.get("ejendomsvurdering_dkk"), unit="kr."),
                     ),
-                    (i18n.t("Land value"),
-                     display.kr(row.get("grundvaerdi_dkk"), unit="kr.")),
+                    (
+                        i18n.t("Land value"),
+                        display.kr(row.get("grundvaerdi_dkk"), unit="kr."),
+                    ),
                     (i18n.t("Valued on"), display.when(row.get("vurderingsdato"))),
-                    (i18n.t("Total debt"),
-                     display.kr(row.get("samlet_gaeld_dkk"), unit="kr.")),
+                    (
+                        i18n.t("Total debt"),
+                        display.kr(row.get("samlet_gaeld_dkk"), unit="kr."),
+                    ),
                     (i18n.t("Equity (at least)"), equity),
                     (i18n.t("Loan-to-value (at most)"), loaded),
                     (i18n.t("Charges"), display.number(row.get("antal_haeftelser"))),
-                    (i18n.t("Easements"),
-                     display.number(row.get("antal_servitutter"))),
+                    (i18n.t("Easements"), display.number(row.get("antal_servitutter"))),
                 ],
             ),
             (
                 i18n.t("Latest sale"),
                 [
                     (i18n.t("Date"), display.when(row.get("seneste_salg_dato"))),
-                    (i18n.t("Amount"),
-                     display.kr(row.get("seneste_salg_dkk"), unit="kr.")),
+                    (
+                        i18n.t("Amount"),
+                        display.kr(row.get("seneste_salg_dkk"), unit="kr."),
+                    ),
                     (
                         i18n.t("Price per m²"),
                         display.kr(row.get("seneste_salg_pris_m2"), unit="kr."),
                     ),
                     (
                         i18n.t("Price per m² (tinglyst areal)"),
-                        display.kr(
-                            row.get("seneste_salg_pris_m2_tinglyst"), unit="kr."
-                        ),
+                        display.kr(row.get("seneste_salg_pris_m2_tinglyst"), unit="kr."),
                     ),
-                    (i18n.t("Purchase sum (deed)"),
-                     display.kr(row.get("koebesum_dkk"), unit="kr.")),
+                    (
+                        i18n.t("Purchase sum (deed)"),
+                        display.kr(row.get("koebesum_dkk"), unit="kr."),
+                    ),
                     (i18n.t("Handover"), display.when(row.get("overtagelsesdato"))),
                 ],
             ),
@@ -394,42 +402,62 @@ class PropertyScreen(YayboScreen):
                 Static(
                     _facts(
                         [
-                            (i18n.t("Built"),
-                             display.number(building.get("opfoerelsesaar"))),
-                            (i18n.t("Rebuilt"),
-                             display.number(building.get("ombygningsaar"))),
+                            (
+                                i18n.t("Built"),
+                                display.number(building.get("opfoerelsesaar")),
+                            ),
+                            (
+                                i18n.t("Rebuilt"),
+                                display.number(building.get("ombygningsaar")),
+                            ),
                             (i18n.t("Floors"), display.number(building.get("etager"))),
                             (i18n.t("Rooms"), display.number(building.get("vaerelser"))),
                             (
                                 i18n.t("Bathrooms"),
                                 display.number(building.get("badevaerelser")),
                             ),
-                            (i18n.t("Toilets"),
-                             display.number(building.get("toiletter"))),
-                            (i18n.t("Living area"),
-                             display.area(building.get("boligareal_m2"))),
-                            (i18n.t("Basement"),
-                             display.area(building.get("kaelderareal_m2"))),
-                            (i18n.t("Commercial"),
-                             display.area(building.get("erhvervsareal_m2"))),
+                            (
+                                i18n.t("Toilets"),
+                                display.number(building.get("toiletter")),
+                            ),
+                            (
+                                i18n.t("Living area"),
+                                display.area(building.get("boligareal_m2")),
+                            ),
+                            (
+                                i18n.t("Basement"),
+                                display.area(building.get("kaelderareal_m2")),
+                            ),
+                            (
+                                i18n.t("Commercial"),
+                                display.area(building.get("erhvervsareal_m2")),
+                            ),
                             (
                                 i18n.t("Total area"),
                                 display.area(building.get("samlet_areal_m2")),
                             ),
-                            (i18n.t("External wall"),
-                             display.text(building.get("ydervaeg"))),
+                            (
+                                i18n.t("External wall"),
+                                display.text(building.get("ydervaeg")),
+                            ),
                             (i18n.t("Roof"), display.text(building.get("tagdaekning"))),
-                            (i18n.t("Heating"),
-                             display.text(building.get("varmeinstallation"))),
+                            (
+                                i18n.t("Heating"),
+                                display.text(building.get("varmeinstallation")),
+                            ),
                             (
                                 i18n.t("Additional heating"),
                                 display.text(building.get("supplerende_varme")),
                             ),
                             (i18n.t("Kitchen"), display.text(building.get("koekken"))),
-                            (i18n.t("Bathing"),
-                             display.text(building.get("badeforhold"))),
-                            (i18n.t("Toilet"),
-                             display.text(building.get("toiletforhold"))),
+                            (
+                                i18n.t("Bathing"),
+                                display.text(building.get("badeforhold")),
+                            ),
+                            (
+                                i18n.t("Toilet"),
+                                display.text(building.get("toiletforhold")),
+                            ),
                         ]
                     ),
                     classes="facts",
@@ -487,7 +515,7 @@ class PropertyScreen(YayboScreen):
             events.append(
                 (
                     charge.get("tinglysningsdato"),
-                    f'{i18n.t("Charge")} · {art}'.strip(" ·"),
+                    f"{i18n.t('Charge')} · {art}".strip(" ·"),
                     display.kr(charge.get("hovedstol_dkk")),
                     " · ".join(
                         part
@@ -517,8 +545,10 @@ class PropertyScreen(YayboScreen):
                     row.get("vurderingsdato"),
                     i18n.t("Public valuation"),
                     display.kr(row.get("ejendomsvurdering_dkk")),
-                    i18n.t("land value {amount}",
-                           amount=display.kr(row.get("grundvaerdi_dkk"))),
+                    i18n.t(
+                        "land value {amount}",
+                        amount=display.kr(row.get("grundvaerdi_dkk")),
+                    ),
                 )
             )
         # Newest first, and anything undated last rather than first: an en dash
@@ -560,18 +590,12 @@ class PropertyScreen(YayboScreen):
         xs = [_as_year(when) for when, _, _ in points]
         ys = [float(price or 0) for _, price, _ in points]
         theme = self.app.current_theme
-        plot.plt.plot(
-            xs, ys, marker="braille", color=display.rgb(theme.primary, LINE)
-        )
-        plot.plt.scatter(
-            xs, ys, marker="●", color=display.rgb(theme.warning, POINT)
-        )
+        plot.plt.plot(xs, ys, marker="braille", color=display.rgb(theme.primary, LINE))
+        plot.plt.scatter(xs, ys, marker="●", color=display.rgb(theme.warning, POINT))
         ticks = sorted({int(x) for x in xs})
         if len(ticks) > 8:
             ticks = ticks[:: max(1, len(ticks) // 8)]
-        plot.plt.xticks(
-            [float(year) for year in ticks], [str(year) for year in ticks]
-        )
+        plot.plt.xticks([float(year) for year in ticks], [str(year) for year in ticks])
         plot.plt.title(f"Pris pr. m² · {display.text(self.property_row.get('adresse'))}")
         plot.refresh()
 

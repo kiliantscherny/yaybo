@@ -171,8 +171,11 @@ def classify(rate: float, window: list[str], table: dict, rentetype: str = "") -
     ranked = sorted(best.items(), key=lambda pair: pair[1])
     if ranked[0][1] > UNCERTAIN:
         # Nothing was close enough for a name to mean anything.
-        return {"laantype_estimat": "", "laantype_afstand": round(ranked[0][1], 4),
-                "laantype_kilde": KILDE_DST}
+        return {
+            "laantype_estimat": "",
+            "laantype_afstand": round(ranked[0][1], 4),
+            "laantype_kilde": KILDE_DST,
+        }
 
     near = [pair for pair in ranked if pair[1] - ranked[0][1] < CLOSE]
     name, distance = ranked[0]
@@ -238,9 +241,11 @@ def published(session=None) -> set[str]:
     if _PUBLISHED is None:
         post = (session or requests).post
         try:
-            response = post(DST_INFO_URL,
-                            json={"table": "DNRNURI", "format": "JSON", "lang": "da"},
-                            timeout=30)
+            response = post(
+                DST_INFO_URL,
+                json={"table": "DNRNURI", "format": "JSON", "lang": "da"},
+                timeout=30,
+            )
             response.raise_for_status()
             _PUBLISHED = {
                 value["id"]
@@ -265,17 +270,24 @@ def _rates(months: list[str], session=None) -> dict:
         return {}
     post = (session or requests).post
     try:
-        response = post(DST_URL, json={
-            "table": "DNRNURI", "format": "JSONSTAT", "lang": "da",
-            "variables": [
-                {"code": "DATA", "values": MEASURES},
-                {"code": "INDSEK", "values": ["1430"]},
-                {"code": "VALUTA", "values": ["DKK"]},
-                {"code": "LØBETID1", "values": ["ALLE"]},
-                {"code": "RENTFIX", "values": list(RENTFIX)},
-                {"code": "LAANSTR", "values": ["ALLE"]},
-                {"code": "Tid", "values": months},
-            ]}, timeout=60)
+        response = post(
+            DST_URL,
+            json={
+                "table": "DNRNURI",
+                "format": "JSONSTAT",
+                "lang": "da",
+                "variables": [
+                    {"code": "DATA", "values": MEASURES},
+                    {"code": "INDSEK", "values": ["1430"]},
+                    {"code": "VALUTA", "values": ["DKK"]},
+                    {"code": "LØBETID1", "values": ["ALLE"]},
+                    {"code": "RENTFIX", "values": list(RENTFIX)},
+                    {"code": "LAANSTR", "values": ["ALLE"]},
+                    {"code": "Tid", "values": months},
+                ],
+            },
+            timeout=60,
+        )
         response.raise_for_status()
         dataset = response.json()["dataset"]
     except (requests.RequestException, ValueError, KeyError):
@@ -295,8 +307,7 @@ def _read(dataset: dict) -> dict:
     order, sizes, values = dimension["id"], dimension["size"], dataset["value"]
     # Row-major: each dimension's stride is the product of the sizes after it.
     stride = {
-        name: math.prod(sizes[position + 1:])
-        for position, name in enumerate(order)
+        name: math.prod(sizes[position + 1 :]) for position, name in enumerate(order)
     }
     index = {name: dimension[name]["category"]["index"] for name in order}
 

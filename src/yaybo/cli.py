@@ -95,8 +95,10 @@ def resume_login():
     session, saved = remembered
     who = auth.who_is_logged_in(session)
     if who is None:
-        print("cached session has expired - run `yaybo login` for the extra columns",
-              file=sys.stderr)
+        print(
+            "cached session has expired - run `yaybo login` for the extra columns",
+            file=sys.stderr,
+        )
         return None
 
     idle = auth.idle_for(saved.get("saved_at"))
@@ -118,8 +120,10 @@ def show_status() -> int:
     who = auth.who_is_logged_in(session)
     idle = auth.idle_for(saved.get("saved_at"))
     if who is None:
-        print(f"session for {saved.get('user_id') or 'unknown user'} has expired",
-              file=sys.stderr)
+        print(
+            f"session for {saved.get('user_id') or 'unknown user'} has expired",
+            file=sys.stderr,
+        )
         return 1
 
     print(f"logged in as {who} ({saved.get('user_id', '')})", file=sys.stderr)
@@ -155,8 +159,7 @@ def hold_session(session, minutes: int, user_id: str = "") -> None:
             if alive is None:
                 # Could not ask. Say so and keep holding: the register has not
                 # refused anything, and its own limit is far off yet.
-                print("  could not reach the register - still holding",
-                      file=sys.stderr)
+                print("  could not reach the register - still holding", file=sys.stderr)
                 continue
             if not alive:
                 print("  the register ended the session anyway", file=sys.stderr)
@@ -165,8 +168,10 @@ def hold_session(session, minutes: int, user_id: str = "") -> None:
             left = int((deadline - time.monotonic()) / 60)
             print(f"  still logged in, {max(left, 0)} min to go", file=sys.stderr)
     except KeyboardInterrupt:
-        print("\n  stopped holding; the session stays valid for a while yet",
-              file=sys.stderr)
+        print(
+            "\n  stopped holding; the session stays valid for a while yet",
+            file=sys.stderr,
+        )
         return
     print("  done holding - the session lapses shortly unless used", file=sys.stderr)
 
@@ -439,7 +444,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     parser = argparse.ArgumentParser(
-        prog="yaybo", description=(__doc__ or "").splitlines()[0],
+        prog="yaybo",
+        description=(__doc__ or "").splitlines()[0],
         parents=[common],
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
@@ -496,13 +502,13 @@ def build_parser() -> argparse.ArgumentParser:
         "--no-andele",
         action="store_true",
         help="skip the andelsboligbog: co-op buildings then give only the "
-             "association's own property, as before",
+        "association's own property, as before",
     )
     fetch.add_argument(
         "--no-bbr",
         action="store_true",
         help="skip BBR: no building record, and no price per m2 over the living "
-             "area (the one over the register's tinglyste areal still fills)",
+        "area (the one over the register's tinglyste areal still fills)",
     )
     fetch.add_argument(
         "--no-laantype",
@@ -524,7 +530,9 @@ def build_parser() -> argparse.ArgumentParser:
     )
     login.add_argument("--user", help="your MitID user ID (not your CPR number)")
     login.add_argument(
-        "--method", choices=[mitid.APP, mitid.TOKEN], default=mitid.APP,
+        "--method",
+        choices=[mitid.APP, mitid.TOKEN],
+        default=mitid.APP,
         help="approve in the MitID app (default) or with a code token",
     )
     login.add_argument(
@@ -574,14 +582,26 @@ def build_parser() -> argparse.ArgumentParser:
         parents=[common],
         help="re-derive the stored tables without fetching anything",
     )
-    backfill.add_argument("--dry-run", action="store_true",
-                          help="report what would be written and change nothing")
-    backfill.add_argument("--skip-bbr", action="store_true",
-                          help="do not ask BBR for the building record")
-    backfill.add_argument("--skip-laantype", action="store_true",
-                          help="do not estimate loan types from DST rates")
-    backfill.add_argument("--delay", type=float, default=0.2, metavar="SECONDS",
-                          help="pause between address-register requests (default: 0.2)")
+    backfill.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="report what would be written and change nothing",
+    )
+    backfill.add_argument(
+        "--skip-bbr", action="store_true", help="do not ask BBR for the building record"
+    )
+    backfill.add_argument(
+        "--skip-laantype",
+        action="store_true",
+        help="do not estimate loan types from DST rates",
+    )
+    backfill.add_argument(
+        "--delay",
+        type=float,
+        default=0.2,
+        metavar="SECONDS",
+        help="pause between address-register requests (default: 0.2)",
+    )
     return parser
 
 
