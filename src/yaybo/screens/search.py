@@ -2,12 +2,12 @@
 
 Two lists, and they are different kinds of list on purpose.
 
-The first is DAWA's, and it only answers "which address did you mean". Picking
-from it costs nothing and commits to nothing. Whole buildings come first there,
-because the register indexes buildings and a building is usually what was meant:
-asked about a house number, DAWA answers with a dozen of its flats, which
-reads as a list of things to fetch and is not one - the register would be asked
-the same question about any of them.
+The first is the address register's, and it only answers "which address did you
+mean". Picking from it costs nothing and commits to nothing. Whole buildings come
+first there, because the register indexes buildings and a building is usually
+what was meant: asked about a house number, the address register answers with a
+dozen of its flats, which reads as a list of things to fetch and is not one - the
+land register would be asked the same question about any of them.
 
 The second is the register's, and it is the real list: every legally registered
 property at that address, which is one for a rented block and a hundred and
@@ -60,7 +60,8 @@ from yaybo.widgets.session_bar import SessionBar
 # Long enough that a fast typist does not fire a request per keystroke, short
 # enough that the list feels like it is keeping up.
 SETTLE = 0.35
-# How many addresses to ask DAWA for. Generous, because the buildings are pulled
+# How many addresses to ask the address register for, which is the most it
+# will give. Generous, because the buildings are pulled
 # out of these, and one block of flats can otherwise crowd its neighbours off
 # the list entirely - a street of forty buildings needs more than a screenful
 # before its numbers stop being cut off halfway.
@@ -155,15 +156,18 @@ class SearchScreen(YayboScreen):
         yield Footer()
 
     def on_mount(self) -> None:
-        for hidden in ("#search-matches", "#search-units", "#search-context",
-                       "#search-actions"):
+        for hidden in (
+            "#search-matches",
+            "#search-units",
+            "#search-context",
+            "#search-actions",
+        ):
             self.query_one(hidden).display = False
         self._steps(1)
         self._say(
             i18n.t(
-                "Type an address to look it up in the land register. DAWA will "
-                "clean up the spelling, the spacing and the floor, so a rough "
-                "one is fine."
+                "Type an address to look it up in the land register, then pick "
+                "it from the list that appears as you type."
             )
         )
         self.query_one("#search-input", Input).focus()
@@ -208,9 +212,7 @@ class SearchScreen(YayboScreen):
         for number, label in enumerate(STEPS, start=1):
             if number > 1:
                 line.append("  →  ", style="dim")
-            line.append(
-                i18n.t(label), style="bold" if number == active else "dim"
-            )
+            line.append(i18n.t(label), style="bold" if number == active else "dim")
         self.query_one("#search-steps", Static).update(line)
 
     @property
@@ -251,14 +253,20 @@ class SearchScreen(YayboScreen):
             self.app.call_from_thread(self._show_matches, [], query, False)
             return
         # A street with no house number is a question about the street, and
-        # autocomplete answers it a page at a time. The access-address endpoint
+        # autocomplete answers it a page at a time. Listing its house numbers
         # answers it whole - forty-three buildings on Matthæusgade rather than
-        # DAWA's first thirty of everything that matched the letters.
+        # the first page of everything that matched the letters. A street name
+        # found in several towns cannot be listed without a postcode, so that
+        # one falls back to the ordinary search.
         parts = address_parts(query.strip())
         whole_street = not parts["husnummer"]
-        if whole_street:
-            found = street_buildings(parts["vejnavn"], parts["postnummer"])
-        else:
+        found = (
+            street_buildings(parts["vejnavn"], parts["postnummer"])
+            if whole_street
+            else []
+        )
+        if not found:
+            whole_street = False
             found = autocomplete(query, MATCHES)
         self.app.call_from_thread(self._show_matches, found, query, whole_street)
 
@@ -281,8 +289,12 @@ class SearchScreen(YayboScreen):
 
         if not self.matches:
             if len(query.strip()) >= 3:
-                self._say(i18n.t("DAWA knows no address like {query!r}.",
-                                 query=query.strip()))
+                self._say(
+                    i18n.t(
+                        "The address register knows no address like {query!r}.",
+                        query=query.strip(),
+                    )
+                )
             return
 
         self._capped = not whole_street and len(found) >= MATCHES
@@ -299,9 +311,7 @@ class SearchScreen(YayboScreen):
                 out.append(Option(Text(row, style="bold dim"), disabled=True))
                 continue
             out.append(
-                Option(
-                    _match_label(row, self._cost(row), palette, self._mine_note(row))
-                )
+                Option(_match_label(row, self._cost(row), palette, self._mine_note(row)))
             )
         return out
 
@@ -367,7 +377,7 @@ class SearchScreen(YayboScreen):
         letter is a letter - addresses contain "30A" - so `a` cannot mean
         anything until the cursor is in the list.
         """
-        capped = f" (DAWA's first {MATCHES})" if self._capped else ""
+        capped = f" (the first {MATCHES})" if self._capped else ""
         whole = " · the whole street" if self._whole_street else ""
         dead = self._dead_ends()
         # Only ever counts what the register has actually answered for, so this
@@ -377,7 +387,10 @@ class SearchScreen(YayboScreen):
             i18n.t(
                 "{n} address(es){capped}{whole}{empty}.\n↓ or enter moves to "
                 "the list · then enter opens one, or a takes its whole building",
-                n=len(self.matches), capped=capped, whole=whole, empty=empty,
+                n=len(self.matches),
+                capped=capped,
+                whole=whole,
+                empty=empty,
             )
         )
 
@@ -416,11 +429,11 @@ class SearchScreen(YayboScreen):
     def _match_moved(self, event: OptionList.OptionHighlighted) -> None:
         """Ask what is registered at the address under the cursor.
 
-        DAWA answers "is this a real address", which is a different question
-        from "does the land register hold anything there" - and plenty of real
-        addresses are registered as part of a neighbouring property, or not at
-        all. Asking while the cursor rests on a row means the answer is usually
-        already on screen by the time enter is pressed.
+        The address register answers "is this a real address", which is a
+        different question from "does the land register hold anything there" -
+        and plenty of real addresses are registered as part of a neighbouring
+        property, or not at all. Asking while the cursor rests on a row means the
+        answer is usually already on screen by the time enter is pressed.
         """
         if self._picking_units or not self.matches:
             return
@@ -441,9 +454,7 @@ class SearchScreen(YayboScreen):
         if key in self.held:
             return
         try:
-            units, _ = pipeline.units_at(
-                self.app.api, {**match, "etage": "", "doer": ""}
-            )
+            units, _ = pipeline.units_at(self.app.api, {**match, "etage": "", "doer": ""})
         except Exception:  # noqa: BLE001
             # A probe is a courtesy, not the search. If the register will not
             # answer, leave the row unannotated and let enter find out properly
@@ -484,9 +495,7 @@ class SearchScreen(YayboScreen):
 
     def _dead_ends(self) -> int:
         return sum(
-            1
-            for match in self.matches
-            if self.held.get(_building_key(match)) == []
+            1 for match in self.matches if self.held.get(_building_key(match)) == []
         )
 
     def _open(
@@ -516,8 +525,12 @@ class SearchScreen(YayboScreen):
             )
             return
         self.address = address
-        self._say(i18n.t("Asking the register what is registered at {where}…",
-                         where=address["tekst"]))
+        self._say(
+            i18n.t(
+                "Asking the register what is registered at {where}…",
+                where=address["tekst"],
+            )
+        )
         self._find_units(address, take_all)
 
     # ── step two: which properties ──────────────────────────────────────
@@ -612,20 +625,16 @@ class SearchScreen(YayboScreen):
         self._steps(1)
         left = len(self.matches) - self._dead_ends()
         nothing = (
-            i18n.t(
-                "Nothing on this list has anything registered - try another "
-                "address."
-            )
+            i18n.t("Nothing on this list has anything registered - try another address.")
             if self.matches and left <= 0
-            else i18n.t(
-                "Struck-through rows are the ones already known to be empty."
-            )
+            else i18n.t("Struck-through rows are the ones already known to be empty.")
         )
         self._say(
             i18n.t(
                 "Nothing is registered at {where}.\nThe address is real, but "
                 "the land register holds no property there. {nothing}",
-                where=where, nothing=nothing,
+                where=where,
+                nothing=nothing,
             )
         )
         if self.matches:
@@ -644,12 +653,16 @@ class SearchScreen(YayboScreen):
         chosen, total = len(listing.selected), len(self.units)
         note = f"{warning}\n" if warning else ""
         self._say(
-            note + i18n.t(
+            note
+            + i18n.t(
                 "{properties} registered here · {chosen} ticked\nspace ticks "
                 "one · a ticks all · n clears · f queues them · ← back to the "
                 "addresses",
-                properties=(i18n.t("{n} property", n=total) if total == 1
-                            else i18n.t("{n} properties", n=total)),
+                properties=(
+                    i18n.t("{n} property", n=total)
+                    if total == 1
+                    else i18n.t("{n} properties", n=total)
+                ),
                 chosen=chosen,
             )
         )
@@ -685,8 +698,7 @@ class SearchScreen(YayboScreen):
         if not self._picking_units:
             self._say(
                 i18n.t(
-                    "Pick an address first - enter on one, or a for its whole "
-                    "building."
+                    "Pick an address first - enter on one, or a for its whole building."
                 )
             )
             return
@@ -695,8 +707,7 @@ class SearchScreen(YayboScreen):
         if not chosen:
             self._say(
                 i18n.t(
-                    "Nothing ticked. space ticks the one under the cursor; a "
-                    "ticks all."
+                    "Nothing ticked. space ticks the one under the cursor; a ticks all."
                 )
             )
             return
@@ -721,7 +732,8 @@ class SearchScreen(YayboScreen):
         listing.deselect_all()
         self._just_announced = True
         held = (
-            i18n.t("{n} property", n=len(units)) if len(units) == 1
+            i18n.t("{n} property", n=len(units))
+            if len(units) == 1
             else i18n.t("{n} properties", n=len(units))
         )
         note = self.app.queued_note()
@@ -729,7 +741,9 @@ class SearchScreen(YayboScreen):
             i18n.t(
                 "Queued {held} from {where}.\n{note}  ← goes back to the "
                 "addresses to queue more, b shows the queue, l the library.",
-                held=held, where=self.address["tekst"], note=note,
+                held=held,
+                where=self.address["tekst"],
+                note=note,
             )
         )
         self.notify(i18n.t("Queued {held}. {note}", held=held, note=note))
@@ -797,7 +811,7 @@ class SearchScreen(YayboScreen):
 
 
 def _buildings_first(found: list[dict]) -> list[dict]:
-    """A row per building at the top, then the individual flats DAWA matched."""
+    """A row per building at the top, then the individual flats the search matched."""
     buildings: dict[tuple, dict] = {}
     units: list[dict] = []
     for match in found:
@@ -830,7 +844,7 @@ def _split_books(units: list[dict]) -> tuple[int, int]:
 
 
 def _tally(properties: int, shares: int) -> str:
-    """"1 ejendom + 10 andele", in the register's own words.
+    """ "1 ejendom + 10 andele", in the register's own words.
 
     Never one total. A property and a share are different things in different
     books, and a co-op block is one of the first and a dozen of the second -
@@ -890,8 +904,7 @@ def _match_label(
         # the building. Saying so here is the difference between an honest row
         # and one that promises a flat and delivers ninety.
         label.append(
-            "   " + i18n.t("no property of its own · whole building: {n}",
-                           n=properties),
+            "   " + i18n.t("no property of its own · whole building: {n}", n=properties),
             style=f"bold {empty}",
         )
     else:

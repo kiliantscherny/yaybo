@@ -4,6 +4,18 @@ The format is [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the 
 
 ## [Unreleased]
 
+### Fixed
+
+- **Address search works again.** DAWA closed on 1 October 2026 and now answers every request with 410 Gone, which left search, `fetch` and `backfill` unable to resolve or place an address. They now ask DAR, the official address register, through Klimadatastyrelsen's Adressevælger and Adressevask at `adressevaelger.dk`. The address UUIDs are the same ones DAWA handed out, so nothing stored changes and BBR joins as before.
+- **The register's daily limit no longer ends in a traceback.** When tinglysning answers "Der er foretaget for mange forespørgsler for i dag", a run now stops cleanly and keeps every property it fetched before the refusal. `yaybo fetch` says so and skips the remaining addresses rather than asking about each; the queue holds the interrupted job and everything waiting behind it, instead of failing them one request at a time.
+- The services want a token on every request but do not yet tell tokens apart. The published demo token is used unless `ADRESSEVAELGER_TOKEN` is set, which is where your own goes once one is required.
+
+### Changed
+
+- Adressevask corrects nothing: it matches an address exactly or refuses it, where DAWA's wash would guess. A misspelled street is now caught by the search instead, and if that cannot place it either, by tinglysning's own lookup. The search hint no longer promises to fix spelling.
+- A bare street name that exists in several towns can no longer be listed whole without a postcode, because the new search answers that with the towns rather than the buildings. It falls back to an ordinary search; adding the postcode lists the street as before. A street is listed up to 200 house numbers, the most one search returns.
+- `grund_bfe` and `grund_areal_m2` stay empty on new fetches. They came from DAWA's `jordstykker`, which has no keyless successor; Matriklen on Datafordeleren is where they live now.
+
 ## [1.2.0] - 2026-09-07
 
 Every source is now a public register or an open government API. Boligsiden supplied the BBR record and the sale history and was the one source here that was not: its `robots.txt` disallows its whole API host to every robot, and its terms reserve automated retrieval to whoever holds a written agreement with it. An open endpoint is not permission to use one, so it is gone, and everything it gave now comes from somewhere official - the sale history from the register itself, the BBR record from BBR.

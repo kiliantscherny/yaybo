@@ -102,6 +102,7 @@ duckdb -readonly out/tinglysning.duckdb -c "SELECT count(*) FROM ejendomme"
 
 ```python
 import duckdb
+
 db = duckdb.connect("out/tinglysning.duckdb", read_only=True)
 ```
 

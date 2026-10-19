@@ -69,10 +69,7 @@ class AnalysisScreen(ModalScreen[None]):
             with Horizontal(id="analysis-controls"):
                 if self.analysis.kind == "summary":
                     yield Static(
-                        i18n.t(
-                            "Every figure below is over the selection named "
-                            "above."
-                        ),
+                        i18n.t("Every figure below is over the selection named above."),
                         id="analysis-blurb",
                     )
                 else:
@@ -86,23 +83,28 @@ class AnalysisScreen(ModalScreen[None]):
                         id="analysis-measure",
                     )
                     yield Select(
-                        list(stats.HOWS), value=self.how, allow_blank=False,
+                        list(stats.HOWS),
+                        value=self.how,
+                        allow_blank=False,
                         id="analysis-how",
                     )
                     if self.analysis.kind == "group":
                         yield Select(
-                            list(stats.GROUPS), value=self.by, allow_blank=False,
+                            list(stats.GROUPS),
+                            value=self.by,
+                            allow_blank=False,
                             id="analysis-by",
                         )
                     else:
                         yield Select(
-                            list(PERIODS), value=self.since, allow_blank=False,
+                            list(PERIODS),
+                            value=self.since,
+                            allow_blank=False,
                             id="analysis-period",
                         )
                 yield Button(i18n.t("Close"), id="analysis-close")
             yield PlotextPlot(id="analysis-chart")
-            yield DataTable(id="analysis-table", cursor_type="row",
-                            zebra_stripes=True)
+            yield DataTable(id="analysis-table", cursor_type="row", zebra_stripes=True)
             yield Static("", id="analysis-note")
 
     def on_mount(self) -> None:
@@ -164,7 +166,8 @@ class AnalysisScreen(ModalScreen[None]):
         since = date.today().year - self.since if self.since else 0
         rows = stats.over_time(self.scope, self.measure, self.how, since)
         table = self._table(
-            (i18n.t("Year"), 8), (i18n.t("Sales"), 9),
+            (i18n.t("Year"), 8),
+            (i18n.t("Sales"), 9),
             (i18n.t(self._spec().label), 18),
         )
         for year, count, value in rows:
@@ -188,10 +191,12 @@ class AnalysisScreen(ModalScreen[None]):
         theme = self.app.current_theme
         xs = [float(year) for year, _ in points]
         ys = [value for _, value in points]
-        plot.plt.plot(xs, ys, marker="braille",
-                      color=display.rgb(theme.primary, (94, 176, 234)))
-        plot.plt.scatter(xs, ys, marker="●",
-                         color=display.rgb(theme.warning, (232, 185, 106)))
+        plot.plt.plot(
+            xs, ys, marker="braille", color=display.rgb(theme.primary, (94, 176, 234))
+        )
+        plot.plt.scatter(
+            xs, ys, marker="●", color=display.rgb(theme.warning, (232, 185, 106))
+        )
         _year_ticks(plot, [int(year) for year, _ in points])
         plot.plt.title(f"{i18n.t(self._spec().label)} · {_how_label(self.how)}")
         plot.plt.xlabel(i18n.t("Year"))
@@ -204,8 +209,11 @@ class AnalysisScreen(ModalScreen[None]):
     def _draw_group(self) -> None:
         rows = stats.aggregate(self.scope, self.by, self.measure, self.how)
         label = dict((value, name) for name, value in stats.GROUPS)[self.by]
-        table = self._table((i18n.t(label), 30), (i18n.t("Properties"), 11),
-                            (i18n.t(self._spec().label), 18))
+        table = self._table(
+            (i18n.t(label), 30),
+            (i18n.t("Properties"), 11),
+            (i18n.t(self._spec().label), 18),
+        )
         for name, count, value in rows:
             table.add_row(
                 display.shorten(name, 30), display.number(count), self._write(value)
@@ -234,18 +242,24 @@ class AnalysisScreen(ModalScreen[None]):
             i18n.t(
                 "{groups} over {properties}. Groups with nothing recorded are "
                 "listed but not plotted.",
-                groups=(i18n.t("{n} group", n=len(rows)) if len(rows) == 1
-                        else i18n.t("{n} groups", n=len(rows))),
-                properties=(i18n.t("{n} property", n=len(self.scope))
-                            if len(self.scope) == 1
-                            else i18n.t("{n} properties", n=len(self.scope))),
+                groups=(
+                    i18n.t("{n} group", n=len(rows))
+                    if len(rows) == 1
+                    else i18n.t("{n} groups", n=len(rows))
+                ),
+                properties=(
+                    i18n.t("{n} property", n=len(self.scope))
+                    if len(self.scope) == 1
+                    else i18n.t("{n} properties", n=len(self.scope))
+                ),
             )
         )
 
     def _draw_summary(self) -> None:
         self.query_one("#analysis-chart", PlotextPlot).display = False
-        table = self._table((i18n.t("Group"), 16), (i18n.t("Figure"), 30),
-                            (i18n.t("Value"), 20))
+        table = self._table(
+            (i18n.t("Group"), 16), (i18n.t("Figure"), 30), (i18n.t("Value"), 20)
+        )
         for heading, figures in stats.overview(self.scope):
             first = True
             for label, unit, value in figures:
@@ -259,9 +273,11 @@ class AnalysisScreen(ModalScreen[None]):
             i18n.t(
                 "{properties} in this selection. A figure reading – is one "
                 "nothing in the selection records.",
-                properties=(i18n.t("{n} property", n=len(self.scope))
-                            if len(self.scope) == 1
-                            else i18n.t("{n} properties", n=len(self.scope))),
+                properties=(
+                    i18n.t("{n} property", n=len(self.scope))
+                    if len(self.scope) == 1
+                    else i18n.t("{n} properties", n=len(self.scope))
+                ),
             )
         )
 

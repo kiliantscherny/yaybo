@@ -136,7 +136,8 @@ class BuildingsScreen(YayboScreen):
     def _apply_filter(self, needle: str) -> None:
         wanted = normalise(needle)
         self.shown = [
-            building for building in self.buildings
+            building
+            for building in self.buildings
             if not wanted or wanted in normalise(building.name)
         ]
         self._fill()
@@ -147,8 +148,7 @@ class BuildingsScreen(YayboScreen):
         theme = self.app.current_theme
         for building in self.shown:
             areas = [
-                row.get("boligareal_m2") or row.get("areal_m2")
-                for row in building.rows
+                row.get("boligareal_m2") or row.get("areal_m2") for row in building.rows
             ]
             table.add_row(
                 self._mitid_cell(building, theme),
@@ -156,19 +156,23 @@ class BuildingsScreen(YayboScreen):
                 building.postcode,
                 str(building.held),
                 display.area(_median(areas)),
-                display.compact_kr(_median([
-                    (row.get("ejendomsvurdering_dkk") or 0)
-                    / (row.get("boligareal_m2") or row.get("areal_m2") or 0)
-                    for row in building.rows
-                    if row.get("ejendomsvurdering_dkk")
-                    and (row.get("boligareal_m2") or row.get("areal_m2"))
-                ])),
-                display.compact_kr(_median(
-                    [row.get("samlet_gaeld_dkk") for row in building.rows]
-                )),
-                display.pct(_median(
-                    [row.get("belaaningsgrad_pct") for row in building.rows]
-                ), 0),
+                display.compact_kr(
+                    _median(
+                        [
+                            (row.get("ejendomsvurdering_dkk") or 0)
+                            / (row.get("boligareal_m2") or row.get("areal_m2") or 0)
+                            for row in building.rows
+                            if row.get("ejendomsvurdering_dkk")
+                            and (row.get("boligareal_m2") or row.get("areal_m2"))
+                        ]
+                    )
+                ),
+                display.compact_kr(
+                    _median([row.get("samlet_gaeld_dkk") for row in building.rows])
+                ),
+                display.pct(
+                    _median([row.get("belaaningsgrad_pct") for row in building.rows]), 0
+                ),
                 display.ago(building.fetched),
                 key=building.name,
             )
@@ -192,21 +196,28 @@ class BuildingsScreen(YayboScreen):
         held, shown = len(self.buildings), len(self.shown)
         properties = sum(b.held for b in self.shown)
         buildings = (
-            i18n.t("{n} building", n=shown) if shown == 1
+            i18n.t("{n} building", n=shown)
+            if shown == 1
             else i18n.t("{n} buildings", n=shown)
         )
         self.query_one("#buildings-count", Static).update(
             i18n.t("{shown} of {held}", shown=shown, held=held)
             if shown != held
-            else (i18n.t("{n} building", n=held) if held == 1
-                  else i18n.t("{n} buildings", n=held))
+            else (
+                i18n.t("{n} building", n=held)
+                if held == 1
+                else i18n.t("{n} buildings", n=held)
+            )
         )
         self.query_one("#buildings-scope", Static).update(
             i18n.t(
                 "{properties} in {buildings} · enter opens a building's "
                 "properties, k its figures, f re-fetches all of it.",
-                properties=(i18n.t("{n} property", n=properties) if properties == 1
-                            else i18n.t("{n} properties", n=properties)),
+                properties=(
+                    i18n.t("{n} property", n=properties)
+                    if properties == 1
+                    else i18n.t("{n} properties", n=properties)
+                ),
                 buildings=buildings,
             )
         )
@@ -268,10 +279,16 @@ class BuildingsScreen(YayboScreen):
             [row["adresse"] for row in building.rows if row.get("adresse")]
         )
         self.notify(
-            i18n.t("Queued {n} from {where}. {note}",
-                   n=(i18n.t("{n} property", n=added) if added == 1
-                      else i18n.t("{n} properties", n=added)),
-                   where=building.name, note=self.app.queued_note())
+            i18n.t(
+                "Queued {n} from {where}. {note}",
+                n=(
+                    i18n.t("{n} property", n=added)
+                    if added == 1
+                    else i18n.t("{n} properties", n=added)
+                ),
+                where=building.name,
+                note=self.app.queued_note(),
+            )
             if added
             else i18n.t("Those are already in the queue.")
         )
@@ -282,7 +299,8 @@ class BuildingsScreen(YayboScreen):
 
 def _median(values) -> float | None:
     found = sorted(
-        float(v) for v in values
+        float(v)
+        for v in values
         if isinstance(v, (int, float)) and not isinstance(v, bool)
     )
     if not found:

@@ -187,9 +187,7 @@ def test_a_share_has_nowhere_to_put_a_sale():
 def test_dawa_is_what_places_a_share():
     """The book gives an address and nothing spatial, so the coordinates on an
     andele row come from the address register."""
-    row = build.dawa_row(
-        {"uuid": "dawa-1", "breddegrad": 55.5, "laengdegrad": 12.5}
-    )
+    row = build.dawa_row({"uuid": "dawa-1", "breddegrad": 55.5, "laengdegrad": 12.5})
     assert row == {"adresse_uuid": "dawa-1", "breddegrad": 55.5, "laengdegrad": 12.5}
     # An address DAWA cannot place leaves the row alone rather than blanking it.
     assert build.dawa_row({"uuid": "dawa-2"}) == {"adresse_uuid": "dawa-2"}
@@ -285,13 +283,20 @@ def test_the_second_book_is_asked_at_building_level(monkeypatch):
     monkeypatch.setattr(Tinglysning, "_get", fake_get)
     api = Tinglysning()
     found = api.find_andele(
-        {"postnummer": "9999", "vejnavn": "Prøvegade", "husnummer": "1",
-         "etage": "st", "doer": "th"}
+        {
+            "postnummer": "9999",
+            "vejnavn": "Prøvegade",
+            "husnummer": "1",
+            "etage": "st",
+            "doer": "th",
+        }
     )
     assert found == [SHARE]
     assert asked["path"] == "andelsoeg/soeg"
     assert asked["params"] == {
-        "postnummer": "9999", "vejnavn": "Prøvegade", "husnummer": "1"
+        "postnummer": "9999",
+        "vejnavn": "Prøvegade",
+        "husnummer": "1",
     }
 
 
@@ -301,9 +306,11 @@ def test_a_refused_share_is_raised_rather_than_returned_empty(monkeypatch):
     from yaybo.register.client import Tinglysning
 
     monkeypatch.setattr(
-        Tinglysning, "_get",
+        Tinglysning,
+        "_get",
         lambda self, path, params=None, token=True: {
-            "statuskode": 3, "statustekst": "ukendt andel"
+            "statuskode": 3,
+            "statustekst": "ukendt andel",
         },
     )
     api = Tinglysning()
@@ -361,8 +368,14 @@ def test_fetch_fills_both_books_from_one_address(monkeypatch):
 
     bundle = pipeline.fetch(
         _FetchApi(),
-        {"tekst": BUILDING["adresse"], "vejnavn": "Prøvegade", "husnummer": "1",
-         "postnummer": "9999", "etage": "", "doer": ""},
+        {
+            "tekst": BUILDING["adresse"],
+            "vejnavn": "Prøvegade",
+            "husnummer": "1",
+            "postnummer": "9999",
+            "etage": "",
+            "doer": "",
+        },
         [BUILDING, SHARE],
         delay=0,
         laantype_on=False,
@@ -393,10 +406,17 @@ def test_a_share_alone_leaves_the_building_join_empty(monkeypatch):
     monkeypatch.setattr(pipeline, "fetch_parcel", lambda *a, **k: {})
     bundle = pipeline.fetch(
         _FetchApi(),
-        {"tekst": "x", "vejnavn": "Prøvegade", "husnummer": "1",
-         "postnummer": "9999", "etage": "", "doer": ""},
+        {
+            "tekst": "x",
+            "vejnavn": "Prøvegade",
+            "husnummer": "1",
+            "postnummer": "9999",
+            "etage": "",
+            "doer": "",
+        },
         [SHARE],
-        delay=0, laantype_on=False,
+        delay=0,
+        laantype_on=False,
     )
     assert bundle.andele[0]["ejendom_uuid"] == ""
     assert bundle.properties == []
@@ -411,10 +431,17 @@ def test_notices_come_through_the_fetch_too(monkeypatch):
 
     bundle = pipeline.fetch(
         _WithNotice(),
-        {"tekst": "x", "vejnavn": "Prøvegade", "husnummer": "1",
-         "postnummer": "9999", "etage": "", "doer": ""},
+        {
+            "tekst": "x",
+            "vejnavn": "Prøvegade",
+            "husnummer": "1",
+            "postnummer": "9999",
+            "etage": "",
+            "doer": "",
+        },
         [SHARE],
-        delay=0, laantype_on=False,
+        delay=0,
+        laantype_on=False,
     )
     assert len(bundle.tables["andel_meddelelser"]) == 1
     assert bundle.tables["andel_meddelelser"][0]["debitorer"] == "Ida Testesen"
@@ -442,15 +469,24 @@ def test_the_two_tables_survive_a_round_trip():
             # Typed on the way in, so the formatted amount can be summed.
             assert _one(db, "SELECT sum(hovedstol_dkk) FROM andel_haeftelser") == 1750000
             assert _one(db, "SELECT samlet_gaeld_dkk FROM andele") == 1750000
-            assert _one(db, "SELECT rentesats_pct FROM andel_haeftelser "
-                            "WHERE dokument_uuid = 'doc-2'") == 2.5
+            assert (
+                _one(
+                    db,
+                    "SELECT rentesats_pct FROM andel_haeftelser "
+                    "WHERE dokument_uuid = 'doc-2'",
+                )
+                == 2.5
+            )
             # The join the whole table exists for.
-            assert _one(
-                db,
-                "SELECT a.lejlighed FROM andele a "
-                "JOIN andel_haeftelser h ON h.andel_uuid = a.uuid "
-                "WHERE h.dokument_uuid = 'doc-1'",
-            ) == "ST. TH"
+            assert (
+                _one(
+                    db,
+                    "SELECT a.lejlighed FROM andele a "
+                    "JOIN andel_haeftelser h ON h.andel_uuid = a.uuid "
+                    "WHERE h.dokument_uuid = 'doc-1'",
+                )
+                == "ST. TH"
+            )
 
 
 def test_notices_round_trip_and_are_keyed_by_their_registration():
@@ -467,7 +503,8 @@ def test_notices_round_trip_and_are_keyed_by_their_registration():
                 "2024-03-11"
             )
         assert store.TABLES["andel_meddelelser"]["pk"] == [
-            "andel_uuid", "dato_loebenummer"
+            "andel_uuid",
+            "dato_loebenummer",
         ]
 
 
@@ -526,3 +563,44 @@ if __name__ == "__main__":
         test()
         print(f"  ok  {test.__name__}")
     print(f"{len(tests)} passed")
+
+
+def test_the_daily_limit_ends_a_fetch_but_keeps_what_came_before(monkeypatch):
+    """The register refuses the rest of the day partway through a building.
+
+    Lives here because this is where a fake register that drives the whole of
+    pipeline.fetch already is. The refusal must not cost the properties that
+    were fetched before it, and must not be asked about the ones after it.
+    """
+    from yaybo.register.client import DailyLimitReached
+
+    monkeypatch.setattr(pipeline, "fetch_parcel", lambda *a, **k: {})
+    monkeypatch.setattr(pipeline, "dawa_addresses", lambda address: {})
+    asked: list[str] = []
+
+    class _Limited(_FetchApi):
+        def fetch_record(self, uuid):
+            asked.append(uuid)
+            if len(asked) > 2:
+                raise DailyLimitReached("Der er foretaget for mange forespørgsler")
+            return super().fetch_record(uuid)
+
+    flats = [{**BUILDING, "uuid": f"ejd-{i}"} for i in range(5)]
+    bundle = pipeline.fetch(
+        _Limited(),
+        {
+            "tekst": BUILDING["adresse"],
+            "vejnavn": "Prøvegade",
+            "husnummer": "1",
+            "postnummer": "9999",
+            "etage": "",
+            "doer": "",
+        },
+        flats,
+        delay=0,
+        laantype_on=False,
+        bbr_on=False,
+    )
+    assert [p["uuid"] for p in bundle.properties] == ["ejd-0", "ejd-1"]
+    assert "for mange" in bundle.daily_limit
+    assert len(asked) == 3, "nothing after the refusal should be asked"

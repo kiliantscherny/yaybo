@@ -19,8 +19,12 @@ def test_price_and_a_single_owner():
     )
     assert parsed["koebesum_dkk"] == "3125000"
     assert parsed["ejere"] == [
-        {"navn": "Testperson Alfa Testesen", "foedselsdato": "1995-01-01",
-         "cvr": "", "andel": "1/1"}
+        {
+            "navn": "Testperson Alfa Testesen",
+            "foedselsdato": "1995-01-01",
+            "cvr": "",
+            "andel": "1/1",
+        }
     ]
 
 
@@ -38,8 +42,12 @@ def test_two_owners_each_with_a_share():
 def test_a_company_is_identified_by_cvr_not_a_birth_date():
     parsed = historik.parse("Adkomsthavere:\nPrøvebolig A/S 12345678 Ejerandel: 1/1")
     owner = parsed["ejere"][0]
-    assert owner == {"navn": "Prøvebolig A/S", "foedselsdato": "", "cvr": "12345678",
-                     "andel": "1/1"}
+    assert owner == {
+        "navn": "Prøvebolig A/S",
+        "foedselsdato": "",
+        "cvr": "12345678",
+        "andel": "1/1",
+    }
 
 
 def test_shares_written_inline_on_one_line():
@@ -47,7 +55,8 @@ def test_shares_written_inline_on_one_line():
     share, and no identifiers at all."""
     parsed = historik.parse("Testperson Alfa for 1/2 Testperson Beta for 1/2")
     assert [(e["navn"], e["andel"]) for e in parsed["ejere"]] == [
-        ("Testperson Alfa", "1/2"), ("Testperson Beta", "1/2")
+        ("Testperson Alfa", "1/2"),
+        ("Testperson Beta", "1/2"),
     ]
 
 
@@ -57,7 +66,7 @@ def test_shares_written_as_percentages():
 
 
 def test_a_name_containing_for_is_not_carved_up():
-    """"for" only splits a line when the shares run to the end of it - otherwise
+    """ "for" only splits a line when the shares run to the end of it - otherwise
     any name with the word in it would be cut in half."""
     parsed = historik.parse(
         "Adkomsthavere:\nForeningen for Prøvehaver 12345678 Ejerandel: 1/1"
@@ -73,7 +82,7 @@ def test_a_bare_name_from_the_paper_register():
 
 
 def test_a_procedure_is_not_a_person():
-    """"Tvangsauktion" stands where a name stands, but names nobody. It is kept
+    """ "Tvangsauktion" stands where a name stands, but names nobody. It is kept
     as a note so the entry is not silently emptied, and out of the name column
     so a table of people stays a table of people."""
     parsed = historik.parse("Adkomsthavere:\nTvangsauktion Ejerandel: 1/1")

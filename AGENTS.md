@@ -6,7 +6,7 @@ Guidance for AI agents working in this repository. Humans want [CONTRIBUTING.md]
 
 ## What this is
 
-`yaybo` fetches Danish property records from the land register (tinglysning.dk), resolves and places addresses with DAWA, and enriches them from BBR (via Datafordeleren) and Danmarks Statistik. It stores them in a local DuckDB database and presents them in a Textual TUI. It also has a CLI for scripted lookups.
+`yaybo` fetches Danish property records from the land register (tinglysning.dk), resolves and places addresses with DAR (Adressevælger, which replaced DAWA in October 2026), and enriches them from BBR (via Datafordeleren) and Danmarks Statistik. It stores them in a local DuckDB database and presents them in a Textual TUI. It also has a CLI for scripted lookups.
 
 It is a hobby project. There is no roadmap, no support commitment, and no production deployment to protect.
 
@@ -30,6 +30,7 @@ uv run yaybo            # the TUI - interactive, do not run it in a subshell
 uv run pytest           # tests on the local interpreter
 uv run tox              # tests on 3.10-3.14, plus lint and types
 uvx ruff check          # lint (line length 90; E, F, W, I, UP, B)
+uvx ruff format         # format; CI checks it, so run it before committing
 uvx ty@0.0.37 check     # types, pinned deliberately
 
 uv run python scripts/generate_schema_dbml.py   # after changing store.TABLES

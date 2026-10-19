@@ -137,8 +137,9 @@ def _pairs_from_document(html: str):
     for index, line in enumerate(lines):
         label, separator, value = line.partition(":")
         if separator:
-            yield label, value.strip() or (
-                lines[index + 1] if index + 1 < len(lines) else ""
+            yield (
+                label,
+                value.strip() or (lines[index + 1] if index + 1 < len(lines) else ""),
             )
 
 

@@ -89,6 +89,31 @@ class SessionExpired(Exception):
     """Raised when tinglysning stops recognising a logged-in session."""
 
 
+class DailyLimitReached(Exception):
+    """Raised when tinglysning has answered as many requests as it will today.
+
+    Not an error in the run so much as the end of it: every request after this
+    one is refused the same way until tomorrow, so the useful thing is to stop
+    and keep what was gathered rather than to fail and keep asking.
+    """
+
+
+# The register's words for its daily limit. It says so in a 200 with a status
+# code, not with a 429, and the text is the one thing that tells this refusal
+# apart from any other.
+DAILY_LIMIT = "for mange forespørgsler"
+
+
+def _check(uuid: str, record: dict) -> dict:
+    """Pass a record through, or raise what its status code says went wrong."""
+    if not record.get("statuskode"):  # 0 means OK
+        return record
+    text = str(record.get("statustekst") or record["statuskode"]).strip()
+    if DAILY_LIMIT in text.lower():
+        raise DailyLimitReached(text)
+    raise RuntimeError(f"{uuid}: {text}")
+
+
 class Tinglysning:
     """Session against the register, holding one reusable ALTCHA token.
 
@@ -172,7 +197,7 @@ class Tinglysning:
     def lookup_address(self, query: str) -> dict:
         """Resolve an address using tinglysning's own autocomplete.
 
-        Only used when DAWA is unreachable. It matches on a prefix of
+        Only used when the address register is unreachable. It matches on a prefix of
         "street no., floor. door", so a trailing postcode has to come off
         first, and it cannot parse th/tv doors at all.
         """
@@ -285,20 +310,10 @@ class Tinglysning:
         charges arrive in exactly the fields a property's do, which is why
         they can be read by the same code.
         """
-        record = self._get(f"andelsoeg/hentandelsboligbog/{uuid}") or {}
-        if record.get("statuskode"):  # 0 means OK
-            raise RuntimeError(
-                f"{uuid}: {record.get('statustekst') or record['statuskode']}"
-            )
-        return record
+        return _check(uuid, self._get(f"andelsoeg/hentandelsboligbog/{uuid}") or {})
 
     def fetch_record(self, uuid: str) -> dict:
-        record = self._get(f"ejendomsoeg/henttingbog/{uuid}") or {}
-        if record.get("statuskode"):  # 0 means OK
-            raise RuntimeError(
-                f"{uuid}: {record.get('statustekst') or record['statuskode']}"
-            )
-        return record
+        return _check(uuid, self._get(f"ejendomsoeg/henttingbog/{uuid}") or {})
 
     def fetch_details(self, uuid: str) -> dict | None:
         """The logged-in view of a property - the tingbogsattest in full.

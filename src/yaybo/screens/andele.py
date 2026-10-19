@@ -121,7 +121,8 @@ class AndeleScreen(YayboScreen):
     def _apply_filter(self, needle: str) -> None:
         wanted = normalise(needle)
         self.shown = [
-            row for row in self.held
+            row
+            for row in self.held
             if not wanted or wanted in normalise(str(row.get("adresse") or ""))
         ]
         self._fill()
@@ -177,8 +178,9 @@ class AndeleScreen(YayboScreen):
         self.query_one("#andele-count", Static).update(
             i18n.t("{shown} of {held}", shown=shown, held=held)
             if shown != held
-            else (i18n.t("{n} share", n=held) if held == 1
-                  else i18n.t("{n} shares", n=held))
+            else (
+                i18n.t("{n} share", n=held) if held == 1 else i18n.t("{n} shares", n=held)
+            )
         )
         owed = sum(row.get("samlet_gaeld_dkk") or 0 for row in self.shown)
         self.query_one("#andele-scope", Static).update(
@@ -187,8 +189,11 @@ class AndeleScreen(YayboScreen):
                 "share of the association's own mortgage sits against the "
                 "building in the tingbog. enter opens the share and everyone "
                 "named on its charges, g opens the building.",
-                shares=(i18n.t("{n} share", n=shown) if shown == 1
-                        else i18n.t("{n} shares", n=shown)),
+                shares=(
+                    i18n.t("{n} share", n=shown)
+                    if shown == 1
+                    else i18n.t("{n} shares", n=shown)
+                ),
                 owed=display.compact_kr(owed),
             )
         )
@@ -264,8 +269,7 @@ class AndeleScreen(YayboScreen):
         # drop the only property row it joins to.
         added = self.app.enqueue_refetch([str(row.get("adresse") or "")], limit=2)
         if added:
-            self.notify(i18n.t("Queued 1 share. {note}",
-                                note=self.app.queued_note()))
+            self.notify(i18n.t("Queued 1 share. {note}", note=self.app.queued_note()))
 
     def action_focus_filter(self) -> None:
         self.query_one("#andele-filter", Input).focus()

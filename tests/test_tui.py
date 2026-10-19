@@ -324,8 +324,7 @@ def test_every_screen_opens(database):
             # Two recorded sales is enough to plot, and the timeline should
             # carry every kind of event the sample has.
             assert len(screen._timeline()) >= 6
-            for tab in ("tab-haeftelser", "tab-timeline", "tab-chart",
-                        "tab-bygning"):
+            for tab in ("tab-haeftelser", "tab-timeline", "tab-chart", "tab-bygning"):
                 screen.query_one("#property-tabs", TabbedContent).active = tab
                 await pilot.pause()
 
@@ -577,13 +576,23 @@ def library(tmp_path, monkeypatch):
                     }
                 ],
                 "ejere": [
-                    {"ejendom_uuid": uuid, "nummer": 1, "navn": f"Ejer {uuid}",
-                     "foedselsdato": "1980-01-01", "andel": "1/1"}
+                    {
+                        "ejendom_uuid": uuid,
+                        "nummer": 1,
+                        "navn": f"Ejer {uuid}",
+                        "foedselsdato": "1980-01-01",
+                        "andel": "1/1",
+                    }
                 ],
                 "handelshistorik": [
-                    {"ejendom_uuid": uuid, "registrering_id": f"{uuid}-1",
-                     "dato": "2019-04-11", "beloeb_dkk": value,
-                     "areal_m2": area, "pris_pr_m2": value // area}
+                    {
+                        "ejendom_uuid": uuid,
+                        "registrering_id": f"{uuid}-1",
+                        "dato": "2019-04-11",
+                        "beloeb_dkk": value,
+                        "areal_m2": area,
+                        "pris_pr_m2": value // area,
+                    }
                 ],
             },
         )
@@ -628,7 +637,8 @@ def test_the_library_filters_by_dropdown_and_by_text(library):
             assert isinstance(screen, LibraryScreen)
 
             towns = [
-                value for _, value in screen.query_one("#facet-by", Select)._options
+                value
+                for _, value in screen.query_one("#facet-by", Select)._options
                 if isinstance(value, str) and value != ALL
             ]
             assert sorted(towns) == ["København S", "Silkeborg"]
@@ -741,15 +751,16 @@ def test_the_figures_open_over_whatever_is_in_scope(library):
             assert isinstance(screen, StatsScreen)
             assert len(screen.scope) == 4
 
-            screen.query_one("#scope-bygning", Select).value = (
-                "Islands Brygge 30B, 2300 København S"
-            )
+            screen.query_one(
+                "#scope-bygning", Select
+            ).value = "Islands Brygge 30B, 2300 København S"
             await pilot.pause(0.4)
             assert len(screen.scope) == 3
 
             listing = screen.query_one("#stats-analyses", OptionList)
             listing.highlighted = next(
-                i for i in range(listing.option_count)
+                i
+                for i in range(listing.option_count)
                 if str(listing.get_option_at_index(i).id) == "sammenlign"
             )
             listing.focus()
@@ -984,8 +995,9 @@ def test_a_database_without_the_second_book_still_opens_the_tab(library):
     asyncio.run(walk())
 
 
-def test_the_andele_tab_opens_on_a_database_from_before_a_column_existed(tmp_path,
-                                                                         monkeypatch):
+def test_the_andele_tab_opens_on_a_database_from_before_a_column_existed(
+    tmp_path, monkeypatch
+):
     """The reported failure went through the screen, so the walk does too.
 
     A table only gains a column when something is next saved into it, so an
@@ -1014,7 +1026,7 @@ def test_the_andele_tab_opens_on_a_database_from_before_a_column_existed(tmp_pat
     async def walk() -> None:
         app = YayboApp(database=path)
         async with app.run_test(size=(160, 48)) as pilot:
-            await pilot.pause()          # mount first, then navigate
+            await pilot.pause()  # mount first, then navigate
             app.action_andele()
             await pilot.pause(0.5)
             assert isinstance(app.screen, AndeleScreen)
@@ -1105,8 +1117,14 @@ def test_switching_language_rebuilds_the_whole_interface(database):
 
             app._chose_language("da")
             await pilot.pause(0.8)
-            assert tabs_of(app) == ["Ejendomme", "Andele", "Bygninger",
-                                    "Nøgletal", "Kø", "Søg"]
+            assert tabs_of(app) == [
+                "Ejendomme",
+                "Andele",
+                "Bygninger",
+                "Nøgletal",
+                "Kø",
+                "Søg",
+            ]
             assert "Afslut" in footer_of(app)
             assert "Quit" not in footer_of(app)
 
@@ -1138,10 +1156,7 @@ def test_the_language_picker_opens_and_switches(database):
             assert isinstance(app.screen, LanguageDialog)
             # Each language in its own name, so somebody who has landed in the
             # wrong one still recognises the word they are looking for.
-            offered = [
-                str(button.label)
-                for button in app.screen.query(RadioButton)
-            ]
+            offered = [str(button.label) for button in app.screen.query(RadioButton)]
             assert offered == ["English", "Dansk"]
 
             app.screen.query_one("#lang-da", RadioButton).value = True
@@ -1149,8 +1164,7 @@ def test_the_language_picker_opens_and_switches(database):
             await pilot.click("#language-go")
             await pilot.pause(0.9)
             assert i18n.current() == "da"
-            labels = [str(t.label)
-                      for t in app.screen.query_one(NavTabs).query(Tab)]
+            labels = [str(t.label) for t in app.screen.query_one(NavTabs).query(Tab)]
             assert labels[0] == "Ejendomme"
 
     asyncio.run(walk())
@@ -1233,12 +1247,11 @@ def test_the_language_is_remembered_between_runs(database, tmp_path):
 
             from yaybo.widgets.nav import NavTabs
 
-            labels = [str(t.label)
-                      for t in app.screen.query_one(NavTabs).query(Tab)]
+            labels = [str(t.label) for t in app.screen.query_one(NavTabs).query(Tab)]
             assert "Ejendomme" in labels
 
     asyncio.run(choose())
-    i18n.use("en")          # as if the process had ended
+    i18n.use("en")  # as if the process had ended
     asyncio.run(come_back())
     i18n.use("en")
 
@@ -1258,8 +1271,12 @@ def test_the_queue_screen_acts_on_what_is_ticked(library, monkeypatch):
             await pilot.pause(0.3)
             # Nothing starts on its own, so the list can be looked at.
             app.fetching.auto = False
-            app.enqueue_refetch([row[1] + ", " + row[4] for row in
-                                 [(b[0], b[1], b[2], b[3], b[4]) for b in BLOCK]])
+            app.enqueue_refetch(
+                [
+                    row[1] + ", " + row[4]
+                    for row in [(b[0], b[1], b[2], b[3], b[4]) for b in BLOCK]
+                ]
+            )
             app.action_queue()
             await pilot.pause(0.5)
 

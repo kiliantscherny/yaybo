@@ -42,11 +42,11 @@ Takes one or more addresses, pauses between them, and writes into `out/tinglysni
 | `--no-andele` | — | skip the andelsboligbog; co-op blocks then give only the association's property |
 | `--no-bbr` | — | skip BBR; no building record, no price per m² over the living area |
 | `--no-laantype` | — | skip estimating loan types from DST rates |
-| `--no-dawa` | — | skip DAWA address cleaning |
+| `--no-dawa` | — | skip the address register's cleaning (the flag kept DAWA's name when DAWA closed) |
 | `--keepalive [MIN]` | `60` | hold the session open afterwards |
 | `--dump PATH` | — | write the first raw record as JSON, for debugging |
 
-**Address format**: `"Street Number, Postcode Town"`, with an optional unit: `"Prøvegade 1, 3. tv, 9999 Prøveby"`. Addresses are resolved through DAWA, so minor spelling differences are usually tolerated.
+**Address format**: `"Street Number, Postcode Town"`, with an optional unit: `"Prøvegade 1, 3. tv, 9999 Prøveby"`. Addresses are resolved through DAR, Denmark's address register, which tolerates spacing and the form of a floor but wants the street spelled correctly.
 
 **One address can mean many properties.** A block of owner-occupied flats has one registered property per flat, and `--limit` caps how many are fetched. A building with 118 flats hits the default limit of 25.
 
@@ -133,7 +133,7 @@ yaybo backfill [--dry-run] [--skip-bbr] [--skip-laantype]
 
 Re-derives every table that comes from a stored document — charges, easements, the people named on them, previous owners, and the sale history read off those transfers — with **no login and no requests to the register**. Run it after upgrading yaybo, when a parser has improved.
 
-`--skip-laantype` leaves only the DAWA address lookup, which places each property.
+`--skip-laantype` leaves only the DAR address lookup, which places each property.
 
 It does **not** rebuild `andele` or `andel_haeftelser`, and does not touch them. The andelsboligbog stores no signed document for a share, so there is nothing to re-derive them from — re-fetching the address is the only way.
 

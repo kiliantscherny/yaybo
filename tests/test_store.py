@@ -49,7 +49,7 @@ def test_a_real_number_is_not_reread_as_danish_text():
     be run through the Danish rules and come out as 3500.
     """
     assert store.coerce("3.500", store.DECIMAL) == 3500.0  # text: Danish
-    assert store.coerce(3.5, store.DECIMAL) == 3.5         # number: as given
+    assert store.coerce(3.5, store.DECIMAL) == 3.5  # number: as given
     assert store.coerce(26000, store.INTEGER) == 26000
     assert store.coerce(2.74, store.INTEGER) == 2
 
@@ -72,8 +72,12 @@ def _rows(uuid, navn):
     return {
         "ejendomme": [{"uuid": uuid, "adresse": "Prøvegade 1", "areal_m2": "55 kvm"}],
         "ejere": [
-            {"ejendom_uuid": uuid, "nummer": 1, "navn": navn,
-             "foedselsdato": "1957-10-02"}
+            {
+                "ejendom_uuid": uuid,
+                "nummer": 1,
+                "navn": navn,
+                "foedselsdato": "1957-10-02",
+            }
         ],
     }
 
@@ -119,12 +123,23 @@ def test_an_older_database_gains_the_columns_it_is_missing():
             )
             db.execute("INSERT INTO haeftelser VALUES ('old-1', '1.000 DKK', now())")
 
-        store.save(path, {"haeftelser": [
-            {"ejendom_uuid": "uuid-1", "dokument_uuid": "d1",
-             "dokument_version": "1", "hovedstol": "26.000 DKK",
-             "hovedstol_dkk": 26000, "rentesats_pct": 3.5, "overfoert": "true",
-             "saerlige_vilkaar": ["inkonvertibel"]}
-        ]})
+        store.save(
+            path,
+            {
+                "haeftelser": [
+                    {
+                        "ejendom_uuid": "uuid-1",
+                        "dokument_uuid": "d1",
+                        "dokument_version": "1",
+                        "hovedstol": "26.000 DKK",
+                        "hovedstol_dkk": 26000,
+                        "rentesats_pct": 3.5,
+                        "overfoert": "true",
+                        "saerlige_vilkaar": ["inkonvertibel"],
+                    }
+                ]
+            },
+        )
 
         with duckdb.connect(str(path), read_only=True) as db:
             row = db.sql(
@@ -134,9 +149,10 @@ def test_an_older_database_gains_the_columns_it_is_missing():
             assert row == (26000, 3.5, True, '["inkonvertibel"]')
             # The older row is left where it was: a column holding data is not
             # ours to throw away on a schema change.
-            assert _one(
-                db, "SELECT hovedstol FROM haeftelser WHERE ejendom_uuid = 'old-1'"
-            ) == "1.000 DKK"
+            assert (
+                _one(db, "SELECT hovedstol FROM haeftelser WHERE ejendom_uuid = 'old-1'")
+                == "1.000 DKK"
+            )
 
 
 def _keys(db):
@@ -177,9 +193,10 @@ def test_an_older_database_gains_its_keys():
             )
             db.execute("INSERT INTO ejere VALUES ('old-1', 1, 'Ida Testesen', now())")
 
-        store.save(path, {"ejere": [
-            {"ejendom_uuid": "uuid-1", "nummer": 1, "navn": "Ole Prøvesen"}
-        ]})
+        store.save(
+            path,
+            {"ejere": [{"ejendom_uuid": "uuid-1", "nummer": 1, "navn": "Ole Prøvesen"}]},
+        )
 
         with duckdb.connect(str(path), read_only=True) as db:
             assert _keys(db)["ejere"] == ("ejendom_uuid", "nummer")
@@ -192,12 +209,29 @@ def test_a_key_seen_twice_in_one_batch_folds():
     repeatedly, not a reason to lose the whole run."""
     with tempfile.TemporaryDirectory() as folder:
         path = Path(folder) / "dupes.duckdb"
-        written = store.save(path, {"dokument_parter": [
-            {"ejendom_uuid": "u1", "dokument_uuid": "d1", "dokumentart": "haeftelse",
-             "rolle": "kreditor", "nummer": 1, "navn": "First reading"},
-            {"ejendom_uuid": "u1", "dokument_uuid": "d1", "dokumentart": "haeftelse",
-             "rolle": "kreditor", "nummer": 1, "navn": "Second reading"},
-        ]})
+        written = store.save(
+            path,
+            {
+                "dokument_parter": [
+                    {
+                        "ejendom_uuid": "u1",
+                        "dokument_uuid": "d1",
+                        "dokumentart": "haeftelse",
+                        "rolle": "kreditor",
+                        "nummer": 1,
+                        "navn": "First reading",
+                    },
+                    {
+                        "ejendom_uuid": "u1",
+                        "dokument_uuid": "d1",
+                        "dokumentart": "haeftelse",
+                        "rolle": "kreditor",
+                        "nummer": 1,
+                        "navn": "Second reading",
+                    },
+                ]
+            },
+        )
         assert written["dokument_parter"] == 1
         with duckdb.connect(str(path), read_only=True) as db:
             assert _one(db, "SELECT navn FROM dokument_parter") == "Second reading"
@@ -209,10 +243,19 @@ def test_a_row_whose_key_is_incomplete_is_left_out():
     loud, because a row quietly missing is worse than one known to be."""
     with tempfile.TemporaryDirectory() as folder:
         path = Path(folder) / "partial.duckdb"
-        written = store.save(path, {"bygninger": [
-            {"ejendom_uuid": "u1", "bygning_nr": None, "bygningstype": "no number"},
-            {"ejendom_uuid": "u1", "bygning_nr": "1", "bygningstype": "kept"},
-        ]})
+        written = store.save(
+            path,
+            {
+                "bygninger": [
+                    {
+                        "ejendom_uuid": "u1",
+                        "bygning_nr": None,
+                        "bygningstype": "no number",
+                    },
+                    {"ejendom_uuid": "u1", "bygning_nr": "1", "bygningstype": "kept"},
+                ]
+            },
+        )
         assert written["bygninger"] == 1
         with duckdb.connect(str(path), read_only=True) as db:
             assert _one(db, "SELECT bygningstype FROM bygninger") == "kept"

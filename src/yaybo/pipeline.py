@@ -27,7 +27,7 @@ from yaybo.register.address import (
     resolve_address,
     select_units,
 )
-from yaybo.register.client import ANDELSBOG, SessionExpired
+from yaybo.register.client import ANDELSBOG, DailyLimitReached, SessionExpired
 
 # The tables a lookup fills, in the order store.TABLES declares them.
 TABLE_NAMES = (
@@ -66,6 +66,9 @@ class Bundle:
     enriched: bool = False
     # How far the run got, when a lapsed session cut it short.
     fetched: int = 0
+    # The register's own words, when it stopped the run by refusing any more
+    # requests today. Empty otherwise. The rows are still good, just fewer.
+    daily_limit: str = ""
 
     @property
     def properties(self) -> list[dict]:
@@ -139,7 +142,7 @@ def resolve(
 ) -> tuple[dict, list[dict], str]:
     """Turn a typed address into (address, what the registers hold, a warning).
 
-    Two lookups, and they are not interchangeable. DAWA cleans the address;
+    Two lookups, and they are not interchangeable. DAR cleans the address;
     the registers then say what sits at it - anything from one property (a
     rented block) to sixty (a block of flats), plus a co-op share per door
     where the address is an andelsbolig.
@@ -148,8 +151,10 @@ def resolve(
     if use_dawa:
         try:
             address = resolve_address(query)
-        except requests.RequestException:
-            address = None  # DAWA unreachable; the register can do its own
+        except (requests.RequestException, ValueError):
+            # The address register unreachable or talking nonsense; the land
+            # register can do its own, if less forgivingly.
+            address = None
     if address is None:
         address = api.lookup_address(query)
 
@@ -158,21 +163,25 @@ def resolve(
     return address, units, warning
 
 
-def units_at(
-    api, address: dict, *, andele_on: bool = True
-) -> tuple[list[dict], str]:
+def units_at(api, address: dict, *, andele_on: bool = True) -> tuple[list[dict], str]:
     """What the registers hold at an already-resolved address.
 
     The half of `resolve` that costs requests, for a caller that got its
-    address from DAWA directly and has nothing left to clean.
+    address from the address register directly and has nothing left to clean.
     """
     units = both_books(api, address, andele_on)
     return narrow(units, address["etage"], address["doer"])
 
 
 def _gather_andel(
-    api, uuid: str, gathered: dict, addresses: dict, building: dict, *,
-    key: str = "", bbr_cache: dict | None = None,
+    api,
+    uuid: str,
+    gathered: dict,
+    addresses: dict,
+    building: dict,
+    *,
+    key: str = "",
+    bbr_cache: dict | None = None,
 ):
     """Fetch one co-op share and add the two tables' worth of rows it fills.
 
@@ -184,7 +193,7 @@ def _gather_andel(
     adresse = record.get("adresse", "")
 
     # The book gives no area, no valuation and nothing about the building, so
-    # an andel row is an address, a debt, wherever DAWA places it and whatever
+    # an andel row is an address, a debt, wherever DAR places it and whatever
     # BBR says the flat is. BBR is doing more work here than for a property,
     # which at least has a tinglyste areal of its own.
     entry = addresses.get(floor_and_door(adresse))
@@ -231,13 +240,17 @@ def fetch(
 
     `on_raw(index, record, details, history)` sees each property's payloads
     exactly as the register sent them, before anything reads a row out of them.
+
+    The register's daily limit ends the run the way `should_stop` does: what
+    was gathered before it is built and returned, and `Bundle.daily_limit`
+    says why there is not more.
     """
     say = on_status or (lambda message: None)
     enriched = api.authenticated
     gathered: dict[str, list[dict]] = {name: [] for name in TABLE_NAMES}
 
     # One request gives every flat in the building its official coordinates,
-    # and the DAWA uuid that BBR is keyed on.
+    # and the DAR uuid that BBR is keyed on.
     addresses = dawa_addresses(address)
     # Empty when no Datafordeler key is configured, which is the ordinary case
     # and costs nothing but the BBR columns.
@@ -245,6 +258,7 @@ def fetch(
     bbr_cache: dict = {}
     parcels: dict = {}
     fetched = 0
+    daily_limit = ""
 
     # The association's property, when this lookup found exactly one. Every
     # share at the address joins to it, and through it to the block's
@@ -264,17 +278,30 @@ def fetch(
             on_unit(index, len(units), unit)
 
         uuid = unit["uuid"]
-        if unit.get("bog") == ANDELSBOG:
-            record = _gather_andel(
-                api, uuid, gathered, addresses, building,
-                key=bbr_key, bbr_cache=bbr_cache,
-            )
-            if on_raw:
-                on_raw(index, record, None, None)
-            fetched = index
-            continue
+        try:
+            if unit.get("bog") == ANDELSBOG:
+                record = _gather_andel(
+                    api,
+                    uuid,
+                    gathered,
+                    addresses,
+                    building,
+                    key=bbr_key,
+                    bbr_cache=bbr_cache,
+                )
+                if on_raw:
+                    on_raw(index, record, None, None)
+                fetched = index
+                continue
 
-        record = api.fetch_record(uuid)
+            record = api.fetch_record(uuid)
+        except DailyLimitReached as refusal:
+            daily_limit = str(refusal)
+            say(
+                f"the register's daily limit was reached after {index - 1} of "
+                f"{len(units)}: {daily_limit}"
+            )
+            break
 
         details = history = None
         if api.authenticated:
@@ -389,11 +416,12 @@ def fetch(
         warning=warning,
         enriched=enriched,
         fetched=fetched,
+        daily_limit=daily_limit,
     )
 
 
 def describe(units: list[dict]) -> str:
-    """"1 property and 10 co-op shares" - what a lookup is about to cost.
+    """ "1 property and 10 co-op shares" - what a lookup is about to cost.
 
     Counted separately because they are not the same thing and the difference
     is the point: one of those numbers is buildings and flats registered as
@@ -423,9 +451,7 @@ def lookup(
     `limit` caps how many properties a building is allowed to cost; 0 lifts it.
     """
     say = options.get("on_status") or (lambda message: None)
-    address, units, warning = resolve(
-        api, query, use_dawa=use_dawa, andele_on=andele_on
-    )
+    address, units, warning = resolve(api, query, use_dawa=use_dawa, andele_on=andele_on)
     say(f"resolved: {address['tekst']}")
     say(f"found {describe(units)}")
     if limit and len(units) > limit:
@@ -437,7 +463,7 @@ def lookup(
 def _bbr(entry: dict | None, key: str, cache: dict | None) -> dict:
     """What BBR holds for one address, or {} when there is no key for it.
 
-    Both uuids come off the DAWA lookup that has already happened, so this
+    Both uuids come off the DAR lookup that has already happened, so this
     costs no extra address resolution - only BBR's own requests, which are
     cached per building.
     """

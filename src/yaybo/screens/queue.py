@@ -184,8 +184,11 @@ class QueueScreen(YayboScreen):
                 "yaybo-queue",
                 title=i18n.t(
                     "Export {n} from the queue",
-                    n=(i18n.t("{n} property", n=len(uuids)) if len(uuids) == 1
-                       else i18n.t("{n} properties", n=len(uuids))),
+                    n=(
+                        i18n.t("{n} property", n=len(uuids))
+                        if len(uuids) == 1
+                        else i18n.t("{n} properties", n=len(uuids))
+                    ),
                 ),
             )
         )
@@ -251,9 +254,7 @@ class QueueScreen(YayboScreen):
                 )
             )
             return
-        chosen = (
-            i18n.t("{n} ticked · ", n=len(self.ticked)) if self.ticked else ""
-        )
+        chosen = i18n.t("{n} ticked · ", n=len(self.ticked)) if self.ticked else ""
         state = (
             i18n.t("fetching {what}", what=queue.current)
             if queue.running and queue.current
@@ -273,9 +274,14 @@ class QueueScreen(YayboScreen):
             i18n.t(
                 "{chosen}{jobs} jobs, {done} done · {fetched} of {total} "
                 "properties · {rows} rows · {state}{failed}",
-                chosen=chosen, jobs=len(queue.jobs), done=done,
-                fetched=queue.done, total=queue.total, rows=queue.rows,
-                state=state, failed=failed,
+                chosen=chosen,
+                jobs=len(queue.jobs),
+                done=done,
+                fetched=queue.done,
+                total=queue.total,
+                rows=queue.rows,
+                state=state,
+                failed=failed,
             )
         )
 

@@ -67,9 +67,7 @@ def annotate(properties: list[dict]) -> list[dict]:
         # left exactly as it wrote it. Without the first, a dropdown offers
         # "condo" - an API token, and an American one - to somebody choosing
         # what kind of home to look at.
-        row["_type"] = (
-            boligtype(row.get("boligtype")) or row.get("ejendomstype") or ""
-        )
+        row["_type"] = boligtype(row.get("boligtype")) or row.get("ejendomstype") or ""
         row["_mitid"] = "ja" if row.get("beriget") else "nej"
         row["_areal"] = row.get("boligareal_m2") or row.get("areal_m2")
     return properties
@@ -83,7 +81,7 @@ def _town(address: str, postcode: str) -> str:
 
 
 def _street(head: str) -> str:
-    """"Islands Brygge 30B" from the part of the address before the postcode."""
+    """ "Islands Brygge 30B" from the part of the address before the postcode."""
     first = head.split(",")[0].strip()
     return re.sub(r"\s+\d+[A-Za-z]?$", "", first).strip() or first
 
@@ -120,15 +118,14 @@ class Scope:
 def scope_of(tables: dict[str, list[dict]], query: str = "") -> Scope:
     """Everything matching the filter, with the child tables narrowed to match."""
     properties = [
-        row for row in annotate(list(tables.get("ejendomme") or []))
+        row
+        for row in annotate(list(tables.get("ejendomme") or []))
         if _matches(row, query)
     ]
     keep = {row["uuid"] for row in properties if row.get("uuid")}
 
     def narrow(name: str) -> list[dict]:
-        return [
-            row for row in tables.get(name) or [] if row.get("ejendom_uuid") in keep
-        ]
+        return [row for row in tables.get(name) or [] if row.get("ejendom_uuid") in keep]
 
     return Scope(
         properties=properties,
@@ -381,33 +378,48 @@ def _age(row: dict) -> float | None:
 
 MEASURES: tuple[Measure, ...] = (
     Measure("vurdering_m2", "Valuation per m²", "kr", "property", _per_m2),
-    Measure("vurdering", "Valuation", "kr", "property",
-            _get("ejendomsvurdering_dkk")),
+    Measure("vurdering", "Valuation", "kr", "property", _get("ejendomsvurdering_dkk")),
     Measure("areal", "Area", "m2", "property", _get("_areal")),
     Measure("gaeld", "Debt", "kr", "property", _get("samlet_gaeld_dkk")),
     Measure("frivaerdi", "Equity", "kr", "property", _get("frivaerdi_dkk")),
-    Measure("belaant", "Loan-to-value", "pct", "property",
-            _get("belaaningsgrad_pct")),
+    Measure("belaant", "Loan-to-value", "pct", "property", _get("belaaningsgrad_pct")),
     # Two of these, because a sale has two areas to be divided by and they
     # are different measures. The plain one is BBR's living area, which is
     # what a listing quotes and so what anyone comparing against an agent
     # wants; it is empty without a Datafordeler key, and the tinglyst one -
     # the register's own areal - is what fills in that case.
     Measure("salg_m2", "Sale price per m²", "kr", "trade", _get("pris_pr_m2")),
-    Measure("salg_m2_tinglyst", "Sale price per m² (tinglyst areal)", "kr",
-            "trade", _get("pris_pr_m2_tinglyst")),
+    Measure(
+        "salg_m2_tinglyst",
+        "Sale price per m² (tinglyst areal)",
+        "kr",
+        "trade",
+        _get("pris_pr_m2_tinglyst"),
+    ),
     Measure("salg", "Sale price", "kr", "trade", _get("beloeb_dkk")),
-    Measure("handler", "Number of sales", "count", "trade", lambda row: 1.0,
-            default="sum"),
+    Measure(
+        "handler", "Number of sales", "count", "trade", lambda row: 1.0, default="sum"
+    ),
     Measure("alder", "Owners' age", "num", "owner", _age),
-    Measure("ejere", "Owners per property", "num", "owner", lambda row: 1.0,
-            default="per_property"),
+    Measure(
+        "ejere",
+        "Owners per property",
+        "num",
+        "owner",
+        lambda row: 1.0,
+        default="per_property",
+    ),
     Measure("hovedstol", "Principal", "kr", "charge", _get("hovedstol_dkk")),
     Measure("rente", "Interest rate", "pct", "charge", _get("rentesats_pct")),
-    Measure("haeftelser", "Charges per property", "num", "charge",
-            lambda row: 1.0, default="per_property"),
-    Measure("opfoert", "Year built", "year", "building",
-            _get("opfoerelsesaar")),
+    Measure(
+        "haeftelser",
+        "Charges per property",
+        "num",
+        "charge",
+        lambda row: 1.0,
+        default="per_property",
+    ),
+    Measure("opfoert", "Year built", "year", "building", _get("opfoerelsesaar")),
     Measure("vaerelser", "Rooms", "num", "building", _get("vaerelser")),
 )
 BY_KEY = {measure.key: measure for measure in MEASURES}
@@ -447,43 +459,63 @@ class Analysis:
 
 ANALYSES: tuple[Analysis, ...] = (
     Analysis(
-        "oversigt", "Overview",
+        "oversigt",
+        "Overview",
         "The headline numbers for this selection, all on one page.",
-        "summary", (),
+        "summary",
+        (),
     ),
     Analysis(
-        "priser", "Prices over time",
+        "priser",
+        "Prices over time",
         "What a square metre has cost, year by year, from the recorded sales.",
-        "time", ("salg_m2", "salg_m2_tinglyst", "salg", "handler"),
+        "time",
+        ("salg_m2", "salg_m2_tinglyst", "salg", "handler"),
     ),
     Analysis(
-        "sammenlign", "Compare groups",
-        "The same figure side by side - floor against floor, or street "
-        "against street.",
-        "group", ("vurdering_m2", "salg_m2", "salg_m2_tinglyst", "vurdering",
-                  "areal", "gaeld", "frivaerdi", "belaant"),
+        "sammenlign",
+        "Compare groups",
+        "The same figure side by side - floor against floor, or street against street.",
+        "group",
+        (
+            "vurdering_m2",
+            "salg_m2",
+            "salg_m2_tinglyst",
+            "vurdering",
+            "areal",
+            "gaeld",
+            "frivaerdi",
+            "belaant",
+        ),
     ),
     Analysis(
-        "gaeld", "Debt and equity",
+        "gaeld",
+        "Debt and equity",
         "What is owed against these, what is left over, and how heavily "
         "they are borrowed against.",
-        "group", ("belaant", "gaeld", "frivaerdi", "hovedstol", "rente",
-                  "haeftelser"),
+        "group",
+        ("belaant", "gaeld", "frivaerdi", "hovedstol", "rente", "haeftelser"),
     ),
     Analysis(
-        "ejere", "The owners",
+        "ejere",
+        "The owners",
         "How many people own each of these, and how old they are.",
-        "group", ("ejere", "alder"),
+        "group",
+        ("ejere", "alder"),
     ),
     Analysis(
-        "bygninger", "The buildings",
+        "bygninger",
+        "The buildings",
         "When they were built and how many rooms they hold.",
-        "group", ("opfoert", "vaerelser", "areal"),
+        "group",
+        ("opfoert", "vaerelser", "areal"),
     ),
     Analysis(
-        "udvikling", "Value over time",
+        "udvikling",
+        "Value over time",
         "Sale prices as a series, for one building or a whole postcode.",
-        "time", ("salg", "salg_m2"),
+        "time",
+        ("salg", "salg_m2"),
     ),
 )
 

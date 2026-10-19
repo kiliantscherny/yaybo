@@ -83,7 +83,7 @@ TABLES: dict[str, TableSpec] = {
             ("grund_areal_m2", INTEGER),
             ("antal_haeftelser", INTEGER),
             ("antal_servitutter", INTEGER),
-            # DAWA's address UUID, which is what a BBR lookup will key on.
+            # DAR's address UUID (once DAWA's), which is what a BBR lookup keys on.
             ("adresse_uuid", TEXT),
             # From BBR, which needs a Datafordeler API key; empty without one.
             # boligareal_m2 is not the same measure as the register's own
@@ -273,7 +273,7 @@ TABLES: dict[str, TableSpec] = {
             # mortgage, which is registered against the building in the
             # tingbog and is nowhere in this table.
             ("samlet_gaeld_dkk", INTEGER),
-            # DAWA places the share; the book says nothing spatial at all.
+            # DAR places the share; the book says nothing spatial at all.
             # boligtype and boligareal_m2 want BBR and are empty until there is
             # a source for it - the book records no area either.
             ("adresse_uuid", TEXT),
@@ -554,7 +554,9 @@ def _insertable(name: str, spec: TableSpec, rows: list[dict]) -> list[list]:
     if dropped:
         log.warning(
             "%s: dropped %d row(s) with an incomplete %s",
-            name, dropped, " + ".join(spec["pk"]),
+            name,
+            dropped,
+            " + ".join(spec["pk"]),
         )
     if (folded := len(rows) - dropped - len(seen)) > 0:
         log.debug("%s: folded %d row(s) onto a key already in the batch", name, folded)
@@ -589,7 +591,8 @@ def _add_primary_key(db, name: str, pk: list[str]) -> None:
     except Exception as error:  # noqa: BLE001 - any refusal is the same answer
         log.warning(
             "%s: keeping the table unkeyed - %s. Run `yaybo backfill` to rebuild it.",
-            name, str(error).splitlines()[0],
+            name,
+            str(error).splitlines()[0],
         )
 
 
@@ -750,9 +753,7 @@ def library(path: str | Path) -> list[dict]:
             else ""
         )
         columns = (
-            "o.antal_ejere, o.ejere,"
-            if owners
-            else "NULL AS antal_ejere, NULL AS ejere,"
+            "o.antal_ejere, o.ejere," if owners else "NULL AS antal_ejere, NULL AS ejere,"
         )
         # A database written before this column existed still has to open. It
         # gains the column the next time anything is saved into it; until then
@@ -814,18 +815,26 @@ def andele(path: str | Path) -> list[dict]:
         )
         if "ejendomme" not in held:
             building = ""
-            fallback = (
-                'a."bygning_adresse"' if "bygning_adresse" in present else "NULL"
-            )
+            fallback = 'a."bygning_adresse"' if "bygning_adresse" in present else "NULL"
             columns = (
                 f"{fallback} AS bygning, NULL AS bygning_vurdering_dkk,"
                 " NULL AS bygning_gaeld_dkk,"
             )
         wanted = (
-            "uuid", "adresse", "lejlighed", "boligtype", "boligareal_m2",
-            "samlet_gaeld_dkk", "antal_haeftelser", "antal_meddelelser",
-            "ejendom_uuid", "bygning_adresse",
-            "kommunekode", "vejkode", "breddegrad", "laengdegrad",
+            "uuid",
+            "adresse",
+            "lejlighed",
+            "boligtype",
+            "boligareal_m2",
+            "samlet_gaeld_dkk",
+            "antal_haeftelser",
+            "antal_meddelelser",
+            "ejendom_uuid",
+            "bygning_adresse",
+            "kommunekode",
+            "vejkode",
+            "breddegrad",
+            "laengdegrad",
         )
         picked = ", ".join(column(name) for name in wanted)
         return _rows(
@@ -900,9 +909,7 @@ def held_addresses(path: str | Path) -> list[tuple[str, datetime | None]]:
             return []
         return [
             (row["adresse"] or "", row["hentet"])
-            for row in _rows(
-                db, f'SELECT adresse, "{FETCHED}" AS hentet FROM ejendomme'
-            )
+            for row in _rows(db, f'SELECT adresse, "{FETCHED}" AS hentet FROM ejendomme')
         ]
 
 
@@ -926,9 +933,7 @@ def tables_for(path: str | Path, uuids: list[str]) -> dict[str, list[dict]]:
             key = spec["key"]
             if name not in held or key not in ("uuid", "ejendom_uuid"):
                 continue
-            rows = _rows(
-                db, f'SELECT * FROM "{name}" WHERE "{key}" IN ({holes})', *uuids
-            )
+            rows = _rows(db, f'SELECT * FROM "{name}" WHERE "{key}" IN ({holes})', *uuids)
             if rows:
                 found[name] = rows
     return found
@@ -946,9 +951,7 @@ def stats_tables(path: str | Path, wanted: tuple[str, ...]) -> dict[str, list[di
             return {}
         held = {row[0] for row in db.execute("SHOW TABLES").fetchall()}
         return {
-            name: _rows(db, f'SELECT * FROM "{name}"')
-            for name in wanted
-            if name in held
+            name: _rows(db, f'SELECT * FROM "{name}"') for name in wanted if name in held
         }
 
 
@@ -959,9 +962,7 @@ def everything(path: str | Path) -> dict[str, list[dict]]:
             return {}
         held = {row[0] for row in db.execute("SHOW TABLES").fetchall()}
         return {
-            name: _rows(db, f'SELECT * FROM "{name}"')
-            for name in TABLES
-            if name in held
+            name: _rows(db, f'SELECT * FROM "{name}"') for name in TABLES if name in held
         }
 
 

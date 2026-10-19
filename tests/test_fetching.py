@@ -50,14 +50,21 @@ def drained(monkeypatch, tmp_path):
         on_unit = options.get("on_unit")
         stop = options.get("should_stop")
         done = []
+        limited = ""
         for index, unit in enumerate(given, start=1):
             if stop and stop():
+                break
+            # A unit named "limit" is where the register stops answering.
+            if unit["uuid"] == "limit":
+                limited = "Der er foretaget for mange forespørgsler for i dag."
                 break
             if on_unit:
                 on_unit(index, len(given), unit)
             done.append(unit["uuid"])
         seen["units"].append(list(done))
-        return Bundle(address=address, units=given, tables=rows(done))
+        return Bundle(
+            address=address, units=given, tables=rows(done), daily_limit=limited
+        )
 
     def fake_lookup(api, query, **options):
         seen["queries"].append((query, options.get("limit")))
@@ -228,3 +235,76 @@ def test_what_a_job_wrote_is_remembered_for_exporting_it(drained):
     queue.add_query("Prøvegade 1")
     drained(queue)
     assert queue.uuids_for(None) == ["u0"]
+
+
+def test_the_daily_limit_parks_the_whole_queue_rather_than_failing_it(drained):
+    """Every job after the refusal would be refused too, so none is tried.
+
+    The job that met it keeps what it fetched and is held, not failed - nothing
+    is wrong with it - and the jobs behind it are held as well, so the worker
+    stops instead of asking the register once per job to be told no again.
+    """
+    queue = FetchQueue()
+    queue.add_units("Prøvegade 1", ADDRESS, [*units(2), {"uuid": "limit"}, *units(1)])
+    queue.add_units("Prøvegade 2", ADDRESS, units(3))
+    seen = drained(queue)
+
+    first, second = queue.jobs
+    assert first.state == HELD and "daily limit" in first.note
+    assert first.fetched == 2, "what was fetched before the refusal still counts"
+    assert second.state == HELD
+    assert seen["units"] == [["u0", "u1"]], "the second job must not be tried"
+    assert queue.waiting == 0 and not queue.running
+
+
+def test_the_register_daily_limit_is_told_apart_from_other_refusals():
+    from yaybo.register.client import DailyLimitReached, _check
+
+    assert _check("u", {"statuskode": 0, "x": 1}) == {"statuskode": 0, "x": 1}
+    with pytest.raises(DailyLimitReached):
+        _check(
+            "u",
+            {
+                "statuskode": 7,
+                "statustekst": "Der er foretaget for mange forespørgsler for i dag. ",
+            },
+        )
+    with pytest.raises(RuntimeError, match="u: Ejendommen findes ikke"):
+        _check("u", {"statuskode": 3, "statustekst": "Ejendommen findes ikke"})
+
+
+def test_the_cli_stops_at_the_daily_limit_instead_of_crashing(
+    monkeypatch, tmp_path, capsys
+):
+    """One address refused, and the ones after it are not even tried.
+
+    This used to end in a traceback. Now it is a sentence and a failing exit
+    code, and nothing is written for an address that fetched nothing.
+    """
+    from yaybo import cli
+
+    asked: list[str] = []
+
+    def refused(api, query, **options):
+        asked.append(query)
+        return Bundle(address=ADDRESS, units=units(1), daily_limit="for mange")
+
+    monkeypatch.setattr(pipeline, "lookup", refused)
+    monkeypatch.setattr(cli.time, "sleep", lambda seconds: None)
+    code = cli.main(
+        [
+            "fetch",
+            "--anonymous",
+            "--db",
+            str(tmp_path / "x.duckdb"),
+            "Prøvegade 1, 9999 Prøveby",
+            "Prøvegade 2, 9999 Prøveby",
+        ]
+    )
+
+    said = capsys.readouterr().err
+    assert code == 1
+    assert asked == ["Prøvegade 1, 9999 Prøveby"]
+    assert "no more requests today" in said
+    assert "failed: Prøvegade 2, 9999 Prøveby" in said
+    assert not (tmp_path / "x.duckdb").exists()

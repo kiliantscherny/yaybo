@@ -111,6 +111,6 @@ def _owner(navn: str, *, cpr: str = "", cvr: str = "", andel: str = "") -> dict:
 
 
 def _andel(andel: str) -> str:
-    """"1/2" and "10 %" both settle down; anything else is left alone."""
+    """ "1/2" and "10 %" both settle down; anything else is left alone."""
     andel = andel.strip()
     return andel.replace(" ", "") if andel else ""

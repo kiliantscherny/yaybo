@@ -162,13 +162,9 @@ class YayboApp(App[None]):
             return (i18n.t("MitID: {who}", who=self.who), "in")
         minutes = int(left.total_seconds() // 60)
         if minutes <= 0:
-            return (
-                i18n.t("MitID: {who} - session lapsing now", who=self.who), "soon"
-            )
+            return (i18n.t("MitID: {who} - session lapsing now", who=self.who), "soon")
         tone = "soon" if minutes <= 5 else "in"
-        return (
-            i18n.t("MitID: {who} - {n} min left", who=self.who, n=minutes), tone
-        )
+        return (i18n.t("MitID: {who} - {n} min left", who=self.who, n=minutes), tone)
 
     def session_expires_in(self) -> timedelta | None:
         """How long the register will keep answering if nothing else is asked."""
@@ -240,8 +236,7 @@ class YayboApp(App[None]):
         self.api = Tinglysning(None)
         self._describe_session()
         self.notify(
-            i18n.t("The register ended the session - press ctrl+L to log in "
-                   "again."),
+            i18n.t("The register ended the session - press ctrl+L to log in again."),
             severity="warning",
         )
 

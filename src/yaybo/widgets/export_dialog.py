@@ -56,12 +56,16 @@ class ExportDialog(ModalScreen):
             f"{len(rows)} {name}" for name, rows in list(self.tables.items())[:6]
         )
         more = (
-            "" if len(self.tables) <= 6
+            ""
+            if len(self.tables) <= 6
             else i18n.t(", and {n} more", n=len(self.tables) - 6)
         )
-        return i18n.t(
-            "{rows} rows across {tables} tables", rows=total, tables=len(self.tables)
-        ) + f"\n{parts}{more}"
+        return (
+            i18n.t(
+                "{rows} rows across {tables} tables", rows=total, tables=len(self.tables)
+            )
+            + f"\n{parts}{more}"
+        )
 
     @on(RadioSet.Changed, "#export-format")
     def _chose(self, event: RadioSet.Changed) -> None:
@@ -101,9 +105,10 @@ class ExportDialog(ModalScreen):
 
         paths = written if isinstance(written, list) else [written] if written else []
         message = (
-            i18n.t("Wrote {path}", path=paths[0]) if len(paths) == 1
-            else i18n.t("Wrote {n} files to {where}",
-                        n=len(paths), where=paths[0].parent) if paths
+            i18n.t("Wrote {path}", path=paths[0])
+            if len(paths) == 1
+            else i18n.t("Wrote {n} files to {where}", n=len(paths), where=paths[0].parent)
+            if paths
             else i18n.t("Nothing to write.")
         )
         self.app.call_from_thread(self.app.notify, message)

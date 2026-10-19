@@ -37,7 +37,7 @@ def birth_from_cpr(cpr: str) -> str:
 
 
 def plain_number(value: str) -> str:
-    """"1.234.567 DKK" becomes "1234567"; "55 kvm" becomes "55".
+    """ "1.234.567 DKK" becomes "1234567"; "55 kvm" becomes "55".
 
     Danish thousands separators are full stops, so a spreadsheet reads the
     attest's own figures as text. Anything that is not purely a number and a
