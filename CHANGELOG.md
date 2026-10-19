@@ -4,6 +4,12 @@ The format is [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the 
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-10-19
+
+DAWA, which every address here was resolved and placed through, closed on 1 October 2026. Addresses now go to DAR, the official address register it was a window onto, through Klimadatastyrelsen's Adressevælger and Adressevask. That is the whole reason for a new major version: the service a fetch cannot start without has been replaced, and it behaves differently - it matches spelling strictly, wants a postcode for a street found in several towns, and no longer supplies the parcel behind an address.
+
+Nothing stored changes shape. The tables, the columns, the command's arguments and the export formats are those of 1.2.0, the address UUIDs are the same ones DAWA handed out, and a 1.2.0 database opens as it is.
+
 ### Fixed
 
 - **Address search works again.** DAWA closed on 1 October 2026 and now answers every request with 410 Gone, which left search, `fetch` and `backfill` unable to resolve or place an address. They now ask DAR, the official address register, through Klimadatastyrelsen's Adressevælger and Adressevask at `adressevaelger.dk`. The address UUIDs are the same ones DAWA handed out, so nothing stored changes and BBR joins as before.
@@ -141,7 +147,8 @@ First published release. Everything below is what it arrives with, rather than w
 - `samlet_gaeld_dkk`, `frivaerdi_dkk`, `belaaningsgrad_pct` and `laantype_estimat` are worked out, not recorded, and the README says what that costs you.
 - Python 3.10 and newer.
 
-[Unreleased]: https://github.com/kiliantscherny/yaybo/compare/v1.2.0...HEAD
+[Unreleased]: https://github.com/kiliantscherny/yaybo/compare/v2.0.0...HEAD
+[2.0.0]: https://github.com/kiliantscherny/yaybo/compare/v1.2.0...v2.0.0
 [1.2.0]: https://github.com/kiliantscherny/yaybo/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/kiliantscherny/yaybo/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/kiliantscherny/yaybo/compare/v0.2.1...v1.0.0
