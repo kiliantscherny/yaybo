@@ -27,7 +27,7 @@ Optionally, install the pre-commit hooks with [prek](https://github.com/j178/pre
 prek install
 ```
 
-That runs ruff, ty and `uv lock --check` before each commit, which is most of what CI would have told you a few minutes later.
+That runs ruff's linter and formatter, ty and `uv lock --check` before each commit, which is most of what CI would have told you a few minutes later.
 
 ## Running the checks
 
@@ -35,6 +35,7 @@ That runs ruff, ty and `uv lock --check` before each commit, which is most of wh
 uv run tox          # tests on 3.10-3.14, plus lint and types
 uv run pytest       # just the tests, on the local interpreter
 uvx ruff check      # lint
+uvx ruff format     # format
 uvx ty@0.0.37 check # types
 ```
 

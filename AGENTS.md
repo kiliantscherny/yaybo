@@ -30,6 +30,7 @@ uv run yaybo            # the TUI - interactive, do not run it in a subshell
 uv run pytest           # tests on the local interpreter
 uv run tox              # tests on 3.10-3.14, plus lint and types
 uvx ruff check          # lint (line length 90; E, F, W, I, UP, B)
+uvx ruff format         # format; CI checks it, so run it before committing
 uvx ty@0.0.37 check     # types, pinned deliberately
 
 uv run python scripts/generate_schema_dbml.py   # after changing store.TABLES
